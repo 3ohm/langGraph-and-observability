@@ -1,12 +1,15 @@
-"""Shared pytest fixtures for the test suite."""
+"""Shared pytest fixtures for the test suite: Postgres, ElasticMQ and the test graph.
+
+The fixtures that every test directory needs, ``_isolate_settings`` and
+``strict_msgpack``, are in the repo-root conftest.py.
+"""
 
 import os
 import uuid
 from collections.abc import AsyncIterator, Iterator
-from typing import Any, cast
+from typing import Any
 
 import pytest
-from langsmith import utils as ls_utils
 from psycopg import AsyncConnection, sql
 from psycopg.conninfo import make_conninfo
 from psycopg.rows import DictRow
@@ -15,13 +18,14 @@ from psycopg_pool import AsyncConnectionPool
 from langgraph_postgres_starter.persistence.migrate import run_migrate
 from langgraph_postgres_starter.persistence.pool import create_pool, open_pool
 from langgraph_postgres_starter.persistence.resources import set_pool
-from langgraph_postgres_starter.settings import Settings, get_settings, load_settings
+from langgraph_postgres_starter.settings import load_settings
 
 PG_IMAGE = "pgvector/pgvector:0.8.4-pg18"
 ELASTICMQ_IMAGE = "softwaremill/elasticmq-native:1.7.1"
 ELASTICMQ_PORT = 9324
 
-# Read once, at import: _isolate_settings removes every APP_* variable before each test.
+# Read once, at import: _isolate_settings (repo-root conftest.py) removes every APP_*
+# variable before each test.
 TEST_DATABASE_URL = os.environ.get("APP_TEST_DATABASE_URL") or None
 TEST_SQS_ENDPOINT = os.environ.get("APP_TEST_SQS_ENDPOINT") or None
 
@@ -32,64 +36,6 @@ _AWS_IDENTITY_VARS = (
     "AWS_PROFILE",
     "AWS_DEFAULT_PROFILE",
 )
-
-# LangSmith's variables. With LANGSMITH_TRACING=true and a key in the developer's shell, a
-# test that starts a Worker would build a real client and upload the test's runs.
-_LANGSMITH_PREFIXES = ("LANGSMITH_", "LANGCHAIN_")
-
-# The variables that Settings reads by their vendor name (validation_alias), for example
-# LANGGRAPH_AES_KEY, which has neither the APP_ nor the DD_ prefix.
-_SETTINGS_ALIASES = frozenset(
-    field.validation_alias.upper()
-    for field in Settings.model_fields.values()
-    if isinstance(field.validation_alias, str)
-)
-
-
-def _clear_langsmith_env_cache() -> None:
-    """Make langsmith read its variables afresh: it caches them with lru_cache."""
-    cast(Any, ls_utils.get_env_var).cache_clear()
-    ls_utils.get_tracer_project.cache_clear()
-
-
-@pytest.fixture(autouse=True)
-def _isolate_settings(monkeypatch: pytest.MonkeyPatch) -> Iterator[None]:
-    """Hide the developer's settings and LangSmith variables; reset the cached values.
-
-    It hides every APP_*, DD_*, LANGSMITH_* and LANGCHAIN_* variable and every other
-    name that Settings reads (``_SETTINGS_ALIASES``). Settings matches names
-    case-insensitively, so the check does too. It clears the cached settings and
-    langsmith's cache of its variables, before and after each test.
-    """
-    for name in list(os.environ):
-        upper = name.upper()
-        if upper.startswith(("APP_", "DD_", *_LANGSMITH_PREFIXES)) or upper in _SETTINGS_ALIASES:
-            monkeypatch.delenv(name)
-    get_settings.cache_clear()
-    _clear_langsmith_env_cache()
-    yield
-    get_settings.cache_clear()
-    _clear_langsmith_env_cache()
-
-
-@pytest.fixture(params=[False, True], ids=["permissive-msgpack", "strict-msgpack"])
-def strict_msgpack(request: pytest.FixtureRequest, monkeypatch: pytest.MonkeyPatch) -> bool:
-    """Run the test with LANGGRAPH_STRICT_MSGPACK off, then on (the image turns it on).
-
-    LangGraph reads the variable once, at import, into two module constants: the
-    serializer's default allowlist reads one, and StateGraph.compile() the other. The
-    fixture sets the variable and patches both constants.
-    """
-    # Imported here: both modules are private. If an upgrade moves one, only the tests
-    # that use this fixture fail.
-    import langgraph._internal._serde
-    import langgraph.checkpoint.serde._msgpack
-
-    strict: bool = request.param
-    monkeypatch.setenv("LANGGRAPH_STRICT_MSGPACK", str(strict).lower())
-    monkeypatch.setattr(langgraph.checkpoint.serde._msgpack, "STRICT_MSGPACK_ENABLED", strict)
-    monkeypatch.setattr(langgraph._internal._serde, "STRICT_MSGPACK_ENABLED", strict)
-    return strict
 
 
 @pytest.fixture(scope="session")

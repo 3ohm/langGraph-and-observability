@@ -25,6 +25,7 @@ docs/                       design/  plans/  adr/  practices/  guides/
 deploy/                     example manifests (Kubernetes, IAM, SQL, ElasticMQ)
 scripts/                    rename, remove the example agent, send an incident, sync the eval dataset
 .claude/agents/             build agents (implementer, reviewer)
+conftest.py                 fixtures for every test directory (environment isolation, strict msgpack)
 ```
 
 ## Commands
@@ -35,7 +36,7 @@ Use uv for everything (`uv add`, `uv run`). Do not use pip. Commit `uv.lock`.
 make setup       # uv sync --all-groups
 make lint        # ruff check + ruff format --check
 make fmt         # ruff fixes, then ruff format
-make typecheck   # mypy (strict) on src and tests
+make typecheck   # mypy (strict) on src, tests and conftest.py
 make test        # unit tests with coverage: no Docker, no network, no credentials
 uv run pytest -m integration   # needs Docker
 uv run pytest -m e2e           # starts worker subprocesses
