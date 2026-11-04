@@ -99,6 +99,9 @@ class Settings(BaseSettings):
 
     # Code evidence
     git_token: SecretStr | None = None
+    # The only hosts that source checkouts fetch from, and so the only hosts that
+    # receive git_token (ruling R59): repository URLs come from cluster metadata.
+    git_allowed_hosts: list[str] = ["github.com"]
     code_budget_chars: int = 60000
     source_cache_dir: Path = Path("/tmp/lps-source-cache")  # noqa: S108 - the documented default
     source_cache_max_mb: int = 2048

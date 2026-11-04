@@ -3,6 +3,9 @@
 The remote is a local bare repository with two commits, reached over ``file://``. It
 sets ``uploadpack.allowReachableSHA1InWant``: git's protocol v2, the default, already
 serves a commit by SHA, and the setting keeps that true under protocol v0.
+
+The https:// tests never reach a network: ``spawns_failing`` makes every git process
+fail at once, and the tests read the argv and environment it was given.
 """
 
 import asyncio
@@ -22,10 +25,12 @@ from structlog.testing import capture_logs
 from langgraph_postgres_starter.agents.incident_triage.adapters.source.git import (
     GitError,
     GitSourceProvider,
+    check_repo_url,
 )
 from langgraph_postgres_starter.agents.incident_triage.adapters.source.interface import SourceRef
 
 TOKEN = "ghp_" + "T0k3n" * 8
+ALLOWED = ("github.com", "Git.Example.com.")
 
 
 @dataclass(frozen=True)
@@ -73,7 +78,9 @@ def _ref(remote: Remote, commit: str) -> SourceRef:
 
 def _provider(cache: Path, token: str | None = None, max_cache_mb: int = 100, **kwargs: Any):
     secret = None if token is None else SecretStr(token)
-    return GitSourceProvider(cache, secret, max_cache_mb, allow_file_urls=True, **kwargs)
+    return GitSourceProvider(
+        cache, secret, max_cache_mb, allowed_hosts=ALLOWED, allow_file_urls=True, **kwargs
+    )
 
 
 def _repo_dir(cache: Path, remote: Remote) -> Path:
@@ -101,6 +108,26 @@ def spawns(monkeypatch) -> list[Spawn]:
 
     monkeypatch.setattr(asyncio, "create_subprocess_exec", recording_exec)
     return spawned
+
+
+@pytest.fixture
+def spawns_failing(monkeypatch) -> list[Spawn]:
+    """Like ``spawns``, but each process is one that exits 1 at once, never git."""
+    spawned: list[Spawn] = []
+    real_exec = asyncio.create_subprocess_exec
+
+    async def failing_exec(program, *args, **kwargs):
+        spawn = Spawn(argv=(program, *args), env=dict(kwargs["env"]))
+        spawned.append(spawn)
+        spawn.process = await real_exec(sys.executable, "-c", "raise SystemExit(1)", **kwargs)
+        return spawn.process
+
+    monkeypatch.setattr(asyncio, "create_subprocess_exec", failing_exec)
+    return spawned
+
+
+def _git_vars(spawn: Spawn) -> dict[str, str]:
+    return {k: v for k, v in spawn.env.items() if k.startswith("GIT_")}
 
 
 def _leftovers(repo_dir: Path) -> list[str]:
@@ -148,26 +175,85 @@ async def test_git_token_not_in_argv(tmp_path, remote, spawns, monkeypatch):
         assert not any(TOKEN in arg for arg in spawn.argv), spawn.argv
         assert "-c" not in spawn.argv
         assert not any("extraHeader" in arg for arg in spawn.argv)
-        git_vars = {k: v for k, v in spawn.env.items() if k.startswith("GIT_")}
-        assert git_vars == {
+        # A file:// URL has no host to scope the header to, so it gets none.
+        assert _git_vars(spawn) == {
             "GIT_TERMINAL_PROMPT": "0",
-            "GIT_ALLOW_PROTOCOL": "https:file",
+            "GIT_ALLOW_PROTOCOL": "file",
             "GIT_CONFIG_COUNT": "1",
-            "GIT_CONFIG_KEY_0": "http.extraHeader",
-            "GIT_CONFIG_VALUE_0": f"Authorization: Bearer {TOKEN}",
+            "GIT_CONFIG_KEY_0": "http.followRedirects",
+            "GIT_CONFIG_VALUE_0": "false",
         }
     assert TOKEN not in str(exc_info.value)
     assert TOKEN not in repr(logs)
     assert TOKEN not in (path / ".git" / "config").read_text()
 
 
-async def test_git_without_token_sets_no_header(tmp_path, remote, spawns):
-    await _provider(tmp_path / "cache").checkout(_ref(remote, remote.second))
+@pytest.mark.parametrize(
+    ("repo_url", "host"),
+    [
+        ("https://github.com/example/orders", "github.com"),
+        # The host is matched lower-cased and without a trailing dot, on either side.
+        ("https://GIT.example.COM./example/orders.git", "git.example.com"),
+    ],
+)
+async def test_git_token_header_is_scoped_to_the_repository_host(
+    tmp_path, spawns_failing, monkeypatch, repo_url, host
+):
+    monkeypatch.setenv("GIT_ASKPASS", "/bin/echo")
+    provider = _provider(tmp_path / "cache", TOKEN)
 
-    assert spawns
-    for spawn in spawns:
-        assert "GIT_CONFIG_COUNT" not in spawn.env
-        assert spawn.env["GIT_TERMINAL_PROMPT"] == "0"
+    with pytest.raises(GitError, match="git init failed") as exc_info:
+        await provider.checkout(SourceRef(repo_url=repo_url, commit="main", origin="annotation"))
+
+    [spawn] = spawns_failing
+    assert _git_vars(spawn) == {
+        "GIT_TERMINAL_PROMPT": "0",
+        "GIT_ALLOW_PROTOCOL": "https",
+        "GIT_CONFIG_COUNT": "2",
+        "GIT_CONFIG_KEY_0": f"http.https://{host}/.extraHeader",
+        "GIT_CONFIG_VALUE_0": f"Authorization: Bearer {TOKEN}",
+        "GIT_CONFIG_KEY_1": "http.followRedirects",
+        "GIT_CONFIG_VALUE_1": "false",
+    }
+    assert not any(TOKEN in arg for arg in spawn.argv)
+    assert TOKEN not in str(exc_info.value)
+
+
+async def test_git_without_token_sets_no_header_but_refuses_redirects(tmp_path, spawns_failing):
+    provider = _provider(tmp_path / "cache")
+
+    with pytest.raises(GitError):
+        await provider.checkout(_ref(Remote("https://github.com/example/orders", "", ""), "main"))
+
+    [spawn] = spawns_failing
+    assert _git_vars(spawn) == {
+        "GIT_TERMINAL_PROMPT": "0",
+        "GIT_ALLOW_PROTOCOL": "https",
+        "GIT_CONFIG_COUNT": "1",
+        "GIT_CONFIG_KEY_0": "http.followRedirects",
+        "GIT_CONFIG_VALUE_0": "false",
+    }
+
+
+async def test_git_remote_and_cache_use_the_canonical_url(tmp_path, spawns_failing):
+    cache = tmp_path / "cache"
+    provider = _provider(cache)
+
+    with pytest.raises(GitError):
+        await provider.checkout(
+            SourceRef(
+                repo_url="https://GitHub.com.:443/example/orders", commit="main", origin="config"
+            )
+        )
+
+    canonical = "https://github.com/example/orders"
+    assert check_repo_url(canonical, allowed_hosts=ALLOWED) == canonical
+    assert (
+        check_repo_url("https://GitHub.com.:443/example/orders", allowed_hosts=ALLOWED) == canonical
+    )
+    [spawn] = spawns_failing
+    assert spawn.argv[1] == "init"
+    assert (cache / hashlib.sha256(canonical.encode()).hexdigest()[:16]).is_dir()
 
 
 async def test_git_checkout_by_branch_keys_the_cache_by_sha(tmp_path, remote, spawns):
@@ -277,6 +363,13 @@ async def test_git_timeout_kills_git_and_removes_its_temp_dir(tmp_path, remote, 
         ("https://bot:s3cr3t@github.com/example/orders", "main", "credentials"),
         ("https://github.com/example/orders repo", "main", "whitespace"),
         ("https:///example/orders", "main", "host"),
+        ("https://gitlab.example.com/example/orders", "main", "'gitlab.example.com' is not in"),
+        ("https://github.com.evil.example/example/orders", "main", "is not in"),
+        ("https://169.254.169.254/latest/meta-data", "main", "'169.254.169.254' is not in"),
+        ("https://github.com:8443/example/orders", "main", "port"),
+        ("https://github.com:x/example/orders", "main", "port"),
+        ("https://github.com/example/orders?x=1", "main", "query"),
+        ("https://github.com", "main", "path"),
         ("file:///srv/git/orders.git", "main", "https://"),
         ("https://github.com/example/orders", "--upload-pack=touch /tmp/pwned", "commit"),
         ("https://github.com/example/orders", "main:refs/heads/x", "commit"),
@@ -293,10 +386,21 @@ async def test_invalid_sources_are_rejected_before_git_runs(
     tmp_path, spawns, repo_url, commit, error
 ):
     # Production providers serve https:// only; file:// is for tests.
-    provider = GitSourceProvider(tmp_path / "cache", None, 100)
+    provider = GitSourceProvider(
+        tmp_path / "cache", SecretStr(TOKEN), 100, allowed_hosts=["github.com"]
+    )
 
     with pytest.raises(ValueError, match=error) as exc_info:
         await provider.checkout(SourceRef(repo_url=repo_url, commit=commit, origin="annotation"))
 
     assert spawns == []
     assert "s3cr3t" not in str(exc_info.value)
+    assert TOKEN not in str(exc_info.value)
+
+
+def test_file_urls_need_the_test_flag(tmp_path):
+    assert check_repo_url("file:///srv/git/orders.git", allowed_hosts=[], allow_file=True)
+    with pytest.raises(ValueError, match="https://"):
+        check_repo_url("file:///srv/git/orders.git", allowed_hosts=["github.com"])
+    with pytest.raises(ValueError, match="host"):
+        check_repo_url("file://fileserver/srv/git/orders.git", allowed_hosts=[], allow_file=True)

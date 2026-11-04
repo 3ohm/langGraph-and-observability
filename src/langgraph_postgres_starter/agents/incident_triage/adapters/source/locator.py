@@ -16,17 +16,19 @@ both a repository and a commit:
          ref: main
 
 These values come from the cluster, so they are untrusted: an origin whose URL or
-commit fails ``git.check_repo_url`` or ``git.check_commit`` is skipped with a warning,
-and the next origin is tried. So is an origin whose image labels cannot be read, or
-whose source map is missing or malformed. The map is read on every call, so a mounted
-ConfigMap's updates apply to the next run.
+commit fails ``git.check_repo_url`` (an ``https://`` URL on a host in
+``APP_GIT_ALLOWED_HOSTS``, ruling R59) or ``git.check_commit`` is skipped with a
+warning, and the next origin is tried. So is an origin whose image labels cannot be
+read, or whose source map is missing or malformed. A ref holds the URL's canonical
+form. The map is read on every call, so a mounted ConfigMap's updates apply to the
+next run.
 
 Each match is logged as ``source.locate.found`` with its origin, URL and commit. A
 URL that passes the checks holds no credentials, so no log holds a token.
 """
 
 import asyncio
-from collections.abc import Mapping
+from collections.abc import Collection, Mapping
 from pathlib import Path
 from typing import Literal, TypedDict
 
@@ -69,19 +71,22 @@ _SOURCE_MAP = TypeAdapter(dict[str, _MapEntry])
 class ChainLocator(SourceLocator):
     """Finds a target's source in its annotations, its image's labels, then the source map.
 
-    ``annotation_keys`` are the annotations' repository and commit keys. Without
-    ``ecr`` the image labels are not read; without ``config_map`` there is no map.
-    Building the locator reads nothing.
+    ``annotation_keys`` are the annotations' repository and commit keys, and
+    ``allowed_hosts`` the hosts that a repository URL may name. Without ``ecr`` the
+    image labels are not read; without ``config_map`` there is no map. Building the
+    locator reads nothing.
     """
 
     def __init__(
         self,
         *,
         annotation_keys: tuple[str, str],
+        allowed_hosts: Collection[str],
         ecr: EcrLabelReader | None,
         config_map: Path | None,
     ) -> None:
         self._repo_key, self._commit_key = annotation_keys
+        self._allowed_hosts = tuple(allowed_hosts)
         self._ecr = ecr
         self._config_map = config_map
 
@@ -103,7 +108,7 @@ class ChainLocator(SourceLocator):
         return ref
 
     def _from_annotations(self, annotations: Mapping[str, str]) -> SourceRef | None:
-        return _ref(
+        return self._ref(
             annotations.get(self._repo_key), annotations.get(self._commit_key), "annotation"
         )
 
@@ -119,7 +124,9 @@ class ChainLocator(SourceLocator):
         except ImageLabelError as exc:
             _log.warning("source.locate.labels_failed", image=image.image, error=str(exc))
             return None
-        return _ref(labels.get(OCI_SOURCE_LABEL), labels.get(OCI_REVISION_LABEL), "image_label")
+        return self._ref(
+            labels.get(OCI_SOURCE_LABEL), labels.get(OCI_REVISION_LABEL), "image_label"
+        )
 
     async def _from_config_map(self, target: Target) -> SourceRef | None:
         """The source map's entry for the target's workload."""
@@ -142,24 +149,22 @@ class ChainLocator(SourceLocator):
             )
             return None
         entry = entries.get(f"{target.namespace}/{target.workload.name}")
-        return None if entry is None else _ref(entry["repo"], entry["ref"], "config")
+        return None if entry is None else self._ref(entry["repo"], entry["ref"], "config")
+
+    def _ref(self, repo_url: str | None, commit: str | None, origin: _Origin) -> SourceRef | None:
+        """A SourceRef from an origin's values; None if one is missing or fails the checks."""
+        if not repo_url or not commit:
+            return None
+        try:
+            url = check_repo_url(repo_url, allowed_hosts=self._allowed_hosts)
+            return SourceRef(repo_url=url, commit=check_commit(commit), origin=origin)
+        except ValueError as exc:
+            # The checks' messages never repeat the URL, which could hold a credential.
+            _log.warning("source.locate.skipped", origin=origin, reason=str(exc))
+            return None
 
     def _map_invalid(self, error: str, **fields: object) -> None:
         # The error's type and location only: the file's text is not logged.
         _log.warning(
             "source.locate.config_map_invalid", path=str(self._config_map), error=error, **fields
         )
-
-
-def _ref(repo_url: str | None, commit: str | None, origin: _Origin) -> SourceRef | None:
-    """A SourceRef from an origin's values; None if one is missing or fails the checks."""
-    if not repo_url or not commit:
-        return None
-    try:
-        return SourceRef(
-            repo_url=check_repo_url(repo_url), commit=check_commit(commit), origin=origin
-        )
-    except ValueError as exc:
-        # The checks' messages never repeat the value, which could hold a credential.
-        _log.warning("source.locate.skipped", origin=origin, reason=str(exc))
-        return None

@@ -17,9 +17,13 @@ labels here: ``labels`` returns ``{}`` without calling AWS. Any other failure ra
 ImageLabelError.
 
 boto3 is synchronous, so the calls run in a thread (``asyncio.to_thread``). botocore
-retries them in standard mode, the only retry layer (``make_ecr_client``). The blob
-download has its own timeout and size cap, and the blob must have the digest that
-the manifest names.
+retries them in standard mode, the only retry layer (``make_ecr_client``).
+
+The blob download (ruling R59) goes only to an ``https`` URL whose host ends with
+``.amazonaws.com``, the presigned S3 URL that ECR returns, and follows no redirect. It
+has its own timeout and size cap, and the blob must have the digest that the manifest
+names. The China partition (``amazonaws.com.cn``) is not supported, so its image
+references count as not in ECR.
 """
 
 import asyncio
@@ -27,10 +31,13 @@ import hashlib
 import json
 import re
 import threading
+import urllib.error
 import urllib.request
 from collections.abc import Callable, Mapping
 from dataclasses import dataclass
-from typing import TYPE_CHECKING, Any
+from email.message import Message
+from typing import IO, TYPE_CHECKING, Any, NoReturn
+from urllib.parse import urlsplit
 
 import boto3
 from botocore.config import Config
@@ -57,9 +64,11 @@ MAX_CONFIG_BYTES = 4 * 1024 * 1024
 CONFIG_TIMEOUT_S = 10.0
 
 _DIGEST = re.compile(r"sha256:[0-9a-f]{64}")
-# <account>.dkr.ecr[-fips].<region>.amazonaws.com[.cn]/<repository>[:<tag>][@<digest>]
+# The hosts that the config blob may come from.
+_DOWNLOAD_HOST_SUFFIX = ".amazonaws.com"
+# <account>.dkr.ecr[-fips].<region>.amazonaws.com/<repository>[:<tag>][@<digest>]
 _ECR_IMAGE = re.compile(
-    r"(?P<registry>\d{12})\.dkr\.ecr(?:-fips)?\.(?P<region>[a-z0-9-]+)\.amazonaws\.com(?:\.cn)?"
+    r"(?P<registry>\d{12})\.dkr\.ecr(?:-fips)?\.(?P<region>[a-z0-9-]+)\.amazonaws\.com"
     r"/(?P<repository>[a-z0-9]+(?:[._/-][a-z0-9]+)*)"
     r"(?::(?P<tag>[A-Za-z0-9_][A-Za-z0-9_.-]{0,127}))?"
     r"(?:@(?P<digest>sha256:[0-9a-f]{64}))?"
@@ -68,6 +77,28 @@ _ECR_IMAGE = re.compile(
 
 class ImageLabelError(RuntimeError):
     """The labels of an ECR image could not be read."""
+
+
+class NoRedirects(urllib.request.HTTPRedirectHandler):
+    """Refuses every redirect: the blob URL is the one ECR returned, or nothing."""
+
+    def redirect_request(
+        self,
+        req: urllib.request.Request,
+        fp: IO[bytes] | None,
+        code: int,
+        msg: str,
+        headers: Message,
+        newurl: str,
+    ) -> NoReturn:
+        # The redirect response is not read; close it here, as urllib would.
+        if fp is not None:
+            fp.close()
+        raise urllib.error.URLError(f"refused a redirect ({code}) of the image config download")
+
+
+# build_opener leaves out the default redirect handler when it is given a subclass.
+_OPENER = urllib.request.build_opener(NoRedirects())
 
 
 @dataclass(frozen=True)
@@ -221,10 +252,13 @@ def _platform(index: Mapping[str, Any]) -> str:
 
 def _download(url: str) -> bytes:
     """The body at ``url`` (the presigned S3 URL that ECR returned), at most the size cap."""
-    if not url.startswith("https://"):
-        raise ImageLabelError("ECR returned a download URL that is not https://")
-    # S310: the scheme is checked above, and the URL is the one that ECR returned.
-    with urllib.request.urlopen(url, timeout=CONFIG_TIMEOUT_S) as response:  # noqa: S310
+    parts = urlsplit(url)
+    host = (parts.hostname or "").lower()
+    if parts.scheme != "https" or not host.endswith(_DOWNLOAD_HOST_SUFFIX):
+        raise ImageLabelError(
+            f"ECR returned a download URL that is not https:// on a {_DOWNLOAD_HOST_SUFFIX} host"
+        )
+    with _OPENER.open(url, timeout=CONFIG_TIMEOUT_S) as response:
         body: bytes = response.read(MAX_CONFIG_BYTES + 1)
     if len(body) > MAX_CONFIG_BYTES:
         raise ImageLabelError(f"the image config is larger than {MAX_CONFIG_BYTES} bytes")

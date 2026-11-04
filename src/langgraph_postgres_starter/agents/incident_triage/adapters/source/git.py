@@ -17,23 +17,29 @@ checkout that is reused gets a new modification time, so the order is least rece
 used. Only folders with the names above count: other files in ``cache_dir`` are left
 alone.
 
-Untrusted input: a ref's URL and commit come from the cluster (annotations, image
-labels, the source map), so ``check_repo_url`` and ``check_commit`` validate them
-before any git process starts, and ``--`` comes before git's positional arguments. A
-URL must be ``https://`` (``file://`` only with ``allow_file_urls``, for tests), with a
-host and without credentials.
+Untrusted input (ruling R59): a ref's URL and commit come from the cluster
+(annotations, image labels, the source map), and anyone who can edit a workload's
+annotations sets them. So ``check_repo_url`` and ``check_commit`` validate them before
+any git process starts, and ``--`` comes before git's positional arguments. A URL must
+be ``https://`` on a host in ``allowed_hosts`` (``APP_GIT_ALLOWED_HOSTS``, default
+``["github.com"]``), without credentials, a port other than 443, a query or a fragment.
+Without the allowlist, an annotation could send the token to any host or make the
+worker fetch from an internal one. ``file://`` URLs pass only with
+``allow_file_urls``, which is for tests.
 
-The token: git gets it through the ``GIT_CONFIG_COUNT``, ``GIT_CONFIG_KEY_0`` and
-``GIT_CONFIG_VALUE_0`` variables as ``http.extraHeader: Authorization: Bearer
-<token>``, so it is never in an argument list that ``ps`` shows, never in the URL,
-never in ``.git/config`` and never logged. GitHub accepts a token as a Bearer header
-for git over HTTPS; GitLab's git HTTP endpoint ignores Bearer and needs Basic auth
-(checked 2026-11-04), so a GitLab token does not work this way.
+The token: git gets it in the environment as ``http.https://<host>/.extraHeader:
+Authorization: Bearer <token>`` (``GIT_CONFIG_COUNT``, ``GIT_CONFIG_KEY_n`` and
+``GIT_CONFIG_VALUE_n``), so it is never in an argument list that ``ps`` shows, never in
+the URL, never in ``.git/config`` and never logged, and git sends it only to the
+repository's own host. GitHub accepts a token as a Bearer header for git over HTTPS;
+GitLab's git HTTP endpoint ignores Bearer and needs Basic auth (checked 2026-11-04), so
+a GitLab token does not work this way.
 
-Each git process gets ``GIT_TERMINAL_PROMPT=0`` (fail rather than prompt), a
-``GIT_ALLOW_PROTOCOL`` of the allowed schemes, and none of the parent's other
-``GIT_*`` variables. Each git call is stopped after ``timeout_s``: its process group is
-killed and the call raises ``GitError``.
+Each git process gets ``http.followRedirects=false`` (the same ``GIT_CONFIG_*``
+variables, with or without a token), ``GIT_TERMINAL_PROMPT=0`` (fail rather than
+prompt), ``GIT_ALLOW_PROTOCOL`` set to the URL's own scheme, and none of the parent's
+other ``GIT_*`` variables. Each git call is stopped after ``timeout_s``: its process
+group is killed and the call raises ``GitError``.
 """
 
 import asyncio
@@ -44,6 +50,7 @@ import shutil
 import signal
 import tempfile
 import time
+from collections.abc import Collection
 from pathlib import Path
 from urllib.parse import urlsplit
 
@@ -78,12 +85,22 @@ class GitError(RuntimeError):
     """A git command failed or timed out. The message never holds the token."""
 
 
-def check_repo_url(url: str, *, allow_file: bool = False) -> str:
-    """Return ``url`` if git may fetch it, else raise ValueError.
+def normalize_host(host: str) -> str:
+    """A host name as the allowlist compares it: lower case, without a trailing dot."""
+    return host.lower().removesuffix(".")
 
-    It must be an ``https://`` URL with a host and without credentials, or, with
-    ``allow_file``, a ``file://`` URL. The error message never repeats the URL, which
-    could hold a credential.
+
+def check_repo_url(url: str, *, allowed_hosts: Collection[str], allow_file: bool = False) -> str:
+    """Return the canonical form of ``url`` if git may fetch it, else raise ValueError.
+
+    It must be an ``https://`` URL whose host is in ``allowed_hosts``
+    (``APP_GIT_ALLOWED_HOSTS``; both sides compared by ``normalize_host``), with a
+    repository path, and with no credentials, no port other than 443, no query and no
+    fragment. The canonical form is ``https://<normalized host><path>``. With
+    ``allow_file`` (tests only), a ``file://`` URL with no host passes unchanged.
+
+    Error messages may name the host, but never repeat the URL, which could hold a
+    credential.
     """
     schemes = ("https", "file") if allow_file else ("https",)
     if not url.startswith(tuple(f"{scheme}://" for scheme in schemes)):
@@ -94,14 +111,30 @@ def check_repo_url(url: str, *, allow_file: bool = False) -> str:
     if any(char.isspace() or not char.isprintable() for char in url):
         raise ValueError("the repository URL must not contain whitespace or control characters")
     parts = urlsplit(url)
-    if parts.scheme == "https":
-        if "@" in parts.netloc:
-            raise ValueError("the repository URL must not hold credentials")
-        if not parts.hostname:
-            raise ValueError("the repository URL must name a host")
-    elif not parts.path:
-        raise ValueError("the file:// URL must name a folder")
-    return url
+    if parts.scheme == "file":
+        if parts.netloc or not parts.path:
+            raise ValueError("a file:// URL must name a local folder and no host")
+        return url
+    if "@" in parts.netloc:
+        raise ValueError("the repository URL must not hold credentials")
+    if not parts.hostname:
+        raise ValueError("the repository URL must name a host")
+    host = normalize_host(parts.hostname)
+    try:
+        port = parts.port
+    except ValueError:
+        raise ValueError(f"the repository URL for {host!r} has an invalid port") from None
+    if port not in (None, 443):
+        raise ValueError(f"the repository URL for {host!r} must not name a port other than 443")
+    if host not in {normalize_host(allowed) for allowed in allowed_hosts}:
+        raise ValueError(
+            f"the repository host {host!r} is not in the allowed hosts (APP_GIT_ALLOWED_HOSTS)"
+        )
+    if parts.query or parts.fragment or url.endswith(("?", "#")):
+        raise ValueError(f"the repository URL for {host!r} must not have a query or fragment")
+    if parts.path.strip("/") == "":
+        raise ValueError(f"the repository URL for {host!r} must name a repository path")
+    return f"https://{host}{parts.path}"
 
 
 def check_commit(commit: str) -> str:
@@ -136,10 +169,12 @@ def _check_ref_name(name: str) -> bool:
 class GitSourceProvider(SourceProvider):
     """Checks out ``https://`` repositories with the git CLI into ``cache_dir``.
 
-    ``token`` (``APP_GIT_TOKEN``) is sent as a Bearer header when set.
-    ``max_cache_mb`` (``APP_SOURCE_CACHE_MAX_MB``) bounds the cache. ``timeout_s`` caps
-    each git call. ``allow_file_urls`` also accepts ``file://`` URLs, for tests.
-    Building the provider starts no process and touches no file.
+    ``token`` (``APP_GIT_TOKEN``) is sent as a Bearer header to the repository's host,
+    when set. ``allowed_hosts`` (``APP_GIT_ALLOWED_HOSTS``) are the only hosts it
+    fetches from. ``max_cache_mb`` (``APP_SOURCE_CACHE_MAX_MB``) bounds the cache.
+    ``timeout_s`` caps each git call. ``allow_file_urls`` also accepts ``file://`` URLs;
+    it is for tests, and ``build_adapters`` never sets it. Building the provider starts
+    no process and touches no file.
     """
 
     def __init__(
@@ -148,11 +183,13 @@ class GitSourceProvider(SourceProvider):
         token: SecretStr | None,
         max_cache_mb: int,
         *,
+        allowed_hosts: Collection[str],
         timeout_s: float = DEFAULT_GIT_TIMEOUT_S,
         allow_file_urls: bool = False,
     ) -> None:
         self._cache_dir = cache_dir
         self._token = token
+        self._allowed_hosts = tuple(allowed_hosts)
         self._max_cache_bytes = max_cache_mb * 1024 * 1024
         self._timeout_s = timeout_s
         self._allow_file_urls = allow_file_urls
@@ -164,19 +201,22 @@ class GitSourceProvider(SourceProvider):
         ``check_commit`` rejects, before any git process starts, and GitError when a
         git command fails or times out.
         """
-        url = check_repo_url(ref.repo_url, allow_file=self._allow_file_urls)
+        url = check_repo_url(
+            ref.repo_url, allowed_hosts=self._allowed_hosts, allow_file=self._allow_file_urls
+        )
         commit = check_commit(ref.commit)
         repo_dir = self._cache_dir / hashlib.sha256(url.encode()).hexdigest()[:16]
         if _FULL_SHA.fullmatch(commit):
             entry = repo_dir / commit
             if entry.is_dir():
                 return self._reuse(entry, url)
+        env = self._env(urlsplit(url).hostname)
         temp = _make_temp_dir(repo_dir)
         placed = False
         try:
-            entry = await self._fetch(temp, repo_dir, url, commit)
+            entry = await self._fetch(temp, repo_dir, url, commit, env)
             if not entry.is_dir():
-                await self._git(temp, "checkout", "-q", "--detach", "FETCH_HEAD")
+                await self._git(env, temp, "checkout", "-q", "--detach", "FETCH_HEAD")
                 placed = _place(temp, entry)
         finally:
             if not placed:
@@ -189,13 +229,16 @@ class GitSourceProvider(SourceProvider):
         await asyncio.to_thread(_evict, self._cache_dir, entry, self._max_cache_bytes)
         return entry
 
-    async def _fetch(self, temp: Path, repo_dir: Path, url: str, commit: str) -> Path:
+    async def _fetch(
+        self, temp: Path, repo_dir: Path, url: str, commit: str, env: dict[str, str]
+    ) -> Path:
         """Fetch ``commit`` into the empty folder ``temp``; return its entry in ``repo_dir``."""
-        await self._git(temp, "init", "-q")
-        await self._git(temp, "remote", "add", "--", "origin", url)
-        await self._git(temp, "fetch", "-q", "--no-tags", "--depth", "1", "--", "origin", commit)
+        await self._git(env, temp, "init", "-q")
+        await self._git(env, temp, "remote", "add", "--", "origin", url)
+        fetch = ("fetch", "-q", "--no-tags", "--depth", "1", "--", "origin", commit)
+        await self._git(env, temp, *fetch)
         resolved = await self._git(
-            temp, "rev-parse", "--verify", "--end-of-options", "FETCH_HEAD^{commit}"
+            env, temp, "rev-parse", "--verify", "--end-of-options", "FETCH_HEAD^{commit}"
         )
         sha = resolved.strip()
         if not _FULL_SHA.fullmatch(sha) or (_FULL_SHA.fullmatch(commit) and sha != commit):
@@ -208,13 +251,13 @@ class GitSourceProvider(SourceProvider):
         _log.info("source.checkout.cached", repo_url=url, commit=entry.name)
         return entry
 
-    async def _git(self, cwd: Path, *args: str) -> str:
+    async def _git(self, env: dict[str, str], cwd: Path, *args: str) -> str:
         """Run ``git *args`` in ``cwd`` and return its output; raise GitError on failure."""
         process = await asyncio.create_subprocess_exec(
             "git",
             *args,
             cwd=cwd,
-            env=self._env(),
+            env=env,
             stdin=asyncio.subprocess.DEVNULL,
             stdout=asyncio.subprocess.PIPE,
             stderr=asyncio.subprocess.PIPE,
@@ -237,16 +280,25 @@ class GitSourceProvider(SourceProvider):
             )
         return stdout.decode(errors="replace")
 
-    def _env(self) -> dict[str, str]:
-        """The environment of a git process: the parent's, without its ``GIT_*`` variables."""
+    def _env(self, host: str | None) -> dict[str, str]:
+        """The environment of the git processes for a repository on ``host``.
+
+        It is the parent's, without its ``GIT_*`` variables, plus the settings in the
+        module docstring. ``host`` is None for a ``file://`` URL, which gets no header.
+        """
         env = {k: v for k, v in os.environ.items() if not k.upper().startswith("GIT_")}
         env["GIT_TERMINAL_PROMPT"] = "0"
-        env["GIT_ALLOW_PROTOCOL"] = "https:file" if self._allow_file_urls else "https"
+        # Only the URL's own transport, so an https fetch never falls back to another.
+        env["GIT_ALLOW_PROTOCOL"] = "file" if host is None else "https"
+        config: list[tuple[str, str]] = []
         token = self._token_value()
-        if token:
-            env["GIT_CONFIG_COUNT"] = "1"
-            env["GIT_CONFIG_KEY_0"] = "http.extraHeader"
-            env["GIT_CONFIG_VALUE_0"] = f"Authorization: Bearer {token}"
+        if token and host is not None:
+            config.append((f"http.https://{host}/.extraHeader", f"Authorization: Bearer {token}"))
+        config.append(("http.followRedirects", "false"))
+        env["GIT_CONFIG_COUNT"] = str(len(config))
+        for index, (key, value) in enumerate(config):
+            env[f"GIT_CONFIG_KEY_{index}"] = key
+            env[f"GIT_CONFIG_VALUE_{index}"] = value
         return env
 
     def _token_value(self) -> str:

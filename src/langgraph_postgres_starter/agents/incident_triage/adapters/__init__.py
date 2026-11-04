@@ -156,6 +156,7 @@ def _build_locator(settings: Settings, fixture: Fixture | None, calls: CallLog) 
                 settings.source_annotation_repo_key,
                 settings.source_annotation_commit_key,
             ),
+            allowed_hosts=settings.git_allowed_hosts,
             ecr=EcrLabelReader(functools.partial(make_ecr_client, settings.aws_region)),
             config_map=settings.source_map_file,
         )
@@ -167,11 +168,15 @@ def _build_locator(settings: Settings, fixture: Fixture | None, calls: CallLog) 
 def _build_source(settings: Settings, calls: CallLog) -> SourceProvider:
     """``GitSourceProvider`` with ``APP_ADAPTERS=real``, else the fixture apps' provider.
 
-    Building ``GitSourceProvider`` starts no git process and touches no file.
+    Building ``GitSourceProvider`` starts no git process and touches no file. It never
+    accepts ``file://`` URLs here: that flag is for tests.
     """
     if settings.adapters == "real":
         return GitSourceProvider(
-            settings.source_cache_dir, settings.git_token, settings.source_cache_max_mb
+            settings.source_cache_dir,
+            settings.git_token,
+            settings.source_cache_max_mb,
+            allowed_hosts=settings.git_allowed_hosts,
         )
     return LocalSourceProvider(settings.fixtures_dir / "apps", calls)
 

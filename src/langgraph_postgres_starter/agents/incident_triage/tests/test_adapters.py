@@ -471,7 +471,7 @@ def test_real_mode_not_ready_names_task(overrides, adapter, task):
     assert f"{adapter} (Task {task})" in str(exc_info.value)
 
 
-def test_real_mode_builds_source_adapters_without_network(monkeypatch, tmp_path):
+async def test_real_mode_builds_source_adapters_without_network(monkeypatch, tmp_path):
     def no_network(*args, **kwargs):
         raise AssertionError("building the adapters must not touch the network or run git")
 
@@ -485,6 +485,7 @@ def test_real_mode_builds_source_adapters_without_network(monkeypatch, tmp_path)
         source_cache_dir=tmp_path / "cache",
         source_map_file=tmp_path / "source-map.yaml",
         git_token="token-for-tests",  # noqa: S106 - a fake token
+        git_allowed_hosts=["git.example.com"],
     )
 
     adapters = build_adapters(settings, fixture_id=None)
@@ -493,6 +494,14 @@ def test_real_mode_builds_source_adapters_without_network(monkeypatch, tmp_path)
     assert isinstance(adapters.source, GitSourceProvider)
     # Nothing is read or written before the first call either.
     assert not (tmp_path / "cache").exists()
+    # The real provider takes only https:// URLs on APP_GIT_ALLOWED_HOSTS (ruling R59),
+    # and refuses the others before git runs (create_subprocess_exec would raise).
+    for repo_url, error in [
+        (f"file://{tmp_path}/orders.git", "https://"),
+        ("https://github.com/example/orders", "'github.com' is not in"),
+    ]:
+        with pytest.raises(ValueError, match=error):
+            await adapters.source.checkout(SourceRef(repo_url, "main", "annotation"))
 
 
 def test_simulated_mode_needs_a_fixture(root):

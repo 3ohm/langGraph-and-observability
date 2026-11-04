@@ -57,6 +57,7 @@ EXPECTED_DEFAULTS = {
     "source_annotation_repo_key": "lps.dev/source-repo",
     "source_annotation_commit_key": "lps.dev/source-commit",
     "git_token": None,
+    "git_allowed_hosts": ["github.com"],
     "dd_api_key": None,
     "dd_app_key": None,
     "dd_site": "datadoghq.com",
@@ -118,9 +119,11 @@ def test_env_prefix_and_vendor_names(monkeypatch):
 def test_list_fields_parse_json_from_env(monkeypatch):
     monkeypatch.setenv("APP_EXTRA_AGENTS", '["tests.graphs.steps:STEPS_SPEC"]')
     monkeypatch.setenv("APP_RESULT_SINKS", '["log","sqs"]')
+    monkeypatch.setenv("APP_GIT_ALLOWED_HOSTS", '["github.com","git.example.com"]')
     s = load_settings()
     assert s.extra_agents == ["tests.graphs.steps:STEPS_SPEC"]
     assert s.result_sinks == ["log", "sqs"]
+    assert s.git_allowed_hosts == ["github.com", "git.example.com"]
 
 
 def test_empty_env_value_keeps_the_default(monkeypatch):
