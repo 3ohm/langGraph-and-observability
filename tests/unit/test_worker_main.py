@@ -128,7 +128,12 @@ def test_main_exits_when_settings_are_invalid(monkeypatch, capsys):
     error = _startup_failure(capsys.readouterr().out)["error"]
     assert isinstance(error, dict)
     assert error["type"] == "ValidationError"
-    assert "worker_concurrency" in error["message"]
+    # Where and why, never the value: a setting's value can be a secret.
+    assert error["message"] == (
+        "1 validation error for Settings: worker_concurrency: "
+        "Input should be a valid integer, unable to parse string as an integer"
+    )
+    assert "many" not in error["message"]
 
 
 def test_cli_worker_subcommand_runs_worker_main(monkeypatch):
