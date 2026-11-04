@@ -1,5 +1,5 @@
 .DEFAULT_GOAL := help
-.PHONY: help setup grammars up down migrate lint fmt typecheck test test-int test-e2e
+.PHONY: help setup grammars up down migrate studio lint fmt typecheck test test-int test-e2e
 
 help: ## Show the targets
 	@awk 'BEGIN {FS = ":.*## "} /^[a-z0-9-]+:.*## / {printf "  %-10s %s\n", $$1, $$2}' $(MAKEFILE_LIST)
@@ -19,6 +19,9 @@ down: ## Stop the local stack; its database volume stays (docker compose down -v
 
 migrate: ## Rebuild the image and apply the migrations to the local stack's Postgres
 	docker compose run --rm --build migrate
+
+studio: ## Serve the incident_triage graph to LangGraph Studio (langgraph dev, port 2024)
+	uv run langgraph dev --no-browser
 
 lint: ## Lint and check formatting (ruff)
 	uv run ruff check .

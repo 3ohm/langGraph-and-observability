@@ -10,12 +10,15 @@ import importlib
 from collections.abc import Sequence
 
 from langgraph_postgres_starter.agent_spec import AgentSpec
+from langgraph_postgres_starter.agents.incident_triage.spec import spec as incident_triage_spec
 from langgraph_postgres_starter.settings import Settings
 
 
 def builtin_agents() -> list[AgentSpec]:
     """Return the agents that ship with this repository."""
-    return []
+    return [
+        incident_triage_spec,
+    ]
 
 
 def load_agents(settings: Settings, *, include: Sequence[AgentSpec] = ()) -> dict[str, AgentSpec]:
