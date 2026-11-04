@@ -48,6 +48,21 @@ def test_test_jobs_fetch_grammars_after_sync():
         assert runs[sync + 1] == "make grammars", name
 
 
+def test_test_jobs_install_ripgrep_before_tests():
+    # Ruling R67: the agent's code step runs rg, and the runner image has no ripgrep.
+    targets = {
+        "unit": "make test",
+        "integration": "make test-int",
+        "e2e": "make test-e2e",
+        "canary-3-15": "make test",
+    }
+    install = "sudo apt-get update && sudo apt-get install -y --no-install-recommends ripgrep"
+    for name, target in targets.items():
+        runs = [s.get("run") for s in WF["jobs"][name]["steps"]]
+        assert install in runs, name
+        assert runs.index(install) < runs.index(target), name
+
+
 def test_docker_job_smoke_tests_migrations():
     # Spec 13.3 and P4: the built image migrates an empty Compose Postgres.
     script = "\n".join(s.get("run", "") for s in WF["jobs"]["docker"]["steps"])

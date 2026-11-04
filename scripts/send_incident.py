@@ -15,12 +15,15 @@ invalid message, or a failed send, exits 1 with an error message on stderr.
 The defaults reach the local stack's queue (compose.yaml): ElasticMQ on localhost:9324.
 For a queue in AWS, pass its URL and ``--endpoint-url ''``: boto3 then uses the AWS
 endpoint of the configured region (us-east-1 when none is configured). Credentials
-come from boto3's usual chain. Only when the endpoint is on this machine and the chain
-finds none does the script sign with dummy credentials, which ElasticMQ accepts.
+come from boto3's usual chain. Only when the endpoint is local (this machine, or
+Compose's ``elasticmq``) and the chain finds none does the script sign with dummy
+credentials, which ElasticMQ accepts; for a local endpoint the chain skips the EC2
+metadata endpoint (``make_client``).
 """
 
 import argparse
 import json
+import os
 from collections.abc import Sequence
 from datetime import UTC, datetime
 from pathlib import Path
@@ -42,8 +45,9 @@ DEFAULT_QUEUE_URL = "http://localhost:9324/000000000000/incidents"
 DEFAULT_ENDPOINT_URL = "http://localhost:9324"
 # The region when boto3's configuration names none: the default of APP_AWS_REGION.
 DEFAULT_REGION = "us-east-1"
-# The hosts on this machine: only for them may the script use dummy credentials.
-_LOCAL_HOSTS = frozenset({"localhost", "127.0.0.1", "::1"})
+# The local queue's hosts: this machine, and Compose's ElasticMQ service. Only for them
+# may the script use dummy credentials.
+_LOCAL_HOSTS = frozenset({"localhost", "127.0.0.1", "::1", "elasticmq"})
 # ElasticMQ accepts any credentials; botocore needs some to sign a request.
 _DUMMY_KEY_ID = "test"
 _DUMMY_SECRET = "test"  # noqa: S105 - not a secret: a placeholder that ElasticMQ ignores
@@ -93,12 +97,20 @@ def load_message(fixture: str | None, message_file: Path | None) -> IncidentMess
 def make_client(endpoint_url: str | None) -> SQSClient:
     """A boto3 SQS client for ``endpoint_url`` (None: AWS's endpoint for the region).
 
-    It uses boto3's credential chain, or dummy credentials when the endpoint is on this
-    machine and the chain finds none. botocore retries a failed call in standard mode,
-    at most 3 times, as the worker's client does.
+    It uses boto3's credential chain, or dummy credentials when the endpoint is local
+    and the chain finds none. botocore retries a failed call in standard mode, at most
+    3 times, as the worker's client does.
+
+    For a local endpoint, the script first sets ``AWS_EC2_METADATA_DISABLED=true`` in
+    its own environment. The chain asks the EC2 metadata endpoint last, after the
+    configured credentials; off EC2 that probe takes seconds, and a local queue needs no
+    instance role. botocore reads the variable from the environment only, when the
+    chain is first used.
     """
-    session = boto3.session.Session()
     local = endpoint_url is not None and urlsplit(endpoint_url).hostname in _LOCAL_HOSTS
+    if local:
+        os.environ["AWS_EC2_METADATA_DISABLED"] = "true"
+    session = boto3.session.Session()
     dummy = local and session.get_credentials() is None
     return session.client(
         "sqs",

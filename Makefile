@@ -48,8 +48,8 @@ fmt: ## Apply ruff fixes, then format
 	uv run ruff check --fix --exit-zero .
 	uv run ruff format .
 
-typecheck: ## Type-check src, tests and the root conftest.py (mypy, strict)
-	uv run mypy src tests conftest.py
+typecheck: ## Type-check src, tests, scripts and the root conftest.py (mypy, strict)
+	uv run mypy src tests scripts conftest.py
 
 test: ## Unit tests with coverage (no Docker, no network)
 	uv run pytest -m "not integration and not e2e" --cov=langgraph_postgres_starter --cov-report=term-missing
