@@ -27,6 +27,14 @@ COPY src/ src/
 RUN --mount=type=cache,target=/root/.cache/uv \
     uv sync --frozen --no-dev --no-editable
 
+# The tree-sitter grammars of code evidence, fetched now: the worker never downloads one
+# (ruling R51). The download's bundle archive is not needed afterwards. Everyone may read
+# the grammars, and no one may change them.
+RUN APP_GRAMMAR_DIR=/app/grammars /app/.venv/bin/python \
+        -m langgraph_postgres_starter.agents.incident_triage.codeintel.languages --download \
+    && rm -rf /app/grammars/tree-sitter-language-pack/*/bundles \
+    && chmod -R a=rX /app/grammars
+
 
 FROM python:3.14-slim AS runtime
 
@@ -39,11 +47,14 @@ RUN apt-get update \
 RUN groupadd --gid 10001 app \
     && useradd --uid 10001 --gid app --create-home --shell /usr/sbin/nologin app
 
-# The virtual environment stays owned by root: the app user can read it, not change it.
+# The virtual environment and the grammars stay owned by root: the app user can read
+# them, not change them.
 COPY --from=builder /app/.venv /app/.venv
+COPY --from=builder /app/grammars /app/grammars
 
 ENV PATH="/app/.venv/bin:$PATH" \
-    LANGGRAPH_STRICT_MSGPACK=true
+    LANGGRAPH_STRICT_MSGPACK=true \
+    APP_GRAMMAR_DIR=/app/grammars
 
 WORKDIR /app
 

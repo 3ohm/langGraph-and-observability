@@ -1,5 +1,6 @@
 # CI (spec 13.3). Every Python job uses the same steps: check out the code, install uv and
-# Python, install all dependency groups from uv.lock, then run one make target.
+# Python, install all dependency groups from uv.lock, then run one make target. A job that
+# runs tests first fetches the tree-sitter grammars (make grammars): tests never download one.
 # To add a job, copy one of the Python jobs below and change its make target.
 # The docker job builds the image, then runs its migrations against a Compose Postgres.
 # Actions are pinned to full commit SHAs. Dependabot updates the SHAs and the tag comments.
@@ -39,6 +40,7 @@ jobs:
           python-version: "3.14"
           enable-cache: true
       - run: uv sync --all-groups --frozen
+      - run: make grammars
       - run: make test
 
   # Integration tests against Postgres and ElasticMQ (local SQS) service containers.
@@ -81,6 +83,7 @@ jobs:
           python-version: "3.14"
           enable-cache: true
       - run: uv sync --all-groups --frozen
+      - run: make grammars
       - run: make test-int
 
   # End-to-end tests (spec 13.3; P10, P11): the tests start worker subprocesses
@@ -123,6 +126,7 @@ jobs:
           python-version: "3.14"
           enable-cache: true
       - run: uv sync --all-groups --frozen
+      - run: make grammars
       - run: make test-e2e
 
   # Build the container image (spec 13.5), then the migration smoke test (spec 13.3, P4):
@@ -154,4 +158,5 @@ jobs:
           python-version: "3.15"
           enable-cache: true
       - run: uv sync --all-groups --frozen
+      - run: make grammars
       - run: make test

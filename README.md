@@ -12,7 +12,7 @@ tracing built in. The example agent is incident triage on EKS.
 You need [uv](https://docs.astral.sh/uv/) and Python 3.14.
 
 ```bash
-make setup      # install all dependency groups
+make setup      # install all dependency groups and the tree-sitter grammars
 make lint       # ruff lint and format check
 make typecheck  # mypy (strict)
 make test       # unit tests with coverage

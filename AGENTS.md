@@ -33,7 +33,8 @@ conftest.py                 fixtures for every test directory (environment isola
 Use uv for everything (`uv add`, `uv run`). Do not use pip. Commit `uv.lock`.
 
 ```bash
-make setup       # uv sync --all-groups
+make setup       # uv sync --all-groups, then make grammars
+make grammars    # fetch the tree-sitter grammars (APP_GRAMMAR_DIR or the user cache)
 make lint        # ruff check + ruff format --check
 make fmt         # ruff fixes, then ruff format
 make typecheck   # mypy (strict) on src, tests and conftest.py

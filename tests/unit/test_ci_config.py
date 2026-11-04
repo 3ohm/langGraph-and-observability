@@ -40,6 +40,14 @@ def test_test_jobs_run_their_make_targets():
     assert {"postgres", "elasticmq"} <= set(WF["jobs"]["e2e"]["services"])
 
 
+def test_test_jobs_fetch_grammars_after_sync():
+    # Ruling R51: tests never download a grammar, so each job that runs tests fetches them first.
+    for name in ("unit", "integration", "e2e", "canary-3-15"):
+        runs = [s.get("run") for s in WF["jobs"][name]["steps"]]
+        sync = runs.index("uv sync --all-groups --frozen")
+        assert runs[sync + 1] == "make grammars", name
+
+
 def test_docker_job_smoke_tests_migrations():
     # Spec 13.3 and P4: the built image migrates an empty Compose Postgres.
     script = "\n".join(s.get("run", "") for s in WF["jobs"]["docker"]["steps"])

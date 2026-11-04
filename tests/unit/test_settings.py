@@ -56,6 +56,7 @@ EXPECTED_DEFAULTS = {
     "source_map_file": None,
     "source_annotation_repo_key": "lps.dev/source-repo",
     "source_annotation_commit_key": "lps.dev/source-commit",
+    "grammar_dir": None,
     "git_token": None,
     "git_allowed_hosts": ["github.com"],
     "dd_api_key": None,

@@ -1,11 +1,15 @@
 .DEFAULT_GOAL := help
-.PHONY: help setup up down migrate lint fmt typecheck test test-int test-e2e
+.PHONY: help setup grammars up down migrate lint fmt typecheck test test-int test-e2e
 
 help: ## Show the targets
 	@awk 'BEGIN {FS = ":.*## "} /^[a-z0-9-]+:.*## / {printf "  %-10s %s\n", $$1, $$2}' $(MAKEFILE_LIST)
 
-setup: ## Install the project and every dependency group into .venv
+setup: ## Install the project and every dependency group into .venv, then fetch the grammars
 	uv sync --all-groups
+	$(MAKE) grammars
+
+grammars: ## Fetch the tree-sitter grammars into APP_GRAMMAR_DIR (default: the user cache)
+	uv run python -m langgraph_postgres_starter.agents.incident_triage.codeintel.languages --download
 
 up: ## Build the image; start postgres, elasticmq, migrate and worker (compose.yaml)
 	docker compose up -d --build

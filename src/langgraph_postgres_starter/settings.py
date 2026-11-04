@@ -108,6 +108,9 @@ class Settings(BaseSettings):
     source_map_file: Path | None = None
     source_annotation_repo_key: str = "lps.dev/source-repo"
     source_annotation_commit_key: str = "lps.dev/source-commit"
+    # The folder of the tree-sitter grammars, which `make grammars` fetches (ruling R51);
+    # None: the library's user cache. The agent never downloads a grammar.
+    grammar_dir: Path | None = None
 
     # Tracing (LangSmith)
     trace_content: Literal["full", "redacted", "none"] = "redacted"
