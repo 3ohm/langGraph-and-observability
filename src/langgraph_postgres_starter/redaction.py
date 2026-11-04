@@ -81,13 +81,17 @@ _EMAIL = re.compile(
     r"[A-Za-z0-9-]+(?:\.[A-Za-z0-9-]+)*\.[A-Za-z]{2,}(?![A-Za-z0-9-])"
 )
 
-# Card number candidates: 13-19 digits in one run, or in groups split by single
-# spaces or dashes. A candidate next to a letter, digit, "-" or decimal point is part
-# of something else (a hex address, digest, UUID or decimal number) and is skipped.
+# Card number candidates: 13-19 digits in one run, or any number of digit groups
+# split by single spaces or dashes, so one candidate can hold several cards side by
+# side. A candidate next to a letter, digit, "-" or decimal point is part of
+# something else (a hex address, digest, UUID or decimal number) and is skipped.
 _CARD_CANDIDATE = re.compile(
-    r"(?<![\w.-])(?:[0-9]{4,6}(?:[ -][0-9]{3,6}){1,4}|[0-9]{13,19})(?![\w-]|\.[0-9])"
+    r"(?<![\w.-])(?:[0-9]{4,6}(?:[ -][0-9]{3,6})+|[0-9]{13,19})(?![\w-]|\.[0-9])"
 )
 _DIGIT_GROUP = re.compile(r"[0-9]+")
+# A card has at most 19 digits, and every group has at least 3, so a card spans at
+# most 6 groups.
+_MAX_CARD_GROUPS = 6
 # Leading digits of the card networks: 3 (Amex, Diners, JCB), 4 (Visa),
 # 5 (Mastercard, Maestro), 6 (Discover, UnionPay) and 22-27 (Mastercard). Epoch
 # timestamps and compact dates start with 1 or 20, so they do not pass.
@@ -108,19 +112,30 @@ def _is_card_number(digits: str) -> bool:
 
 
 def _redact_card(match: re.Match[str]) -> str:
-    """Redact the first run of digit groups in the candidate that is a card number.
+    """Redact each card number in the candidate, from left to right.
 
-    Runs that start further left are tried first, and the longest run at each start.
-    In "4111 1111 1111 1111 123" the card is redacted and the "123" after it stays.
+    At each digit group, the longest run of up to 6 groups that is a card number is
+    redacted, and the scan goes on after it. In "4111 1111 1111 1111 123" the "123"
+    stays, and two cards side by side are both redacted. Each group starts at most
+    6 runs, so the work grows linearly with the length of the candidate.
     """
     text = match.group()
     groups = list(_DIGIT_GROUP.finditer(text))
-    for first in range(len(groups)):
-        for last in range(len(groups) - 1, first - 1, -1):
+    pieces: list[str] = []
+    copied_to = 0
+    first = 0
+    while first < len(groups):
+        for last in range(min(first + _MAX_CARD_GROUPS, len(groups)) - 1, first - 1, -1):
             digits = "".join(group.group() for group in groups[first : last + 1])
             if _is_card_number(digits):
-                return text[: groups[first].start()] + REDACTED + text[groups[last].end() :]
-    return text
+                pieces += (text[copied_to : groups[first].start()], REDACTED)
+                copied_to = groups[last].end()
+                first = last + 1
+                break
+        else:
+            first += 1
+    pieces.append(text[copied_to:])
+    return "".join(pieces)
 
 
 def _redact_value(match: re.Match[str]) -> str:

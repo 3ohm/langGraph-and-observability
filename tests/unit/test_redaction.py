@@ -45,6 +45,8 @@ MORE_SECRETS = [
     ("card 4111-1111-1111-1111", "card [REDACTED]"),
     ("amex 3782 822463 10005", "amex [REDACTED]"),
     ("card 4111 1111 1111 1111 123 cvv", "card [REDACTED] 123 cvv"),
+    ("cards 4111 1111 1111 1111 5500 0000 0000 0004", "cards [REDACTED] [REDACTED]"),
+    ("cards 4111-1111-1111-1111-5500-0000-0000-0004", "cards [REDACTED]-[REDACTED]"),
     (
         "key:\n-----BEGIN RSA PRIVATE KEY-----\nMIIEowIBAAKCAQEA\n"
         "-----END RSA PRIVATE KEY-----\nok",
