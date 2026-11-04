@@ -86,9 +86,12 @@ jobs:
       - run: make grammars
       - run: make test-int
 
-  # End-to-end tests (spec 13.3; P10, P11): the tests start worker subprocesses
+  # End-to-end tests (spec 13.3; P10, P11, P13): the tests start worker subprocesses
   # (python -m langgraph_postgres_starter worker), then SIGKILL or SIGTERM them while a
   # run is in progress, against the same service containers as the integration job.
+  # make test-e2e (pytest -m e2e) also runs tests/e2e/test_triage_e2e.py: the
+  # incident_triage agent in simulated mode, with every fixture incident and a kill -9
+  # during its Datadog step.
   e2e:
     runs-on: ubuntu-latest
     services:
