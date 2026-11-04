@@ -13,9 +13,13 @@ from collections.abc import Callable
 from typing import NamedTuple
 
 from langgraph_postgres_starter.agents.incident_triage.codeintel.stacktrace import (
+    go,
     jvm,
+    native,
     node,
+    php,
     python,
+    ruby,
 )
 from langgraph_postgres_starter.agents.incident_triage.codeintel.stacktrace.family import Family
 from langgraph_postgres_starter.agents.incident_triage.schemas import Frame
@@ -35,6 +39,10 @@ _PARSERS: dict[Family, _Parser] = {
     Family.JVM: _Parser(jvm.detect, jvm.parse),
     Family.NODE: _Parser(node.detect, node.parse),
     Family.PYTHON: _Parser(python.detect, python.parse),
+    Family.GO: _Parser(go.detect, go.parse),
+    Family.PHP: _Parser(php.detect, php.parse),
+    Family.RUBY: _Parser(ruby.detect, ruby.parse),
+    Family.NATIVE: _Parser(native.detect, native.parse),
 }
 
 

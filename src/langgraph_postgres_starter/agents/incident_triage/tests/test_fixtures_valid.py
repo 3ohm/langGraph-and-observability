@@ -1,9 +1,9 @@
 """The agent's own fixtures: sample apps and incidents (spec §12.3, §13.10, FORMAT.md).
 
 Every incident loads, and the simulated adapters accept its files. Each application
-incident's crash log leads to the incident's expected code location: the innermost
-frame in a file of the app lies in the expected lines. A native crash that prints no
-trace instead logs a message whose text is a literal in the expected lines.
+incident's crash log leads to the incident's expected code location: the first app
+frame that ``parse_frames`` returns lies in the expected lines. A native crash that
+prints no trace instead logs a message whose text is a literal in the expected lines.
 """
 
 import re
@@ -12,6 +12,7 @@ from pathlib import Path
 import pytest
 
 from langgraph_postgres_starter.agents.incident_triage.adapters import build_adapters
+from langgraph_postgres_starter.agents.incident_triage.codeintel.stacktrace import parse_frames
 from langgraph_postgres_starter.agents.incident_triage.fixtures.loader import (
     Fixture,
     list_fixtures,
@@ -73,16 +74,6 @@ SIDECARS = {
     "cloud-sql-proxy",
 }
 
-# Frames, as (file, line). Python: File "<path>", line <n>.
-_PYTHON_FRAME = re.compile(r'File "(?P<path>[^"]+)", line (?P<line>\d+)')
-# JVM: at [module/]<class>.<method>(<file>:<line>). A frame without a line is skipped.
-_JVM_FRAME = re.compile(
-    r"^\s+at (?:[\w.]+/)?(?P<cls>[\w.$]+)\.[\w$<>]+"
-    r"\((?P<file>[\w$]+\.(?:java|kt|scala)):(?P<line>\d+)\)",
-    re.MULTILINE,
-)
-# Node, Go, PHP, Ruby and native: an absolute or ../ path, then :<line> or (<line>).
-_PATH_LINE = re.compile(r"(?P<path>(?:/|\.\./)[\w./+-]+\.[A-Za-z]+)(?::|\()(?P<line>\d+)")
 # A log line's message: the text after its level.
 _LOG_MESSAGE = re.compile(r"\b(?:DEBUG|INFO|WARN|WARNING|ERROR)\s+(?P<message>.+)$", re.MULTILINE)
 
@@ -127,25 +118,6 @@ def crash_log(fixture: Fixture) -> str:
     return log
 
 
-def innermost_first(log: str) -> list[tuple[str, int]]:
-    """The log's stack frames as (file, line), innermost first.
-
-    Python prints the innermost frame last. A JVM trace's deepest cause is printed
-    last, and its frames run innermost first; a JVM frame's file is its class's package
-    path plus its file name. The other runtimes print the innermost frame first.
-    """
-    if "Traceback (most recent call last):" in log:
-        frames = [(m["path"], int(m["line"])) for m in _PYTHON_FRAME.finditer(log)]
-        return frames[::-1]
-    if _JVM_FRAME.search(log):
-        deepest_cause = log.rsplit("\nCaused by: ", 1)[-1]
-        return [
-            ("/".join([*m["cls"].split(".")[:-1], m["file"]]), int(m["line"]))
-            for m in _JVM_FRAME.finditer(deepest_cause)
-        ]
-    return [(m["path"], int(m["line"])) for m in _PATH_LINE.finditer(log)]
-
-
 @pytest.mark.parametrize("fid", list_fixtures())
 def test_fixture_valid(fid):
     f = load_fixture(fid)
@@ -177,7 +149,7 @@ def test_infrastructure_incidents_have_no_app_signal(fid, category):
     assert f.expected["category"] == category
     # No stack trace, and every non-zero exit comes with an infrastructure reason.
     for log in f.k8s["logs"].values():
-        assert log is None or innermost_first(log) == []
+        assert log is None or parse_frames(log) == []
     probe_failed = any(e["reason"] == "Unhealthy" for e in f.k8s["events"])
     for pod in f.k8s["pods"]:
         for container in pod["containers"]:
@@ -209,19 +181,14 @@ def test_app_crash_logs_point_at_bug_line(fid):
     assert f.source is not None
     code = f.expected["code"]
     app = get_settings().fixtures_dir / "apps" / f.source["app"]
-    files = [p.relative_to(app).as_posix() for p in app_files(app)]
     log = crash_log(f)
-    app_frames = [
-        (path, line)
-        for path, line in innermost_first(log)
-        if any(points_at(path, file) for file in files)
-    ]
+    app_frames = [frame for frame in parse_frames(log) if frame.is_app_frame]
     expected_lines = app.joinpath(code["path"]).read_text().splitlines()
     expected_lines = expected_lines[code["start_line"] - 1 : code["end_line"]]
     if app_frames:
-        path, line = app_frames[0]
-        assert points_at(path, code["path"]), f"the innermost app frame is in {path}"
-        assert code["start_line"] <= line <= code["end_line"]
+        first = app_frames[0]
+        assert points_at(first.file, code["path"]), f"the first app frame is in {first.file}"
+        assert code["start_line"] <= first.line <= code["end_line"]
     else:
         # A native crash with no trace: the last logged message's text, up to its first
         # variable part, is a literal in the expected lines.
