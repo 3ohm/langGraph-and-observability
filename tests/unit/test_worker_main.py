@@ -1,0 +1,88 @@
+"""Worker startup failures and the ``worker`` subcommand (spec 7.1, 13.6).
+
+No test needs Docker: a DSN that points at port 1 on the loopback stands for a
+database that is down.
+"""
+
+import json
+
+import pytest
+
+from langgraph_postgres_starter import __main__
+from langgraph_postgres_starter.settings import load_settings
+from langgraph_postgres_starter.worker import main as worker_main
+from langgraph_postgres_starter.worker.main import EXIT_STARTUP_FAILED, Worker
+from tests.graphs.steps import STEPS_SPEC
+
+# Nothing listens on port 1, so every connection attempt is refused at once.
+DEAD_DSN = "postgresql://lps:hunter2-secret@127.0.0.1:1/lps"
+
+
+def _log_lines(text: str) -> list[dict[str, object]]:
+    return [json.loads(line) for line in text.splitlines() if line.startswith("{")]
+
+
+def _startup_failure(text: str) -> dict[str, object]:
+    [line] = [entry for entry in _log_lines(text) if entry["event"] == "worker.startup_failed"]
+    return line
+
+
+async def test_start_fails_when_the_intake_agent_is_not_registered():
+    settings = load_settings(
+        database_url=DEAD_DSN, sqs_queue_url="http://sqs.local/q", intake_agent="nope"
+    )
+    worker = Worker(
+        settings, agents={STEPS_SPEC.name: STEPS_SPEC}, sqs_client=object(), owner="pod-a"
+    )
+
+    with pytest.raises(ValueError, match="'nope'"):
+        await worker.start()
+    await worker.stop()
+
+
+def test_main_exits_when_the_database_is_unreachable(monkeypatch, capsys):
+    monkeypatch.setenv("APP_DATABASE_URL", DEAD_DSN)
+    monkeypatch.setenv("APP_DB_CONNECT_TIMEOUT_S", "1")
+    monkeypatch.setenv("APP_HEALTH_PORT", "0")
+
+    assert worker_main.main([]) == EXIT_STARTUP_FAILED
+
+    out = capsys.readouterr().out
+    failure = _startup_failure(out)
+    assert failure["level"] == "error"
+    assert "could not connect to Postgres" in str(failure["error"])
+    assert "hunter2-secret" not in out
+
+
+def test_main_exits_when_prod_secrets_are_missing(monkeypatch, capsys):
+    monkeypatch.setenv("APP_ENV", "prod")
+
+    assert worker_main.main([]) == EXIT_STARTUP_FAILED
+
+    failure = _startup_failure(capsys.readouterr().out)
+    assert "database_url" in str(failure["error"])
+    assert "sqs_queue_url" in str(failure["error"])
+
+
+def test_main_exits_when_settings_are_invalid(monkeypatch, capsys):
+    monkeypatch.setenv("APP_WORKER_CONCURRENCY", "many")
+
+    assert worker_main.main([]) == EXIT_STARTUP_FAILED
+
+    error = _startup_failure(capsys.readouterr().out)["error"]
+    assert isinstance(error, dict)
+    assert error["type"] == "ValidationError"
+    assert "worker_concurrency" in error["message"]
+
+
+def test_cli_worker_subcommand_runs_worker_main(monkeypatch):
+    calls = []
+
+    def fake_main(argv):
+        calls.append(argv)
+        return 7
+
+    monkeypatch.setattr(worker_main, "main", fake_main)
+
+    assert __main__.main(["worker"]) == 7
+    assert calls == [[]]

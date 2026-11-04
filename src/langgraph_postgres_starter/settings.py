@@ -1,9 +1,10 @@
 """Application settings, read from environment variables.
 
-Every variable has the ``APP_`` prefix, except the Datadog names, which keep their
-vendor form: ``DD_API_KEY``, ``DD_APP_KEY`` and ``DD_SITE``. List values are JSON,
-for example ``APP_EXTRA_AGENTS=["my_pkg.graph:SPEC"]``. An empty value means "not
-set", so the field keeps its default. ``.env.example`` documents every variable.
+Every variable has the ``APP_`` prefix, except the vendor names, which keep their
+vendor form: ``DD_API_KEY``, ``DD_APP_KEY``, ``DD_SITE`` and ``LANGGRAPH_AES_KEY``. List
+values are JSON, for example ``APP_EXTRA_AGENTS=["my_pkg.graph:SPEC"]``. An empty value
+means "not set", so the field keeps its default. ``.env.example`` documents every
+variable.
 
 Settings reads the process environment only, never a ``.env`` file. ``langgraph
 dev`` and Docker Compose load ``.env`` into the environment themselves.
@@ -49,6 +50,9 @@ class Settings(BaseSettings):
     db_max_lifetime_s: int = 1800
     db_connect_timeout_s: int = 10
     pgbouncer_mode: bool = False
+    # The checkpoint encryption key (vendor name, no APP_ prefix): 16, 24 or 32 bytes.
+    # When set, checkpoints are encrypted at rest; that needs the `encryption` extra.
+    langgraph_aes_key: SecretStr | None = Field(default=None, validation_alias="LANGGRAPH_AES_KEY")
 
     # Queues (SQS; ElasticMQ locally)
     aws_region: str = "us-east-1"

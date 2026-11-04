@@ -214,8 +214,3 @@ def test_cli_with_unreachable_database_exits_2_without_the_dsn(argv, capsys, mon
     assert "Traceback" not in out.err
     [error] = _lines(out.err)
     assert "could not connect to Postgres" in error["error"]
-
-
-def test_cli_worker_not_available_yet():
-    with pytest.raises(SystemExit, match="worker not available"):
-        main(["worker"])

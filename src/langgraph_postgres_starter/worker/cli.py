@@ -88,17 +88,10 @@ def main(argv: Sequence[str]) -> int:
 
 
 def _worker(argv: Sequence[str]) -> int:
-    try:
-        # Imported here: only this command loads the worker's runtime.
-        from langgraph_postgres_starter.worker.main import (  # type: ignore[import-untyped]
-            main as worker_main,
-        )
-    except ModuleNotFoundError as exc:
-        if exc.name != "langgraph_postgres_starter.worker.main":
-            raise
-        raise SystemExit("worker not available") from None
-    exit_code: int = worker_main(list(argv))
-    return exit_code
+    # Imported here: only this command loads the worker's runtime.
+    from langgraph_postgres_starter.worker.main import main as worker_main
+
+    return worker_main(list(argv))
 
 
 def _migrate(args: argparse.Namespace) -> int:

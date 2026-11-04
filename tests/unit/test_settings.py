@@ -25,6 +25,7 @@ EXPECTED_DEFAULTS = {
     "db_max_lifetime_s": 1800,
     "db_connect_timeout_s": 10,
     "pgbouncer_mode": False,
+    "langgraph_aes_key": None,
     "cluster_name": "local",
     "aws_region": "us-east-1",
     "sqs_queue_url": None,
@@ -217,5 +218,5 @@ def test_env_example_leaves_secrets_empty():
         for name, field in Settings.model_fields.items()
         if SecretStr in get_args(field.annotation)
     ]
-    assert {"APP_GIT_TOKEN", "DD_API_KEY", "DD_APP_KEY"} <= set(secrets)
+    assert {"APP_GIT_TOKEN", "DD_API_KEY", "DD_APP_KEY", "LANGGRAPH_AES_KEY"} <= set(secrets)
     assert all(documented[name] == "" for name in secrets)
