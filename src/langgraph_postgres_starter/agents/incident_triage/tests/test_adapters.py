@@ -213,6 +213,7 @@ RESULT = TriageResult(
     ),
     analysis=None,
     refusal=False,
+    needs_human=True,
     model_id=None,
     usage=None,
     evidence_counts={"k8s": 3},

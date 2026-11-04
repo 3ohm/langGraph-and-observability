@@ -210,7 +210,12 @@ class Usage(_Model):
 
 
 class TriageResult(_Model):
-    """What a run stores in ``triage_results`` and sends to the sinks (spec §9.8, §9.9)."""
+    """What a run stores in ``triage_results`` and sends to the sinks (spec §9.8, §9.9).
+
+    ``needs_human`` is True when there is no analysis (a refusal, spec §9.7), and else
+    the analysis's ``needs_human``. It is a plain field, so it is in the stored JSON and
+    in every sink's payload; a value that disagrees with ``analysis`` is an error.
+    """
 
     run_id: UUID
     dedup_key: str
@@ -218,10 +223,26 @@ class TriageResult(_Model):
     assessment: Assessment
     analysis: TriageAnalysis | None
     refusal: bool
+    needs_human: bool
     model_id: str | None
     usage: Usage | None
     evidence_counts: dict[str, int]
     created_at: UtcDatetime
+
+    @model_validator(mode="after")
+    def _check_needs_human(self) -> Self:
+        expected = result_needs_human(self.analysis)
+        if self.needs_human != expected:
+            raise ValueError(
+                f"needs_human must be {expected} "
+                + ("with no analysis" if self.analysis is None else "as in the analysis")
+            )
+        return self
+
+
+def result_needs_human(analysis: TriageAnalysis | None) -> bool:
+    """Whether a result with ``analysis`` needs a human: always without an analysis."""
+    return True if analysis is None else analysis.needs_human
 
 
 # Every model that the graph keeps in its state (state.TriageState), with the models

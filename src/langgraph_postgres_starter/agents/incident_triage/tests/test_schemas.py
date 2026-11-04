@@ -316,22 +316,45 @@ def test_analysis_json_schema_is_closed():
         assert set(obj["required"]) == set(obj["properties"])
 
 
+def _result(**changes: Any) -> TriageResult:
+    fields: dict[str, Any] = {
+        "run_id": new_id(),
+        "dedup_key": "0" * 64,
+        "target": TARGET,
+        "assessment": ASSESSMENT,
+        "analysis": ANALYSIS,
+        "refusal": False,
+        "needs_human": False,
+        "model_id": "anthropic.claude-opus-5-5",
+        "usage": USAGE,
+        "evidence_counts": {"k8s": 4, "datadog": 1, "code": 1},
+        "created_at": datetime(2026, 11, 2, 10, 32),
+    }
+    return TriageResult(**(fields | changes))
+
+
 def test_triage_result_json_round_trip():
-    result = TriageResult(
-        run_id=new_id(),
-        dedup_key="0" * 64,
-        target=TARGET,
-        assessment=ASSESSMENT,
-        analysis=ANALYSIS,
-        refusal=False,
-        model_id="anthropic.claude-opus-5-5",
-        usage=USAGE,
-        evidence_counts={"k8s": 4, "datadog": 1, "code": 1},
-        created_at=datetime(2026, 11, 2, 10, 32),
-    )
+    result = _result()
 
     assert result.created_at.tzinfo is UTC
     assert TriageResult.model_validate_json(result.model_dump_json()) == result
+    assert result.model_dump(mode="json")["needs_human"] is False
+
+
+def test_triage_result_needs_human_matches_analysis():
+    # Spec §9.7: a result without an analysis (a refusal) needs a human; otherwise
+    # needs_human is the analysis's.
+    asks = ANALYSIS.model_copy(update={"needs_human": True})
+    assert _result(analysis=asks, needs_human=True).needs_human is True
+    assert _result(analysis=None, refusal=True, needs_human=True).needs_human is True
+
+    for changes in (
+        {"analysis": ANALYSIS, "needs_human": True},
+        {"analysis": asks, "needs_human": False},
+        {"analysis": None, "refusal": True, "needs_human": False},
+    ):
+        with pytest.raises(pydantic.ValidationError, match="needs_human"):
+            _result(**changes)
 
 
 @pytest.mark.usefixtures("strict_msgpack")

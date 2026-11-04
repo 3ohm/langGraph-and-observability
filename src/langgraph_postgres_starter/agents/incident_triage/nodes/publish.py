@@ -1,8 +1,9 @@
 """The ``publish`` step: store the run's result, then send it to each sink once (spec §9.9; P13).
 
 1. The step builds the ``TriageResult`` from the state, which holds redacted evidence
-   only: no settings, adapters or secrets go into it. With no analysis (a refusal) its
-   ``analysis`` is None and its row's ``category`` is ``unknown``.
+   only: no settings, adapters or secrets go into it. With no analysis (a refusal, spec
+   §9.7) its ``analysis`` is None, ``needs_human`` is True and its row's ``category`` is
+   ``unknown``; otherwise ``needs_human`` is the analysis's.
 2. With a pool (``current_pool()``, which the worker registers), it inserts the result
    into ``triage_results`` with ``ON CONFLICT (run_id) DO NOTHING``. When the row is
    there already, from an earlier attempt of the step, the sinks get the stored result,
@@ -38,7 +39,10 @@ from psycopg_pool import AsyncConnectionPool
 
 from langgraph_postgres_starter.agents.incident_triage.adapters.sinks.interface import ResultSink
 from langgraph_postgres_starter.agents.incident_triage.context import TriageContext, ctx
-from langgraph_postgres_starter.agents.incident_triage.schemas import TriageResult
+from langgraph_postgres_starter.agents.incident_triage.schemas import (
+    TriageResult,
+    result_needs_human,
+)
 from langgraph_postgres_starter.agents.incident_triage.state import TriageState
 from langgraph_postgres_starter.logging import get_logger
 from langgraph_postgres_starter.persistence.ledger import run_once
@@ -96,13 +100,15 @@ async def publish(state: TriageState, runtime: Runtime[TriageContext]) -> Triage
 
 def _build_result(state: TriageState, context: TriageContext) -> TriageResult:
     """The run's result, from the state after ``analyze``, created now."""
+    analysis = state.get("analysis")
     return TriageResult(
         run_id=context.run.run_id,
         dedup_key=context.run.dedup_key,
         target=state["target"],
         assessment=state["assessment"],
-        analysis=state.get("analysis"),
+        analysis=analysis,
         refusal=state.get("refusal", False),
+        needs_human=result_needs_human(analysis),
         model_id=state.get("model_id"),
         usage=state.get("usage"),
         evidence_counts={

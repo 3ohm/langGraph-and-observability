@@ -113,6 +113,8 @@ STATE: TriageState = {
 }
 # The same run when the model refused: no analysis.
 REFUSED: TriageState = STATE | {"analysis": None, "refusal": True}
+# The same run when the model asks for a human.
+ASKS_HUMAN: TriageState = STATE | {"analysis": ANALYSIS.model_copy(update={"needs_human": True})}
 
 
 @dataclass
@@ -241,11 +243,16 @@ async def test_publish_retry_sends_the_stored_result(results_pool, monkeypatch, 
 
 @pytest.mark.integration
 @pytest.mark.parametrize(
-    ("state", "category"),
-    [(STATE, "application"), (REFUSED, "unknown")],
-    ids=["analysis", "refusal"],
+    ("state", "category", "needs_human"),
+    [
+        (STATE, "application", False),
+        (ASKS_HUMAN, "application", True),
+        # Spec §9.7: a refusal is category unknown, needs_human and refusal.
+        (REFUSED, "unknown", True),
+    ],
+    ids=["analysis", "analysis-needs-human", "refusal"],
 )
-async def test_result_row_validates_as_triage_result(results_pool, state, category):
+async def test_result_row_validates_as_triage_result(results_pool, state, category, needs_human):
     runtime = _runtime(RecordingSink("log"))
     run_id = _run_id(runtime)
 
@@ -261,6 +268,8 @@ async def test_result_row_validates_as_triage_result(results_pool, state, catego
     assert result.analysis == state["analysis"]
     assert result.refusal is state["refusal"]
     assert row["category"] == category
+    assert result.needs_human is needs_human
+    assert row["result"]["needs_human"] is needs_human
     assert result.model_id == row["model_id"] == MODEL_ID
     assert result.usage == state["usage"]
     assert row["usage"] == state["usage"].model_dump(mode="json")
@@ -308,6 +317,7 @@ async def test_sqs_sink_fifo_sets_dedup_id():
         assessment=STATE["assessment"],
         analysis=ANALYSIS,
         refusal=False,
+        needs_human=False,
         model_id=MODEL_ID,
         usage=None,
         evidence_counts={"k8s": 2},
