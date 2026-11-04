@@ -1373,6 +1373,7 @@ dependencies = [
     { name = "psycopg-pool" },
     { name = "pydantic" },
     { name = "pydantic-settings" },
+    { name = "pyyaml" },
     { name = "structlog" },
     { name = "tree-sitter" },
     { name = "tree-sitter-language-pack" },
@@ -1401,7 +1402,6 @@ test = [
     { name = "pytest" },
     { name = "pytest-asyncio" },
     { name = "pytest-cov" },
-    { name = "pyyaml" },
     { name = "testcontainers" },
     { name = "types-pyyaml" },
 ]
@@ -1424,6 +1424,7 @@ requires-dist = [
     { name = "pycryptodome", marker = "extra == 'encryption'", specifier = ">=4.3.0" },
     { name = "pydantic", specifier = ">=2.14.2" },
     { name = "pydantic-settings", specifier = ">=2.16.2" },
+    { name = "pyyaml", specifier = ">=6.0.3" },
     { name = "structlog", specifier = ">=25.5.0" },
     { name = "tree-sitter", specifier = ">=0.26.0" },
     { name = "tree-sitter-language-pack", specifier = ">=1.23.1" },
@@ -1446,7 +1447,6 @@ test = [
     { name = "pytest", specifier = ">=9.2.0" },
     { name = "pytest-asyncio", specifier = ">=1.4.1" },
     { name = "pytest-cov", specifier = ">=7.1.0" },
-    { name = "pyyaml", specifier = ">=6.0.3" },
     { name = "testcontainers", extras = ["postgres"], specifier = ">=4.15.0" },
     { name = "types-pyyaml", specifier = ">=6.0.12.20261103" },
 ]

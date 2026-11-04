@@ -539,11 +539,8 @@ def test_real_mode_builds_real_k8s_without_network(monkeypatch):
     simulated = _build_k8s(load_settings(), fixture, NO_CALL_LOG)
     assert isinstance(simulated, FakeK8s)
 
-    # Real mode still stops at the adapters that are not built yet, but no longer at k8s.
-    with pytest.raises(NotImplementedError) as exc_info:
-        build_adapters(load_settings(adapters="real"), fixture_id=None)
-    assert "k8s (Task" not in str(exc_info.value)
-    assert "locator (Task 28)" in str(exc_info.value)
+    # Real mode builds every adapter it selects, without a fixture.
+    assert isinstance(build_adapters(load_settings(adapters="real"), fixture_id=None).k8s, RealK8s)
 
 
 async def test_real_other_errors_propagate_and_odd_owners(monkeypatch, loads):

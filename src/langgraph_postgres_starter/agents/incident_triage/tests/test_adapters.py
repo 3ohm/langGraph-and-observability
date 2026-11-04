@@ -8,10 +8,12 @@ agent's own fixtures.
 import asyncio
 import json
 import re
+import socket
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
+import boto3
 import pydantic
 import pytest
 import structlog
@@ -34,10 +36,14 @@ from langgraph_postgres_starter.agents.incident_triage.adapters.llm.interface im
 )
 from langgraph_postgres_starter.agents.incident_triage.adapters.llm.recorded import RecordedLlm
 from langgraph_postgres_starter.agents.incident_triage.adapters.sinks.log import LogSink
+from langgraph_postgres_starter.agents.incident_triage.adapters.source.git import (
+    GitSourceProvider,
+)
 from langgraph_postgres_starter.agents.incident_triage.adapters.source.interface import SourceRef
 from langgraph_postgres_starter.agents.incident_triage.adapters.source.local import (
     LocalSourceProvider,
 )
+from langgraph_postgres_starter.agents.incident_triage.adapters.source.locator import ChainLocator
 from langgraph_postgres_starter.agents.incident_triage.context import (
     ctx,
     default_context,
@@ -454,17 +460,39 @@ async def test_recorded_llm_malformed_reply_names_its_file(root):
 @pytest.mark.parametrize(
     ("overrides", "adapter", "task"),
     [
-        ({"adapters": "real"}, "locator", 28),
-        ({"adapters": "real"}, "source", 28),
         ({"llm_mode": "bedrock"}, "llm", 31),
         ({"result_sinks": ["log", "sqs"]}, "sink.sqs", 32),
     ],
-    ids=["locator", "source", "llm", "sink.sqs"],
+    ids=["llm", "sink.sqs"],
 )
 def test_real_mode_not_ready_names_task(overrides, adapter, task):
     with pytest.raises(NotImplementedError) as exc_info:
         build_adapters(load_settings(**overrides), fixture_id=SAMPLE)
     assert f"{adapter} (Task {task})" in str(exc_info.value)
+
+
+def test_real_mode_builds_source_adapters_without_network(monkeypatch, tmp_path):
+    def no_network(*args, **kwargs):
+        raise AssertionError("building the adapters must not touch the network or run git")
+
+    monkeypatch.setattr(socket, "getaddrinfo", no_network)
+    monkeypatch.setattr(socket.socket, "connect", no_network)
+    # boto3 looks for credentials, which can mean a network call, when it builds a client.
+    monkeypatch.setattr(boto3.session, "Session", no_network)
+    monkeypatch.setattr(asyncio, "create_subprocess_exec", no_network)
+    settings = load_settings(
+        adapters="real",
+        source_cache_dir=tmp_path / "cache",
+        source_map_file=tmp_path / "source-map.yaml",
+        git_token="token-for-tests",  # noqa: S106 - a fake token
+    )
+
+    adapters = build_adapters(settings, fixture_id=None)
+
+    assert isinstance(adapters.locator, ChainLocator)
+    assert isinstance(adapters.source, GitSourceProvider)
+    # Nothing is read or written before the first call either.
+    assert not (tmp_path / "cache").exists()
 
 
 def test_simulated_mode_needs_a_fixture(root):

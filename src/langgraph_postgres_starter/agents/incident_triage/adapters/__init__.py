@@ -9,6 +9,7 @@ it. ``build_adapters`` picks them from the settings:
 - ``APP_RESULT_SINKS`` lists the sinks. ``log`` is the same in every mode.
 """
 
+import functools
 from dataclasses import dataclass
 from uuid import UUID
 
@@ -25,6 +26,13 @@ from langgraph_postgres_starter.agents.incident_triage.adapters.llm.interface im
 from langgraph_postgres_starter.agents.incident_triage.adapters.llm.recorded import RecordedLlm
 from langgraph_postgres_starter.agents.incident_triage.adapters.sinks.interface import ResultSink
 from langgraph_postgres_starter.agents.incident_triage.adapters.sinks.log import LogSink
+from langgraph_postgres_starter.agents.incident_triage.adapters.source.ecr import (
+    EcrLabelReader,
+    make_ecr_client,
+)
+from langgraph_postgres_starter.agents.incident_triage.adapters.source.git import (
+    GitSourceProvider,
+)
 from langgraph_postgres_starter.agents.incident_triage.adapters.source.interface import (
     SourceLocator,
     SourceProvider,
@@ -33,6 +41,7 @@ from langgraph_postgres_starter.agents.incident_triage.adapters.source.local imp
     FixtureLocator,
     LocalSourceProvider,
 )
+from langgraph_postgres_starter.agents.incident_triage.adapters.source.locator import ChainLocator
 from langgraph_postgres_starter.agents.incident_triage.fixtures.loader import (
     Fixture,
     load_fixture,
@@ -56,8 +65,6 @@ class Adapters:
 # plan (docs/plans/2026-11-02-incident-triage-v1.md) that adds it. The task that adds
 # an adapter removes its entry.
 _NOT_BUILT_YET: dict[str, int] = {
-    "locator": 28,
-    "source": 28,
     "llm": 31,
     "sink.sqs": 32,
 }
@@ -73,9 +80,11 @@ def build_adapters(
     every adapter appends its calls to the run's call log (``call_log.py``).
     Constructing an adapter touches no network.
 
+    With ``APP_ADAPTERS=real`` no fixture is loaded, and ``fixture_id`` is not used.
+
     Raises NotImplementedError when the settings select a real adapter that is not
-    built yet; the message names each such adapter and its task, as in ``locator
-    (Task 28)``. In simulated mode, raises ValueError without a ``fixture_id`` and
+    built yet; the message names each such adapter and its task, as in ``llm
+    (Task 31)``. In simulated mode, raises ValueError without a ``fixture_id`` and
     FileNotFoundError when the fixture is missing.
     """
     not_built = [name for name in _real_adapters(settings) if name in _NOT_BUILT_YET]
@@ -86,23 +95,24 @@ def build_adapters(
             "numbers are those of docs/plans/2026-11-02-incident-triage-v1.md. Use "
             'APP_ADAPTERS=simulated, APP_LLM_MODE=recorded and APP_RESULT_SINKS=["log"].'
         )
-    # Of the adapters that APP_ADAPTERS=real selects, only k8s and datadog are built, and
-    # the others raise above: from here the mode is simulated, the model is recorded and
-    # every sink is log. _build_k8s and _build_datadog already pick the real adapters in
-    # real mode.
-    if fixture_id is None:
+    # The adapters that are not built yet raise above: from here the model is recorded
+    # and every sink is log.
+    if settings.adapters == "real":
+        fixture = None
+    elif fixture_id is None:
         raise ValueError(
             "simulated adapters (APP_ADAPTERS=simulated) serve an incident fixture, but "
             "there is no fixture ID: set raw.fixture_id in the message to the ID of a "
             f"fixture in {settings.fixtures_dir / 'incidents'}"
         )
-    fixture = load_fixture(fixture_id, root=settings.fixtures_dir)
+    else:
+        fixture = load_fixture(fixture_id, root=settings.fixtures_dir)
     calls = CallLog.for_run(settings, run_id)
     return Adapters(
         k8s=_build_k8s(settings, fixture, calls),
         datadog=_build_datadog(settings, fixture, calls),
-        locator=FixtureLocator.from_fixture(fixture.source, calls),
-        source=LocalSourceProvider(settings.fixtures_dir / "apps", calls),
+        locator=_build_locator(settings, fixture, calls),
+        source=_build_source(settings, calls),
         llm=RecordedLlm(settings.fixtures_dir / "recorded", calls),
         sinks=tuple(LogSink(calls) for _ in settings.result_sinks),
     )
@@ -132,6 +142,38 @@ def _build_datadog(settings: Settings, fixture: Fixture | None, calls: CallLog) 
     return FakeDatadog.from_fixture(
         fixture.datadog, delay_s=settings.fake_datadog_delay_s, calls=calls
     )
+
+
+def _build_locator(settings: Settings, fixture: Fixture | None, calls: CallLog) -> SourceLocator:
+    """``ChainLocator`` with ``APP_ADAPTERS=real``, else the locator of ``fixture``'s source.
+
+    Building ``ChainLocator`` touches no network: its ECR reader builds the boto3 client
+    when it first reads an ECR image's labels.
+    """
+    if settings.adapters == "real":
+        return ChainLocator(
+            annotation_keys=(
+                settings.source_annotation_repo_key,
+                settings.source_annotation_commit_key,
+            ),
+            ecr=EcrLabelReader(functools.partial(make_ecr_client, settings.aws_region)),
+            config_map=settings.source_map_file,
+        )
+    if fixture is None:
+        raise ValueError("the simulated source locator needs an incident fixture")
+    return FixtureLocator.from_fixture(fixture.source, calls)
+
+
+def _build_source(settings: Settings, calls: CallLog) -> SourceProvider:
+    """``GitSourceProvider`` with ``APP_ADAPTERS=real``, else the fixture apps' provider.
+
+    Building ``GitSourceProvider`` starts no git process and touches no file.
+    """
+    if settings.adapters == "real":
+        return GitSourceProvider(
+            settings.source_cache_dir, settings.git_token, settings.source_cache_max_mb
+        )
+    return LocalSourceProvider(settings.fixtures_dir / "apps", calls)
 
 
 def _real_adapters(settings: Settings) -> list[str]:

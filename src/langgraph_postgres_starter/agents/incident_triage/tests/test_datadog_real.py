@@ -229,11 +229,8 @@ def test_real_mode_builds_real_datadog_without_network(monkeypatch):
     with pytest.raises(ValueError, match="fixture"):
         _build_datadog(load_settings(), None, NO_CALL_LOG)
 
-    # Real mode still stops at the adapters that are not built yet, but no longer at datadog.
-    with pytest.raises(NotImplementedError) as exc_info:
-        build_adapters(_settings(), fixture_id=None)
-    assert "datadog (Task" not in str(exc_info.value)
-    assert "locator (Task 28)" in str(exc_info.value)
+    # Real mode builds every adapter it selects, without a fixture.
+    assert isinstance(build_adapters(_settings(), fixture_id=None).datadog, RealDatadog)
 
 
 # The transport tests: aiosonic answers instead of Datadog.
