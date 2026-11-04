@@ -9,7 +9,10 @@ the health server on ``APP_HEALTH_PORT`` (§8.6) and starts these loops:
 - recovery: once at start, then every ``APP_RECOVERY_INTERVAL_SECONDS``, it claims up
   to the free slots' worth of runs that are pending or whose lease has expired (§8.3);
 - heartbeat: every ``APP_HEARTBEAT_SECONDS``, it extends the leases of this pod's runs
-  (§8.2).
+  (§8.2);
+- pruner: once at start, then every ``PRUNE_INTERVAL_S``, it makes a retention pass
+  (``retention.prune_once``), which only the pod that holds the leader lock carries out
+  (§7.4).
 
 At most ``APP_WORKER_CONCURRENCY`` runs execute at once, each in its own task. A run
 that intake recorded but could not start, because recovery took the slot in the
@@ -17,10 +20,10 @@ meantime, stays pending for the next recovery. A loop that fails logs the error 
 goes on. A run task that fails logs ``run.crashed``; its run keeps the lease until the
 lease expires and recovery claims it again.
 
-``Worker.stop`` drains (§8.4): it stops intake and recovery, asks every active run to
-stop after its current step, waits up to ``APP_DRAIN_TIMEOUT_SECONDS``, cancels the runs
-that are still going, and returns this pod's remaining runs to pending. Then it stops
-the health server and closes the pool.
+``Worker.stop`` drains (§8.4): it stops intake, recovery and the pruner, asks every
+active run to stop after its current step, waits up to ``APP_DRAIN_TIMEOUT_SECONDS``,
+cancels the runs that are still going, and returns this pod's remaining runs to
+pending. Then it stops the health server and closes the pool.
 
 ``main`` is the ``worker`` command. It runs a Worker until SIGTERM or SIGINT.
 
@@ -35,6 +38,7 @@ import signal
 import socket
 import time
 from collections.abc import Generator, Iterable, Mapping, Sequence
+from datetime import UTC, datetime
 from typing import Any
 from uuid import UUID
 
@@ -46,7 +50,10 @@ from pydantic import ValidationError
 
 from langgraph_postgres_starter.agent_spec import AgentSpec
 from langgraph_postgres_starter.logging import configure_logging, get_logger
-from langgraph_postgres_starter.persistence.checkpointer import make_checkpointer
+from langgraph_postgres_starter.persistence.checkpointer import (
+    PoolAwarePostgresSaver,
+    make_checkpointer,
+)
 from langgraph_postgres_starter.persistence.pool import create_pool, open_pool
 from langgraph_postgres_starter.persistence.resources import set_pool
 from langgraph_postgres_starter.persistence.serde import make_serde
@@ -56,6 +63,7 @@ from langgraph_postgres_starter.worker.executor import RunExecutor
 from langgraph_postgres_starter.worker.health import ReadinessProbe, create_health_app
 from langgraph_postgres_starter.worker.intake import SqsIntake, make_sqs_client
 from langgraph_postgres_starter.worker.registry import load_agents
+from langgraph_postgres_starter.worker.retention import prune_once
 from langgraph_postgres_starter.worker.runs import RunRepo, RunRow
 
 type _Pool = AsyncConnectionPool[AsyncConnection[DictRow]]
@@ -67,6 +75,8 @@ PROG = "python -m langgraph_postgres_starter worker"
 # The exit code when the worker cannot start, as for the CLI's setup errors.
 EXIT_STARTUP_FAILED = 2
 
+# How often the pruner loop makes a retention pass (spec §7.4).
+PRUNE_INTERVAL_S = 3600.0
 # How long the intake loop waits after an error before it polls again.
 _ERROR_BACKOFF_S = 1.0
 # /ready allows a long poll this many seconds beyond APP_SQS_WAIT_SECONDS.
@@ -122,6 +132,7 @@ class Worker:
         self._intake_task: asyncio.Task[None] | None = None
         self._recovery_task: asyncio.Task[None] | None = None
         self._heartbeat_task: asyncio.Task[None] | None = None
+        self._prune_task: asyncio.Task[None] | None = None
         self._stop_task: asyncio.Task[None] | None = None
         # The run tasks by run, from the claim until the task ends.
         self._runs: dict[UUID, asyncio.Task[None]] = {}
@@ -222,6 +233,7 @@ class Worker:
         self._heartbeat_task = asyncio.create_task(
             self._heartbeat_loop(repo), name="worker-heartbeat"
         )
+        self._prune_task = asyncio.create_task(self._prune_loop(pool, saver), name="worker-prune")
         if self._intake is not None:
             self._intake_since = time.monotonic()
             self._intake_task = asyncio.create_task(
@@ -358,6 +370,23 @@ class Worker:
                 # Also when a run ends while its heartbeat is on the way.
                 _log.warning("heartbeat.not_extended", runs=len(run_ids), extended=extended)
 
+    async def _prune_loop(self, pool: _Pool, saver: PoolAwarePostgresSaver) -> None:
+        while True:
+            try:
+                report = await prune_once(
+                    pool, saver, self._agents, self._settings, now=datetime.now(UTC)
+                )
+            except Exception as exc:
+                _log.error("prune.failed", error=_error(exc))
+            else:
+                _log.info(
+                    "prune.done",
+                    leader=report.leader,
+                    threads_pruned=report.threads_pruned,
+                    rows_deleted=report.rows_deleted,
+                )
+            await asyncio.sleep(PRUNE_INTERVAL_S)
+
     def _start_run(self, run: RunRow, executor: RunExecutor) -> None:
         if run.run_id in self._runs:
             # This pod's own run, claimed again after a heartbeat missed: it still runs.
@@ -378,15 +407,16 @@ class Worker:
             self._slot_freed.set()
 
     async def _shutdown(self) -> None:
-        # 1. Stop intake and recovery. Under the lock, no claim is half done, and none
-        # starts after it.
+        # 1. Stop intake, recovery and the pruner. Under the lock, no claim is half done,
+        # and none starts after it. A pass that is cut short rolls back its batch and
+        # releases the leader lock.
         async with self._claim_lock:
             self._draining = True
         executor = self._executor
         active = list(self._runs)
         if executor is not None:
             active = list(dict.fromkeys([*active, *executor.active_run_ids()]))
-        await _cancel([self._intake_task, self._recovery_task])
+        await _cancel([self._intake_task, self._recovery_task, self._prune_task])
         # 2-3. Ask each run to stop after its current step; wait for the runs to end.
         if executor is not None:
             executor.request_drain_all("shutdown")
