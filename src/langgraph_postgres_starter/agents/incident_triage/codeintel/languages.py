@@ -7,6 +7,11 @@ enum, record, struct, trait, object, module):
 
 - Anonymous functions (lambdas, closures, arrow functions, blocks) are not definitions.
   A line inside one belongs to the named definition around it.
+- Except in JavaScript and TypeScript (ruling R60): a function value (an arrow function,
+  a function expression or a generator function) that is the ``value`` of a binding (a
+  ``const``, ``let`` or ``var`` declarator, or a class field) is a definition, named by
+  the binding. Its span is the whole ``const``/``let``/``var`` statement, or the field.
+  These are a spec's ``function_value_types`` and ``binding_types``.
 - Wrappers such as Python's ``decorated_definition``, C++'s ``template_declaration``
   and JavaScript's ``export_statement`` are not definitions either: a definition starts
   at its ``def``, its return type or its ``function``, not at the decorator above it.
@@ -58,19 +63,41 @@ _TS_DEFINITIONS = _JS_DEFINITIONS | {
     "interface_declaration",
     "enum_declaration",
 }
+# Ruling R60: the function values that a binding can name, and the bindings. The
+# JavaScript grammar names a class field field_definition, the TypeScript grammars
+# public_field_definition.
+_FUNCTION_VALUES = frozenset({"arrow_function", "function_expression", "generator_function"})
+_JS_BINDINGS = frozenset({"variable_declarator", "field_definition"})
+_TS_BINDINGS = frozenset({"variable_declarator", "public_field_definition"})
 
 
 @dataclass(frozen=True)
 class LanguageSpec:
-    """A tree-sitter grammar, the file extensions it parses and its definition node types."""
+    """A tree-sitter grammar, the file extensions it parses and its definition node types.
+
+    A node of ``function_value_types`` that is the ``value`` of a node of
+    ``binding_types`` is a definition too (ruling R60). Both are empty except for
+    JavaScript and TypeScript.
+    """
 
     grammar: str
     extensions: tuple[str, ...]
     definition_types: frozenset[str]
+    function_value_types: frozenset[str] = frozenset()
+    binding_types: frozenset[str] = frozenset()
 
 
-def _spec(grammar: str, extensions: tuple[str, ...], definitions: Iterable[str]) -> LanguageSpec:
-    return LanguageSpec(grammar, extensions, frozenset(definitions))
+def _spec(
+    grammar: str,
+    extensions: tuple[str, ...],
+    definitions: Iterable[str],
+    *,
+    function_values: Iterable[str] = (),
+    bindings: Iterable[str] = (),
+) -> LanguageSpec:
+    return LanguageSpec(
+        grammar, extensions, frozenset(definitions), frozenset(function_values), frozenset(bindings)
+    )
 
 
 # One entry per grammar, by grammar name.
@@ -78,9 +105,27 @@ LANGUAGES: Mapping[str, LanguageSpec] = MappingProxyType(
     {
         spec.grammar: spec
         for spec in (
-            _spec("javascript", (".js", ".mjs", ".cjs", ".jsx"), _JS_DEFINITIONS),
-            _spec("typescript", (".ts",), _TS_DEFINITIONS),
-            _spec("tsx", (".tsx",), _TS_DEFINITIONS),
+            _spec(
+                "javascript",
+                (".js", ".mjs", ".cjs", ".jsx"),
+                _JS_DEFINITIONS,
+                function_values=_FUNCTION_VALUES,
+                bindings=_JS_BINDINGS,
+            ),
+            _spec(
+                "typescript",
+                (".ts",),
+                _TS_DEFINITIONS,
+                function_values=_FUNCTION_VALUES,
+                bindings=_TS_BINDINGS,
+            ),
+            _spec(
+                "tsx",
+                (".tsx",),
+                _TS_DEFINITIONS,
+                function_values=_FUNCTION_VALUES,
+                bindings=_TS_BINDINGS,
+            ),
             _spec(
                 "java",
                 (".java",),

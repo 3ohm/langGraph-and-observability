@@ -2,11 +2,15 @@
 
 Each app fixture's expected code location is the definition that encloses each of its
 lines. The other tests cover the window fallback, unknown extensions, truncation, bare
-symbols, the tsx grammar (no fixture app uses it) and ruling R51: grammars are fetched at
-setup time, never at run time.
+symbols, the tsx grammar (no fixture app uses it), JavaScript and TypeScript functions
+bound to names (ruling R60) and ruling R51: grammars are fetched at setup time, never at
+run time.
 """
 
+import io
+import itertools
 import textwrap
+import tokenize
 from pathlib import Path
 
 import pytest
@@ -232,6 +236,119 @@ def test_bare_symbols(tmp_path, name, source, expected):
 
 
 @pytest.mark.parametrize(
+    ("name", "source", "expected"),
+    [
+        (
+            "summary.js",
+            """\
+            const TAX = 0.2;
+            const f = (order) => {
+              return order.total * TAX;
+            };
+            let g = function () {
+              return 1;
+            };
+            var a = 1, b = () => 2;
+            """,
+            [(3, "f", 2, 4), (6, "g", 5, 7), (8, "b", 8, 8), (1, None, 1, 8)],
+        ),
+        (
+            "handler.ts",
+            """\
+            export const handler = async (req: Request): Promise<Response> => {
+              const body = await req.json();
+              return new Response(body.id);
+            };
+            """,
+            [(2, "handler", 1, 4)],
+        ),
+        (
+            "bus.ts",
+            """\
+            export class Bus {
+              private count = 0;
+              handle = (e: Event): void => {
+                this.count += 1;
+              };
+            }
+            """,
+            [(4, "handle", 3, 5), (2, "Bus", 1, 6)],
+        ),
+        (
+            "Button.jsx",
+            """\
+            class Button {
+              #onClick = () => {
+                this.clicked = true;
+              };
+            }
+            """,
+            [(3, "#onClick", 2, 4)],
+        ),
+        (
+            "nested.js",
+            """\
+            const run = async () => {
+              function retry(times) {
+                return times - 1;
+              }
+              return retry(3);
+            };
+            """,
+            [(3, "retry", 2, 4), (5, "run", 1, 6)],
+        ),
+        (
+            "List.tsx",
+            """\
+            export const List = ({ items }: { items: string[] }) => (
+              <ul>
+                {items.map((item) => <li key={item}>{item}</li>)}
+              </ul>
+            );
+            """,
+            [(3, "List", 1, 5)],
+        ),
+    ],
+)
+def test_function_values_bound_to_names(tmp_path, name, source, expected):
+    # Ruling R60: the declaration (or class field) that names a function value is a
+    # definition. A function value that nothing names, as in items.map, is not one.
+    (tmp_path / name).write_text(textwrap.dedent(source))
+    for at, symbol, start, end in expected:
+        d = enclosing_definition(tmp_path, name, at)
+        assert d is not None, at
+        assert (d.symbol, d.start_line, d.end_line) == (symbol, start, end), at
+
+
+def _point_attribute_reads(text: str) -> list[int]:
+    """The lines of ``text`` that read an attribute named ``row`` or ``column``."""
+    tokens = tokenize.generate_tokens(io.StringIO(text).readline)
+    return [
+        token.start[0]
+        for previous, token in itertools.pairwise(tokens)
+        if previous.exact_type == tokenize.DOT
+        and token.type == tokenize.NAME
+        and token.string in ("row", "column")
+    ]
+
+
+def test_codeintel_never_reads_point_row_or_column():
+    # Upstream bug, tree-sitter (py-tree-sitter) 0.26.0: Point.row and Point.column return
+    # the tuple's int without a new reference. Each read takes a reference from it, so an
+    # int above 256 (not immortal) is freed while still in use, and the process crashes.
+    # Read point[0] and point[1] instead. Comments and strings may name the attributes.
+    assert _point_attribute_reads("x = node.start_point.row  # point.column\n") == [1]
+    assert _point_attribute_reads("x = node.start_point[0]  # not point.row\n") == []
+    package = Path(languages.__file__).parent
+    offenders = [
+        f"{path.relative_to(package)}:{line}"
+        for path in sorted(package.rglob("*.py"))
+        for line in _point_attribute_reads(path.read_text())
+    ]
+    assert offenders == []
+
+
+@pytest.mark.parametrize(
     ("path", "grammar"),
     [
         ("a.js", "javascript"),
@@ -284,9 +401,13 @@ def test_languages_are_the_twelve_grammars():
 
 @pytest.mark.parametrize("grammar", sorted(LANGUAGES))
 def test_definition_types_exist_in_the_grammar(grammar):
+    spec = LANGUAGES[grammar]
     language = languages.parse(grammar, b"", grammar_dir=None).language
-    for node_type in LANGUAGES[grammar].definition_types:
+    for node_type in spec.definition_types | spec.function_value_types | spec.binding_types:
         assert language.id_for_node_kind(node_type, True) is not None, node_type
+    # Ruling R60 applies to JavaScript and TypeScript only.
+    named_values = bool(spec.function_value_types) and bool(spec.binding_types)
+    assert named_values is (grammar in {"javascript", "typescript", "tsx"})
 
 
 def test_parse_rejects_other_grammars():

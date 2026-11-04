@@ -2,14 +2,17 @@
 
 ``enclosing_definition`` parses a file of a checkout with the grammar of its extension
 (``languages.language_for``) and returns the smallest definition that contains the
-line: a node of one of the language's definition types (``languages.LANGUAGES``).
+line: a node of one of the language's definition types (``languages.LANGUAGES``), or,
+in JavaScript and TypeScript, a binding that names a function value (ruling R60), such
+as ``const handler = async (req) => {...}``.
 
 - Lines count from 1, as in stack traces. A definition ends on the line of its last
   character that is not whitespace. Some grammars end a node later: Scala ends a
   ``def`` at column 0 of the next line, or at the indent of the next definition.
 - ``symbol`` is the definition's bare name: the innermost function, method or type
   name, with no class or namespace (C++ ``PickPlanner::route_seconds`` is
-  ``route_seconds``). It is None for a definition that has no name, and for a window.
+  ``route_seconds``). A function value takes the name of its declarator or class
+  field. It is None for a definition that has no name, and for a window.
 - When no definition contains the line, the result is a window of ``WINDOW_LINES``
   lines on each side of the line, inside the file, with no symbol.
 - A result longer than ``max_lines`` lines is cut to ``max_lines`` lines centred on
@@ -26,6 +29,7 @@ from pathlib import Path
 from tree_sitter import Node
 
 from langgraph_postgres_starter.agents.incident_triage.codeintel.languages import (
+    LanguageSpec,
     language_for,
     parse,
 )
@@ -41,6 +45,9 @@ WINDOW_LINES = 20
 # Point.row and Point.column return the int without a new reference. Each read takes a
 # reference from it, and an int above 256 (not immortal) is freed while still in use.
 _ROW = 0
+# Ruling R60: a declarator that names a function value spans its const, let or var
+# statement, its parent. A class field spans itself.
+_DECLARATOR = "variable_declarator"
 
 
 @dataclass(frozen=True)
@@ -81,13 +88,12 @@ def enclosing_definition(
     if not 1 <= line <= len(lines):
         return None
     tree = parse(spec.grammar, source, grammar_dir=get_settings().grammar_dir)
-    found = _smallest_definition(tree.root_node, line, source, spec.definition_types)
+    found = _smallest_definition(tree.root_node, line, source, spec)
     if found is None:
         start, end = max(1, line - WINDOW_LINES), min(len(lines), line + WINDOW_LINES)
         symbol = None
     else:
-        node, start, end = found
-        symbol = _symbol(node, source)
+        start, end, symbol = found
     if end - start + 1 > max_lines:
         start = min(max(start, line - (max_lines - 1) // 2), end - max_lines + 1)
         end = start + max_lines - 1
@@ -117,15 +123,15 @@ def _lines(source: bytes) -> list[str]:
 
 
 def _smallest_definition(
-    root: Node, line: int, source: bytes, types: frozenset[str]
-) -> tuple[Node, int, int] | None:
-    """The smallest definition node that contains ``line``, with its first and last lines.
+    root: Node, line: int, source: bytes, spec: LanguageSpec
+) -> tuple[int, int, str | None] | None:
+    """The first and last lines and the symbol of the smallest definition around ``line``.
 
     It visits only the nodes whose rows contain the line. Among definitions with the
     same number of lines, the one with the fewest bytes wins.
     """
     row = line - 1
-    best: tuple[tuple[int, int], Node, int, int] | None = None
+    best: tuple[tuple[int, int], int, int, str | None] | None = None
     pending = [root]
     while pending:
         node = pending.pop()
@@ -134,14 +140,38 @@ def _smallest_definition(
             for child in node.named_children
             if child.start_point[_ROW] <= row <= child.end_point[_ROW]
         )
-        if node.type not in types:
+        found = _definition(node, spec, source)
+        if found is None:
             continue
-        start, end = _span(node, source)
+        spanned, symbol = found
+        start, end = _span(spanned, source)
         if start <= line <= end:
-            size = (end - start, node.end_byte - node.start_byte)
+            size = (end - start, spanned.end_byte - spanned.start_byte)
             if best is None or size < best[0]:
-                best = (size, node, start, end)
+                best = (size, start, end, symbol)
     return None if best is None else best[1:]
+
+
+def _definition(node: Node, spec: LanguageSpec, source: bytes) -> tuple[Node, str | None] | None:
+    """The node that spans the definition ``node`` is, and its symbol; None for no definition.
+
+    A node of the definition types spans itself. A binding whose ``value`` is a function
+    value (ruling R60) takes its name from its ``name`` field, or from ``property`` for
+    a JavaScript class field.
+    """
+    if node.type in spec.definition_types:
+        return node, _symbol(node, source)
+    if node.type not in spec.binding_types:
+        return None
+    value = node.child_by_field_name("value")
+    if value is None or value.type not in spec.function_value_types:
+        return None
+    name = node.child_by_field_name("name")
+    if name is None:
+        name = node.child_by_field_name("property")
+    parent = node.parent
+    spanned = parent if node.type == _DECLARATOR and parent is not None else node
+    return spanned, None if name is None else _text(name, source)
 
 
 def _span(node: Node, source: bytes) -> tuple[int, int]:
@@ -177,4 +207,8 @@ def _symbol(node: Node, source: bytes) -> str | None:
         if found is None:
             return None
         current = found
-    return source[current.start_byte : current.end_byte].decode("utf-8", errors="replace")
+    return _text(current, source)
+
+
+def _text(node: Node, source: bytes) -> str:
+    return source[node.start_byte : node.end_byte].decode("utf-8", errors="replace")
