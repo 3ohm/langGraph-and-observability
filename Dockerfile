@@ -16,16 +16,18 @@ ENV UV_COMPILE_BYTECODE=1 \
 WORKDIR /app
 
 # Dependencies first: this layer stays cached until one of these three files changes.
+# The runtime dependencies only (no dev or test groups), plus the `encryption` extra
+# (pycryptodome), which encrypts checkpoints when LANGGRAPH_AES_KEY is set (spec 7.2).
 COPY pyproject.toml uv.lock .python-version ./
 RUN --mount=type=cache,target=/root/.cache/uv \
-    uv sync --frozen --no-dev --no-install-project
+    uv sync --frozen --no-dev --extra encryption --no-install-project
 
 # Then the project. hatchling needs README.md and LICENSE (pyproject.toml names them).
 # --no-editable installs the package into .venv, so the runtime stage needs only .venv.
 COPY README.md LICENSE ./
 COPY src/ src/
 RUN --mount=type=cache,target=/root/.cache/uv \
-    uv sync --frozen --no-dev --no-editable
+    uv sync --frozen --no-dev --extra encryption --no-editable
 
 # The tree-sitter grammars of code evidence, fetched now: the worker never downloads one
 # (ruling R51). The download's bundle archive is not needed afterwards. Everyone may read
