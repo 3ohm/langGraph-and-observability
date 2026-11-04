@@ -200,13 +200,70 @@ async def test_bedrock_errors_are_raised_after_one_call(aws_keys):
 
 
 @pytest.mark.parametrize(
+    ("usage", "expected"),
+    [
+        # The Messages API types the cache counters as integer or null.
+        (
+            {
+                "input_tokens": 5,
+                "output_tokens": 2,
+                "cache_read_input_tokens": None,
+                "cache_creation_input_tokens": None,
+            },
+            Usage(input_tokens=5, output_tokens=2, cache_read_input_tokens=0),
+        ),
+        (
+            {"input_tokens": 5, "output_tokens": 2},
+            Usage(input_tokens=5, output_tokens=2, cache_read_input_tokens=0),
+        ),
+        (
+            {"input_tokens": 5, "output_tokens": 2, "cache_read_input_tokens": 3},
+            Usage(input_tokens=5, output_tokens=2, cache_read_input_tokens=3),
+        ),
+    ],
+    ids=["cache-null", "cache-absent", "cache-count"],
+)
+async def test_bedrock_reads_usage(aws_keys, usage, expected):
+    settings = load_settings()
+    client = make_bedrock_client(settings)
+    reply = {"stop_reason": "end_turn", "content": [], "usage": usage}
+    with Stubber(client) as stubber:
+        stubber.add_response("invoke_model", _reply_body(reply))
+
+        response = await BedrockLlm(settings, client).analyze(_request())
+
+    assert response.usage == expected
+
+
+def _reply_with_usage(**usage: object) -> dict[str, Any]:
+    return {"stop_reason": "end_turn", "content": [], "usage": usage}
+
+
+@pytest.mark.parametrize(
     "reply",
     [
         {"content": [], "usage": {"input_tokens": 1, "output_tokens": 1}},
         {"stop_reason": "end_turn", "content": []},
-        {"stop_reason": "end_turn", "content": [], "usage": {"input_tokens": "1"}},
+        # The input and output counts are always integers in a valid reply.
+        _reply_with_usage(input_tokens=None, output_tokens=1),
+        _reply_with_usage(input_tokens=1, output_tokens=None),
+        _reply_with_usage(input_tokens=1),
+        _reply_with_usage(input_tokens="1", output_tokens=1),
+        _reply_with_usage(input_tokens=True, output_tokens=1),
+        _reply_with_usage(input_tokens=1, output_tokens=1, cache_read_input_tokens="3"),
+        _reply_with_usage(input_tokens=1, output_tokens=1, cache_read_input_tokens=False),
     ],
-    ids=["no-stop-reason", "no-usage", "bad-usage"],
+    ids=[
+        "no-stop-reason",
+        "no-usage",
+        "input-null",
+        "output-null",
+        "output-missing",
+        "input-string",
+        "input-bool",
+        "cache-string",
+        "cache-bool",
+    ],
 )
 async def test_bedrock_unexpected_reply_raises(aws_keys, reply):
     settings = load_settings()

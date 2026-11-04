@@ -116,8 +116,9 @@ class BedrockLlm(LlmAdapter):
         The reply's text is its text blocks, joined; thinking blocks are skipped. Its
         ``model_id`` is the model ID that was called. botocore's errors, such as a
         ``ClientError`` for a throttled call that botocore gave up retrying, are
-        raised as they are. A reply without a stop reason or token usage raises
-        ValueError.
+        raised as they are. A reply without a stop reason, or without integer input and
+        output token counts, raises ValueError; a cache counter that is null or left out
+        counts as 0.
         """
         body = json.dumps(build_request_body(req, self._settings))
         reply = await asyncio.to_thread(self._invoke, body)
@@ -151,11 +152,15 @@ def _response(reply: object, model_id: str) -> LlmResponse:
         raise ValueError("Bedrock sent an unexpected reply: it has no stop_reason")
     if not isinstance(usage, Mapping):
         raise ValueError("Bedrock sent an unexpected reply: it has no usage")
+    # The input and output counts are always integers. The Messages API types the
+    # cache counter as integer or null, and it may be left out: both mean 0.
+    cache_read = usage.get("cache_read_input_tokens")
     counts = {
-        field: usage.get(field, 0)
-        for field in ("input_tokens", "output_tokens", "cache_read_input_tokens")
+        "input_tokens": usage.get("input_tokens"),
+        "output_tokens": usage.get("output_tokens"),
+        "cache_read_input_tokens": 0 if cache_read is None else cache_read,
     }
-    if not all(isinstance(count, int) for count in counts.values()):
+    if not all(_is_count(count) for count in counts.values()):
         raise ValueError("Bedrock sent an unexpected reply: its token usage is not a number")
     blocks = content if isinstance(content, list) else []
     text = "".join(
@@ -171,3 +176,8 @@ def _response(reply: object, model_id: str) -> LlmResponse:
         model_id=model_id,
         usage=Usage(**counts),
     )
+
+
+def _is_count(value: object) -> bool:
+    """Whether ``value`` is a token count: an int, but not a bool (which subclasses int)."""
+    return isinstance(value, int) and not isinstance(value, bool)
