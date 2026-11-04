@@ -7,7 +7,9 @@ Run it from the repository root::
 It deletes the agent's package, ``src/<package>/agents/incident_triage/``, and the files
 that only the example uses: ``scripts/send_incident.py`` (``make incident``) and
 ``scripts/sync_dataset.py``, their tests, the agent's end-to-end test, the Evals
-workflow and the real-mode guide, whose link it removes from ``README.md``. It removes
+workflow and the real-mode guide, whose links it removes from ``README.md``,
+``docs/guides/quickstart.md``, ``docs/guides/run-on-eks.md`` and
+``docs/release-checklist.md``. It removes
 the agent's entry from ``langgraph.json`` and its line from ``worker/registry.py`` (in a
 fork that has deleted the worker, the registry is gone with it), and
 it resets the two settings defaults that name it (``intake_agent`` to ``""``,
@@ -26,7 +28,9 @@ makes it. It refuses, and changes nothing:
   drifted: an edit's text is not there, or a marked file has no marked part. Change the
   script to match the file, or the file to match the script;
 - when, after the removal, a Makefile recipe or a CI step would still call a make target
-  that the Makefile no longer has (``$(MAKE) grammars``, ``make grammars``).
+  that the removal deletes (``$(MAKE) grammars``, ``make grammars``). Other words after
+  ``make``, such as ``-C folder``, ``$(TARGET)``, ``${{ matrix.target }}`` or a redirect,
+  are never refused.
 
 After a first run, the script changes only what still holds the example's text, so a
 second run changes nothing. It imports nothing from the package and uses the standard
@@ -137,12 +141,29 @@ EDITS = (
         ", with LangSmith tracing and an incident-triage example agent.",
         ", with LangSmith tracing.",
     ),
-    # The README's link to the deleted real-mode guide.
+    # The links to the deleted real-mode guide.
     Edit(
         "README.md",
         "- [docs/guides/real-mode.md](docs/guides/real-mode.md): eight steps to a first real "
         "triage, each\n  real adapter (Kubernetes, Datadog, Bedrock, Git and ECR, SQS) and its "
         "settings.\n",
+    ),
+    Edit(
+        "docs/guides/quickstart.md",
+        "- [real-mode.md](real-mode.md): each real adapter and its settings, and a first real "
+        "triage.\n",
+    ),
+    Edit(
+        "docs/guides/run-on-eks.md",
+        " Each adapter's settings, and the steps to a\nfirst real triage, are in "
+        "[real-mode.md](real-mode.md); this guide is about the deployment.\n",
+        "\n",
+    ),
+    Edit(
+        "docs/release-checklist.md",
+        "Follow [guides/real-mode.md](guides/real-mode.md), steps 1 to 8, with the owner's AWS, "
+        "EKS,\n",
+        "Run a first real triage of your agent, with the owner's AWS, EKS,\n",
     ),
 )
 
@@ -228,7 +249,12 @@ def make_calls(text: str, *, makefile: bool) -> list[str]:
 
 
 def _dangling_make_calls(root: Path, deletions: list[Path], texts: dict[Path, str]) -> list[str]:
-    """Return a line for each make call, after the removal, to a target the Makefile lacks."""
+    """Return a line for each make call, after the removal, to a target that it deletes.
+
+    Only the targets that the Makefile defines now and not after the removal count. Any
+    other word after ``make`` is left alone: a folder after ``-C``, a variable, a workflow
+    expression or a redirect is no target that the removal could break.
+    """
 
     def after(path: Path) -> str | None:
         if path in deletions or not path.is_file():
@@ -236,17 +262,18 @@ def _dangling_make_calls(root: Path, deletions: list[Path], texts: dict[Path, st
         return texts[path] if path in texts else path.read_text(encoding="utf-8")
 
     makefile = root / "Makefile"
-    defined = make_targets(after(makefile) or "")
+    before = makefile.read_text(encoding="utf-8") if makefile.is_file() else ""
+    removed = make_targets(before) - make_targets(after(makefile) or "")
     workflows = sorted((root / ".github" / "workflows").glob("*.y*ml"))
     sources = [(makefile, True), *((workflow, False) for workflow in workflows)]
     problems = []
     for path, is_makefile in sources:
         text = after(path)
         for target in dict.fromkeys(make_calls(text or "", makefile=is_makefile)):
-            if target not in defined:
+            if target in removed:
                 problems.append(
                     f"{path.relative_to(root).as_posix()}: make {target} would call a target "
-                    "that the Makefile no longer has"
+                    "that the removal deletes"
                 )
     return problems
 
@@ -256,7 +283,7 @@ def plan(root: Path) -> tuple[list[Path], dict[Path, str]]:
 
     It reads files only. Raises RemovalError for a file that cannot be changed: on a
     first run, a file that has drifted from the text this script expects; on any run, a
-    make call that the removal would leave without its target.
+    make call to a target that the removal deletes.
     """
     first_run = (root / DELETE[0]).is_dir()
     worker_gone = not (root / WORKER_DIR).is_dir()

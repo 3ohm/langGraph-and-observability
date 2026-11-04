@@ -117,6 +117,18 @@ def _files_containing(root: Path, text: str, *, skip: frozenset[str] = frozenset
     return found
 
 
+def _dangling_links(root: Path) -> list[str]:
+    """Return each Markdown link below ``root`` to a file that does not exist, as file: link."""
+    dangling = []
+    for doc in sorted(root.rglob("*.md")):
+        for link in re.findall(r"\]\(([^)\s]+)\)", doc.read_text(encoding="utf-8")):
+            if re.match(r"[a-z]+:|#", link):
+                continue
+            if not (doc.parent / link.partition("#")[0]).exists():
+                dangling.append(f"{doc.relative_to(root).as_posix()}: {link}")
+    return dangling
+
+
 def _make_targets(root: Path) -> list[str]:
     """Return the targets that the Makefile defines and that the CI workflows call."""
     defined = re.findall(r"^([a-z0-9][a-z0-9_.-]*):(?!=)", (root / "Makefile").read_text(), re.M)
@@ -205,9 +217,10 @@ def test_remove_example_in_temp_copy(repo_copy):
     assert _files_containing(repo_copy / "src", EXAMPLE_AGENT) == []
     for name in _BUILD_FILES:
         assert EXAMPLE_AGENT not in (repo_copy / name).read_text(), name
-    # The real-mode guide describes only the example's adapters; the README drops its link.
+    # The real-mode guide describes only the example's adapters; the docs drop its links.
     assert not (repo_copy / "docs" / "guides" / "real-mode.md").exists()
     assert "real-mode.md" not in (repo_copy / "README.md").read_text()
+    assert _dangling_links(repo_copy) == []
     # CI names the agent only in the removal job's own check.
     workflows = [p for p in (repo_copy / ".github").rglob("*") if p.is_file()]
     naming = [line.strip() for p in workflows for line in p.read_text().splitlines()]
@@ -283,6 +296,7 @@ def test_remove_example_refuses_a_drifted_edit_on_the_first_run(repo_copy, path,
     assert _snapshot(repo_copy) == before
 
 
+@needs_example_agent
 @pytest.mark.parametrize(
     ("path", "addition"),
     [
@@ -301,6 +315,28 @@ def test_remove_example_refuses_to_leave_a_call_to_a_removed_target(repo_copy, p
     assert result.returncode == 1
     assert f"{path}: make grammars" in result.stderr and "nothing was changed" in result.stderr
     assert _snapshot(repo_copy) == before
+
+
+@pytest.mark.parametrize(
+    ("path", "addition"),
+    [
+        (".github/workflows/ci.yml", "      - run: make ${{ matrix.target }}\n"),
+        ("Makefile", "\nlint-sub: ## lint a subproject\n\tmake -C sub lint\n"),
+        ("Makefile", "\nquiet: ## lint, stderr to stdout\n\tmake lint 2>&1\n"),
+        ("Makefile", "\nany: ## the target in TARGET\n\t$(MAKE) $(TARGET)\n"),
+    ],
+    ids=["ci-matrix-target", "make-C-folder", "redirect", "variable-target"],
+)
+def test_remove_example_allows_make_calls_it_does_not_break(repo_copy, path, addition):
+    # Only a call to a target that the removal itself deletes is refused. These words are
+    # no such target: an expression, a folder, a redirect and a variable.
+    target = repo_copy / path
+    target.write_text(target.read_text() + addition)
+
+    result = _run(repo_copy, "scripts/remove_example.py")
+
+    assert result.returncode == 0, result.stderr
+    assert addition in target.read_text()
 
 
 def test_remove_example_refuses_outside_a_repo_root(repo_copy, tmp_path):
