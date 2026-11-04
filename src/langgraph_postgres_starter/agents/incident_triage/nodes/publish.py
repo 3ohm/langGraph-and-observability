@@ -77,7 +77,7 @@ async def publish(state: TriageState, runtime: Runtime[TriageContext]) -> Triage
     ``SEND_TIMEOUT_S``, is raised as it is; the ledger then holds no row for that send,
     so the next attempt of the step sends it.
     """
-    context = ctx(runtime)
+    context = ctx(runtime, state.get("message"))
     result = _build_result(state, context)
     sinks = context.adapters.sinks
     pool = current_pool()

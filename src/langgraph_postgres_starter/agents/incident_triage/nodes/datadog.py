@@ -55,7 +55,7 @@ _EPOCH = datetime(1970, 1, 1, tzinfo=UTC)
 
 async def collect_datadog(state: TriageState, runtime: Runtime[TriageContext]) -> TriageState:
     """Collect the Datadog events about the target. Returns ``{"datadog_evidence": [...]}``."""
-    context = ctx(runtime)
+    context = ctx(runtime, state.get("message"))
     settings = context.settings
     start, end = window(
         incident_time(state["message"].fired_at, context.run.run_id),

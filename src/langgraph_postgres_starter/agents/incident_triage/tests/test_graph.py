@@ -511,11 +511,40 @@ def test_langgraph_json_graph_imports():
 
 
 async def test_module_graph_runs_without_a_context():
-    # As in Studio: no context, so each step uses default_context(), which serves the
-    # fixture APP_STUDIO_FIXTURE (python-keyerror) with a new run ID per call (N44).
+    # No context at all: each step builds the default context, which serves the fixture
+    # APP_STUDIO_FIXTURE (python-keyerror), with a new run ID per step (N44).
     message = IncidentMessage.model_validate(load_fixture("python-keyerror").incident)
 
     result = await graph_module.graph.ainvoke({"message": message})
 
     assert result["analysis"].category == "application"
+    assert result["published"] == ["log"]
+
+
+@pytest.mark.parametrize(
+    ("fid", "context"),
+    [
+        ("python-keyerror", {}),
+        ("infra-oomkilled", {}),
+        ("infra-oomkilled", {"fixture_id": "infra-oomkilled"}),
+    ],
+    ids=["app-empty-context", "infra-empty-context", "infra-context-fixture"],
+)
+async def test_module_graph_runs_a_json_incident_as_studio_does(fid, context):
+    # Studio (langgraph dev) sends the input as JSON and the context as a dict, which
+    # LangGraph turns into TriageContext(**context). With an empty context, the
+    # message's raw.fixture_id picks the fixture (infra-oomkilled is not the default).
+    incident = json.loads(json.dumps(load_fixture(fid).incident))
+    if context:
+        del incident["raw"]
+
+    result = cast(
+        TriageState, await graph_module.graph.ainvoke({"message": incident}, context=context)
+    )
+
+    assert isinstance(result["message"], IncidentMessage)
+    analysis = result["analysis"]
+    assert analysis is not None
+    assert validate_analysis(analysis.model_dump_json(), result) == analysis
+    assert analysis.category == load_fixture(fid).expected["category"]
     assert result["published"] == ["log"]

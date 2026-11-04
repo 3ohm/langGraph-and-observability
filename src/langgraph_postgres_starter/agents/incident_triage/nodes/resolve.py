@@ -33,6 +33,7 @@ from langgraph_postgres_starter.agents.incident_triage.evidence import make_id, 
 from langgraph_postgres_starter.agents.incident_triage.schemas import (
     EvidenceItem,
     ImageRef,
+    IncidentMessage,
     Target,
     WorkloadRef,
 )
@@ -53,12 +54,15 @@ _DEPLOYMENT_POD = re.compile(
 
 
 async def resolve_target(state: TriageState, runtime: Runtime[TriageContext]) -> TriageState:
-    """Resolve the message's target. Returns ``{"target": Target, "notes": [...]}``.
+    """Resolve the message's target. Returns ``message``, ``target`` and ``notes``.
 
-    Raises ValueError when the message names a cluster other than this worker's.
+    The message is validated first: Studio sends it as JSON, and the state keeps what
+    the input holds. The returned ``message`` is the ``IncidentMessage``, so the later
+    steps get the model. Raises pydantic's ValidationError for an invalid message, and
+    ValueError when the message names a cluster other than this worker's.
     """
-    message = state["message"]
-    context = ctx(runtime)
+    message = IncidentMessage.model_validate(state["message"])
+    context = ctx(runtime, message)
     message.check_cluster(context.settings.cluster_name)
     k8s = context.adapters.k8s
     ns = message.namespace
@@ -103,7 +107,7 @@ async def resolve_target(state: TriageState, runtime: Runtime[TriageContext]) ->
             for c in pod.containers
         ],
     )
-    return {"target": target, "notes": notes}
+    return {"message": message, "target": target, "notes": notes}
 
 
 def _deployment_of(pod: str) -> WorkloadRef | None:

@@ -17,8 +17,9 @@ Policies (P12):
   when the run itself is cancelled, as by the worker's run deadline.
 
 ``graph`` is the graph compiled without a checkpointer, for Studio (``langgraph.json``),
-which supplies its own. Invoked without a context, each step uses ``default_context()``
-(spec §10.3).
+which supplies its own. Studio passes the run's context as a dict, which may be empty:
+``TriageContext`` builds the parts it leaves out, and the simulated adapters serve the
+fixture that the context or the message's ``raw.fixture_id`` names (spec §10.3).
 """
 
 from typing import Literal

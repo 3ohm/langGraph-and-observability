@@ -6,6 +6,7 @@ agent's own fixtures.
 """
 
 import asyncio
+import dataclasses
 import json
 import re
 import socket
@@ -49,6 +50,7 @@ from langgraph_postgres_starter.agents.incident_triage.adapters.source.local imp
 )
 from langgraph_postgres_starter.agents.incident_triage.adapters.source.locator import ChainLocator
 from langgraph_postgres_starter.agents.incident_triage.context import (
+    TriageContext,
     ctx,
     default_context,
     make_context,
@@ -694,5 +696,71 @@ async def test_default_context_uses_studio_fixture(root, monkeypatch):
     assert default_context().run.run_id != context.run.run_id
 
     # ctx returns the run's context, or the default one when the run has none.
-    assert ctx(Runtime(context=context)) is context
-    assert ctx(Runtime()).fixture_id == SAMPLE
+    message = IncidentMessage.model_validate(INCIDENT)
+    assert ctx(Runtime(context=context), message) is context
+    assert ctx(Runtime(), message).fixture_id == SAMPLE
+
+
+@pytest.mark.parametrize("given", [{}, {"fixture_id": SAMPLE}], ids=["empty", "fixture"])
+async def test_context_from_a_studio_dict(root, monkeypatch, given):
+    # Studio passes the run's context as a dict; LangGraph calls TriageContext(**it).
+    monkeypatch.setenv("APP_FIXTURES_DIR", str(root))
+    monkeypatch.setenv("APP_STUDIO_FIXTURE", SAMPLE)
+
+    context = TriageContext(**given)
+
+    assert context.fixture_id == SAMPLE
+    assert context.settings is get_settings()
+    assert (context.run.dedup_key, context.run.attempt) == ("studio", 1)
+    assert context.run.run_id.version == 7
+    assert await context.adapters.k8s.get_pod(NS, POD) is not None
+    assert "TriageContext(run=" in repr(context)
+
+
+# Two of the package's own fixtures, for the tests that pick one by the message.
+APP_FIXTURE = "python-keyerror"
+INFRA_FIXTURE = "infra-oomkilled"
+
+
+def _fixture_message(fid: str) -> IncidentMessage:
+    return IncidentMessage.model_validate(load_fixture(fid).incident)
+
+
+async def test_message_picks_the_fixture_of_an_open_context():
+    # Neither adapters nor a fixture given: the message's raw.fixture_id picks the
+    # fixture, else APP_STUDIO_FIXTURE (python-keyerror).
+    context = TriageContext()
+    infra = _fixture_message(INFRA_FIXTURE)
+
+    picked = ctx(Runtime(context=context), infra)
+
+    assert context.fixture_id == APP_FIXTURE
+    assert picked.fixture_id == INFRA_FIXTURE
+    assert (picked.run, picked.settings) == (context.run, context.settings)
+    assert infra.pod is not None
+    assert await picked.adapters.k8s.get_pod(infra.namespace, infra.pod) is not None
+    assert await context.adapters.k8s.get_pod(infra.namespace, infra.pod) is None
+    # One context per fixture: every step of the run gets the same adapters.
+    assert ctx(Runtime(context=context), infra) is picked
+    assert ctx(Runtime(context=context), _fixture_message(APP_FIXTURE)) is context
+    no_fixture = infra.model_copy(update={"raw": None})
+    assert ctx(Runtime(context=context), no_fixture) is context
+
+
+async def test_context_fixture_wins_over_the_message():
+    context = TriageContext(fixture_id=APP_FIXTURE)
+
+    assert ctx(Runtime(context=context), _fixture_message(INFRA_FIXTURE)) is context
+
+
+async def test_worker_context_is_used_as_given():
+    # make_context passes every field: nothing is built, and the message picks nothing.
+    settings = load_settings()
+    info = RunInfo(run_id=new_id(), dedup_key="0" * 64, attempt=2)
+    context = make_context(info, _fixture_message(APP_FIXTURE), settings)
+
+    assert (context.run, context.settings, context.fixture_id) == (info, settings, APP_FIXTURE)
+    assert ctx(Runtime(context=context), _fixture_message(INFRA_FIXTURE)) is context
+    replaced = dataclasses.replace(context, fixture_id=INFRA_FIXTURE)
+    assert replaced.adapters is context.adapters
+    assert ctx(Runtime(context=replaced), _fixture_message(APP_FIXTURE)) is replaced

@@ -59,7 +59,7 @@ async def collect_k8s(state: TriageState, runtime: Runtime[TriageContext]) -> Tr
 
     Returns ``{"k8s_evidence": [...], "log_text": str, "notes": [...]}``.
     """
-    context = ctx(runtime)
+    context = ctx(runtime, state.get("message"))
     k8s = context.adapters.k8s
     tail_lines = context.settings.log_tail_lines
     target = state["target"]

@@ -83,7 +83,7 @@ async def analyze(state: TriageState, runtime: Runtime[TriageContext]) -> Triage
     The module docstring gives the attempt rules. Raises ``AnalysisInvalid`` when the
     repair attempt fails too; the model adapter's errors are raised as they are.
     """
-    context = ctx(runtime)
+    context = ctx(runtime, state.get("message"))
     user = render_user_message(state)
     schema = analysis_schema()
     usage = Usage(input_tokens=0, output_tokens=0)

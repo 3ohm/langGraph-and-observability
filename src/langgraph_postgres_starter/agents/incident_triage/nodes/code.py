@@ -55,7 +55,7 @@ MAX_LISTED_FRAMES = 20
 
 async def collect_code(state: TriageState, runtime: Runtime[TriageContext]) -> TriageState:
     """Collect the code evidence. Returns ``{"code_evidence": [...], "notes": [...]}``."""
-    context = ctx(runtime)
+    context = ctx(runtime, state.get("message"))
     adapters = context.adapters
     target = state["target"]
     log_text = state.get("log_text", "")
