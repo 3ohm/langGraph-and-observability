@@ -11,11 +11,13 @@ give it the ledger key too.
 
 import hashlib
 import json
-from collections.abc import Awaitable, Callable, Mapping
+from collections.abc import AsyncIterator, Awaitable, Callable, Mapping
+from contextlib import asynccontextmanager
 from dataclasses import dataclass
 from typing import Any
 
-from psycopg import AsyncConnection
+from psycopg import AsyncConnection, IsolationLevel
+from psycopg.pq import TransactionStatus
 from psycopg.rows import DictRow
 from psycopg.types.json import Jsonb
 from psycopg_pool import AsyncConnectionPool
@@ -45,8 +47,9 @@ async def run_once(
 ) -> LedgerOutcome:
     """Run ``fn()`` unless ``key`` is recorded; record its result; return the outcome.
 
-    Everything happens in one transaction on one connection from ``pool`` (an
-    autocommit pool from ``create_pool``). The transaction holds
+    Everything happens in one READ COMMITTED transaction, whatever the server's default
+    level, on one connection from ``pool`` (an autocommit pool from ``create_pool``).
+    The transaction holds
     ``pg_advisory_xact_lock(hashtextextended(key, 0))``, so calls with the same key, in
     any process, run one at a time. With the lock held it reads the key's row:
 
@@ -65,10 +68,11 @@ async def run_once(
     returns the result as read back from jsonb.
     """
     args_hash = _hash_args(args)
-    async with pool.connection() as conn, conn.transaction():
-        # The lock is a statement of its own. Under READ COMMITTED (the Postgres default)
-        # the SELECT below then takes its snapshot after the lock is granted, so it sees
-        # the row that the previous holder of the lock committed.
+    async with pool.connection() as conn, _read_committed(conn), conn.transaction():
+        # The lock is a statement of its own. Under READ COMMITTED the SELECT below then
+        # takes its snapshot after the lock is granted, so it sees the row that the
+        # previous holder of the lock committed. Under REPEATABLE READ or SERIALIZABLE
+        # the snapshot would date from the lock statement, before the wait.
         await conn.execute("SELECT pg_advisory_xact_lock(hashtextextended(%s, 0))", [key])
         cur = await conn.execute(
             "SELECT args_hash, result FROM action_ledger WHERE key = %s", [key]
@@ -84,6 +88,26 @@ async def run_once(
             [key, action, args_hash, Jsonb(result)],
         )
     return LedgerOutcome(result, replayed=False)
+
+
+@asynccontextmanager
+async def _read_committed(conn: AsyncConnection[DictRow]) -> AsyncIterator[None]:
+    """Start the transactions inside at READ COMMITTED; then restore the previous level.
+
+    psycopg puts the level in its next BEGIN, so this costs no round trip. The pool does
+    not reset the level when a connection comes back, so this restores it. The level can
+    change only while no transaction is open; a connection in any other state (broken,
+    or interrupted in a commit or rollback) is closed instead, and the pool replaces it.
+    """
+    previous = conn.isolation_level
+    await conn.set_isolation_level(IsolationLevel.READ_COMMITTED)
+    try:
+        yield
+    finally:
+        if conn.info.transaction_status == TransactionStatus.IDLE:
+            await conn.set_isolation_level(previous)
+        else:
+            await conn.close()
 
 
 def _hash_args(args: Mapping[str, Any]) -> str:
