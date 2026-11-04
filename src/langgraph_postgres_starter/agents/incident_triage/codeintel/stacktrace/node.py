@@ -13,7 +13,9 @@ file and line, such as ``at Array.map (<anonymous>)``, is skipped, and so are th
 source line and caret that Node prints above an uncaught error. TypeScript runs as
 compiled JavaScript, so its frames name the compiled files.
 
-A frame is a library frame when its file contains one of ``LIBRARY_MARKERS``.
+A frame is a library frame when its file starts with ``node:``, the scheme of Node's
+core modules (``node:events``, ``node:fs``, ``node:internal/timers``; ruling R55), or
+contains ``node_modules``.
 """
 
 import re
@@ -21,8 +23,10 @@ import re
 from langgraph_postgres_starter.agents.incident_triage.codeintel.stacktrace.family import Family
 from langgraph_postgres_starter.agents.incident_triage.schemas import Frame
 
-# Node's own modules, and installed packages.
-LIBRARY_MARKERS = ("node:internal", "node_modules")
+# Every core module, node:internal included (ruling R55).
+CORE_PREFIX = "node:"
+# Installed packages.
+PACKAGES_MARKER = "node_modules"
 
 # at [async ][<function> (]<file>:<line>:<column>[)]
 _FRAME = re.compile(
@@ -44,8 +48,12 @@ def parse(text: str) -> list[Frame]:
             file=match["file"],
             line=int(match["line"]),
             function=match["function"],
-            is_app_frame=not any(marker in match["file"] for marker in LIBRARY_MARKERS),
+            is_app_frame=not _is_library(match["file"]),
             family=Family.NODE.value,
         )
         for match in _FRAME.finditer(text)
     ]
+
+
+def _is_library(file: str) -> bool:
+    return file.startswith(CORE_PREFIX) or PACKAGES_MARKER in file

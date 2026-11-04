@@ -84,9 +84,13 @@ def test_first_app_frame_is_expected_code(fid, family):
         (jvm.parse, "\tat com.example.orders.OrderService.ship(OrderService.java:35)", True),
         # A prefix counts only at the start of the class name.
         (jvm.parse, "\tat com.example.java.Util.run(Util.java:9)", True),
-        # Node: node:internal and node_modules.
+        # Node: every core module (node:, ruling R55) and node_modules.
         (node.parse, "    at listOnTimeout (node:internal/timers:608:17)", False),
         (node.parse, "    at node:internal/main/run_main_module:28:49", False),
+        (node.parse, "    at Redis.emit (node:events:518:28)", False),
+        (node.parse, "    at Object.readFileSync (node:fs:441:20)", False),
+        (node.parse, "    at load (/app/node_helpers/x.js:3:7)", True),
+        (node.parse, "    at thing (/usr/src/app/src/node-thing.js:9:1)", True),
         (
             node.parse,
             "    at Parser.execute (/app/node_modules/redis-parser/parser.js:544:14)",
