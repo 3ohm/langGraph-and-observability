@@ -1,4 +1,5 @@
 import aiohttp
+import aiosonic.exceptions as aiosonic_exc  # type: ignore[import-untyped]
 import botocore.exceptions as botocore_exc
 import datadog_api_client.exceptions as datadog_exc
 import psycopg
@@ -45,6 +46,37 @@ TABLE = [
     # Transient: aiohttp (the Kubernetes client's transport).
     pytest.param(aiohttp.ClientConnectionError(), True, id="aiohttp-ClientConnectionError"),
     pytest.param(aiohttp.ServerDisconnectedError(), True, id="aiohttp-ServerDisconnectedError"),
+    # Transient: aiosonic (the Datadog async client's transport, which does not retry).
+    pytest.param(aiosonic_exc.ConnectTimeout(), True, id="aiosonic-ConnectTimeout"),
+    pytest.param(aiosonic_exc.ReadTimeout(), True, id="aiosonic-ReadTimeout"),
+    pytest.param(aiosonic_exc.RequestTimeout(), True, id="aiosonic-RequestTimeout"),
+    pytest.param(
+        aiosonic_exc.ConnectionPoolAcquireTimeout(),
+        True,
+        id="aiosonic-ConnectionPoolAcquireTimeout",
+    ),
+    pytest.param(aiosonic_exc.ConnectionDisconnected(), True, id="aiosonic-ConnectionDisconnected"),
+    pytest.param(
+        aiosonic_exc.MissingReaderException("reader not set."),
+        True,
+        id="aiosonic-MissingReaderException",
+    ),
+    pytest.param(
+        aiosonic_exc.MissingWriterException("writer not set."),
+        True,
+        id="aiosonic-MissingWriterException",
+    ),
+    # aiosonic protocol and request errors are not transient, nor is its base class.
+    pytest.param(
+        aiosonic_exc.HttpParsingError("missing hostname"), False, id="aiosonic-HttpParsingError"
+    ),
+    pytest.param(
+        aiosonic_exc.WebSocketMessageTooBig("frame too big"),
+        False,
+        id="aiosonic-WebSocketMessageTooBig",
+    ),
+    pytest.param(aiosonic_exc.MaxRedirects(), False, id="aiosonic-MaxRedirects"),
+    pytest.param(aiosonic_exc.AiosonicError(), False, id="aiosonic-AiosonicError"),
     # Kubernetes: 429 and 5xx are transient; other 4xx and no status are not.
     pytest.param(KubernetesApiException(status=429), True, id="k8s-429"),
     pytest.param(KubernetesApiException(status=500), True, id="k8s-500"),

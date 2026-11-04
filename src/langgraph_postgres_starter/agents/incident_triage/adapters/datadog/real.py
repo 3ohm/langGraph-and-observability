@@ -17,10 +17,10 @@ Each call opens an ``AsyncApiClient``, whose HTTP transport is aiosonic (the cli
 Retries: the client retries a 429 and a 5xx itself (``enable_retry=True``), so every
 ``ApiException`` that comes out has had its retries; ``policies.is_transient`` does not
 accept it, and the graph does not retry it again. The client does not retry transport
-errors. Of those, the graph's retry policy retries only what is a stdlib
-``ConnectionError`` or ``TimeoutError``, such as a refused connection; aiosonic's own
-timeouts and dropped connections (``aiosonic.exceptions.AiosonicError``) are neither,
-so no layer retries them.
+errors, so the graph's retry policy is their one layer: ``is_transient`` accepts a
+stdlib ``ConnectionError`` or ``TimeoutError`` (such as a refused connection) and
+aiosonic's timeouts and connection errors. aiosonic's protocol errors, and DNS and TLS
+failures (plain ``OSError``), are retried by no layer.
 """
 
 from collections.abc import AsyncIterator, Awaitable

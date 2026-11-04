@@ -7,13 +7,16 @@ own (botocore's standard mode, the Datadog and Kubernetes clients' retries). The
 graph's ``RetryPolicy`` retries only what ``is_transient`` accepts: transient
 infrastructure errors, and never a 4xx except a Kubernetes 429.
 
-From the vendor SDKs, this module imports exception types only, and only the ones
-that ``is_transient`` accepts. botocore's errors and the Datadog client's
-``ApiException`` are not transient here, because those clients have already retried
-them.
+From the vendor SDKs, this module imports exception types only: the ones that
+``is_transient`` accepts, and one that it must exclude. botocore's errors and the
+Datadog client's ``ApiException`` are not transient here, because those clients have
+already retried them. The Datadog async client retries only on HTTP status, so the
+timeouts and dropped connections of its transport, aiosonic, are transient here: this
+is their one retry layer.
 """
 
 import aiohttp
+import aiosonic.exceptions as aiosonic_exc  # type: ignore[import-untyped]
 import psycopg
 from kubernetes_asyncio.client.exceptions import ApiException as KubernetesApiException
 from langgraph.errors import NodeTimeoutError
@@ -35,7 +38,25 @@ _TRANSIENT_TYPES: tuple[type[BaseException], ...] = (
     pg_errors.DeadlockDetected,
     psycopg.OperationalError,
     aiohttp.ClientConnectionError,
+    # aiosonic, the Datadog async client's transport, which does not retry them. Its
+    # timeouts subclass AiosonicError, not TimeoutError, and so do its connection errors:
+    # a connection dropped before the response (ConnectionDisconnected), and a read or
+    # write on a connection that is already closed (MissingReader/WriterException). Its
+    # protocol and request errors (parsing, redirects, HTTP/2, decompression, status)
+    # stay not transient.
+    aiosonic_exc.ConnectTimeout,
+    aiosonic_exc.ReadTimeout,
+    aiosonic_exc.RequestTimeout,
+    aiosonic_exc.ConnectionPoolAcquireTimeout,
+    aiosonic_exc.ConnectionDisconnected,
+    aiosonic_exc.MissingReaderException,
+    aiosonic_exc.MissingWriterException,
 )
+
+# Subclasses of a transient type that are not transient. WebSocketMessageTooBig
+# subclasses ConnectionDisconnected, but it is a protocol error: a frame over the size
+# limit, which a retry would receive again.
+_NOT_TRANSIENT_TYPES: tuple[type[BaseException], ...] = (aiosonic_exc.WebSocketMessageTooBig,)
 
 
 def is_transient(exc: BaseException) -> bool:
@@ -43,10 +64,13 @@ def is_transient(exc: BaseException) -> bool:
 
     True for connection errors, timeouts (``TimeoutError`` and LangGraph's
     ``NodeTimeoutError``), Postgres serialization failures, deadlocks and operational
-    errors, aiohttp connection errors, and a Kubernetes ``ApiException`` with status
-    429 or 5xx. False for everything else, which includes all botocore and Datadog
-    errors and LangGraph's ``GraphDrained``.
+    errors, aiohttp connection errors, aiosonic timeouts and connection errors, and a
+    Kubernetes ``ApiException`` with status 429 or 5xx. False for everything else, which
+    includes all botocore errors, the Datadog client's ``ApiException`` and LangGraph's
+    ``GraphDrained``.
     """
+    if isinstance(exc, _NOT_TRANSIENT_TYPES):
+        return False
     if isinstance(exc, _TRANSIENT_TYPES):
         return True
     if isinstance(exc, KubernetesApiException):
