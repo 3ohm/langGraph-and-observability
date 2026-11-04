@@ -205,6 +205,9 @@ def test_remove_example_in_temp_copy(repo_copy):
     assert _files_containing(repo_copy / "src", EXAMPLE_AGENT) == []
     for name in _BUILD_FILES:
         assert EXAMPLE_AGENT not in (repo_copy / name).read_text(), name
+    # The real-mode guide describes only the example's adapters; the README drops its link.
+    assert not (repo_copy / "docs" / "guides" / "real-mode.md").exists()
+    assert "real-mode.md" not in (repo_copy / "README.md").read_text()
     # CI names the agent only in the removal job's own check.
     workflows = [p for p in (repo_copy / ".github").rglob("*") if p.is_file()]
     naming = [line.strip() for p in workflows for line in p.read_text().splitlines()]

@@ -2,8 +2,8 @@
 
 This guide runs the worker on Amazon EKS in real mode: real Kubernetes, Datadog, Bedrock and SQS.
 The example manifests are in `deploy/k8s/` (kustomize), the IAM policy in `deploy/iam/policy.json`
-and the database roles in `deploy/sql/roles.sql`. Each adapter's settings are described in
-`docs/guides/real-mode.md`; this guide is about the deployment.
+and the database roles in `deploy/sql/roles.sql`. Each adapter's settings, and the steps to a
+first real triage, are in [real-mode.md](real-mode.md); this guide is about the deployment.
 
 ## What you need
 

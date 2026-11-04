@@ -51,8 +51,8 @@ runs and results, and starts LangGraph Studio (`make studio`).
 - [docs/guides/run-on-eks.md](docs/guides/run-on-eks.md): the image, the database roles, the
   Secrets, IAM and the model ID, the apply order (migrations first), PgBouncer, code evidence,
   and how to debug a stuck run with `python -m asyncio ps`.
-- `docs/guides/real-mode.md`: each real adapter (Kubernetes, Datadog, Bedrock, Git and ECR,
-  SQS) and its settings.
+- [docs/guides/real-mode.md](docs/guides/real-mode.md): eight steps to a first real triage, each
+  real adapter (Kubernetes, Datadog, Bedrock, Git and ECR, SQS) and its settings.
 - [deploy/](deploy/): the example manifests, the IAM policy and the database roles script.
 
 ## Make it yours

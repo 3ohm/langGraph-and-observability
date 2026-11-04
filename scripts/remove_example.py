@@ -6,11 +6,12 @@ Run it from the repository root::
 
 It deletes the agent's package, ``src/<package>/agents/incident_triage/``, and the files
 that only the example uses: ``scripts/send_incident.py`` (``make incident``) and
-``scripts/sync_dataset.py``, their tests, the agent's end-to-end test and the Evals
-workflow. It removes the agent's entry from ``langgraph.json`` and its line from
-``worker/registry.py``, and it resets the two settings defaults that name it
-(``intake_agent`` to ``""``, ``fixtures_dir`` to the package's ``fixtures`` folder) in
-``settings.py``, in their test and in ``.env.example``. It also removes the example's
+``scripts/sync_dataset.py``, their tests, the agent's end-to-end test, the Evals
+workflow and the real-mode guide, whose link it removes from ``README.md``. It removes
+the agent's entry from ``langgraph.json`` and its line from ``worker/registry.py``, and
+it resets the two settings defaults that name it (``intake_agent`` to ``""``,
+``fixtures_dir`` to the package's ``fixtures`` folder) in ``settings.py``, in their test
+and in ``.env.example``. It also removes the example's
 parts of the build: the ``grammars`` and ``incident`` make targets, the Dockerfile's
 tree-sitter grammars and the CI steps that fetch them. A file marks such a part with a
 ``# example-agent:begin`` line and a ``# example-agent:end`` line; the part goes with
@@ -58,6 +59,7 @@ DELETE = (
     "tests/unit/test_sync_dataset.py",
     "tests/e2e/test_triage_e2e.py",
     ".github/workflows/evals.yml",
+    "docs/guides/real-mode.md",
 )
 
 # The lines that open and close a part of a file that only the example agent uses.
@@ -131,6 +133,13 @@ EDITS = (
         "pyproject.toml",
         ", with LangSmith tracing and an incident-triage example agent.",
         ", with LangSmith tracing.",
+    ),
+    # The README's link to the deleted real-mode guide.
+    Edit(
+        "README.md",
+        "- [docs/guides/real-mode.md](docs/guides/real-mode.md): eight steps to a first real "
+        "triage, each\n  real adapter (Kubernetes, Datadog, Bedrock, Git and ECR, SQS) and its "
+        "settings.\n",
     ),
 )
 

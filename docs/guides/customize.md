@@ -33,15 +33,16 @@ make lint typecheck test
 ```
 
 It deletes `src/<package>/agents/incident_triage/` and the files that only the example uses
-(`scripts/send_incident.py`, `scripts/sync_dataset.py`, their tests, the agent's end-to-end test
-and `.github/workflows/evals.yml`). It removes the agent's `langgraph.json` entry and registry
-line, resets the settings defaults that name it (`APP_INTAKE_AGENT` becomes empty), and deletes
-the example's parts of the Makefile (`grammars`, `incident`), the Dockerfile (the tree-sitter
-grammars) and CI, which those files mark with `# example-agent:begin` and `# example-agent:end`
-lines. It prints each change; a second run changes nothing. On a first run it refuses, and
-changes nothing, when a file it must edit has drifted from the text it expects, or when the
-removal would leave a Makefile recipe or CI step calling a make target that is gone. CI's
-`removal` job proves on every commit that the rest still passes (P22).
+(`scripts/send_incident.py`, `scripts/sync_dataset.py`, their tests, the agent's end-to-end test,
+`.github/workflows/evals.yml` and `docs/guides/real-mode.md`, with its link in `README.md`). It
+removes the agent's `langgraph.json` entry and registry line, resets the settings defaults that
+name it (`APP_INTAKE_AGENT` becomes empty), and deletes the example's parts of the Makefile
+(`grammars`, `incident`), the Dockerfile (the tree-sitter grammars) and CI, which those files mark
+with `# example-agent:begin` and `# example-agent:end` lines. It prints each change; a second run
+changes nothing. On a first run it refuses, and changes nothing, when a file it must edit has
+drifted from the text it expects, or when the removal would leave a Makefile recipe or CI step
+calling a make target that is gone. CI's `removal` job proves on every commit that the rest still
+passes (P22).
 
 Then:
 

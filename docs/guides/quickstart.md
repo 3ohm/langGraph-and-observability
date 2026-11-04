@@ -89,5 +89,5 @@ volume too.
 ## Next
 
 - [run-on-eks.md](run-on-eks.md): the worker on EKS with real Kubernetes, Datadog, Bedrock and SQS.
-- `docs/guides/real-mode.md`: each real adapter and its settings.
+- [real-mode.md](real-mode.md): each real adapter and its settings, and a first real triage.
 - [customize.md](customize.md): rename the package, remove the example, add your own agent.
