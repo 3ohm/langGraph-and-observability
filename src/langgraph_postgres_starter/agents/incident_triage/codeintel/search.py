@@ -12,8 +12,10 @@ takes those constants from the log, and ``search_literals`` finds them with ``rg
 - The line is redacted first (``redaction.redact``). Its text after the log level (the
   whole line when it has none) is split at its variable parts: runs of 2 or more digits
   and numbers that stand alone (a digit inside a word, as in ``utf8``, stays), ``0x``
-  hex, UUIDs, IPv4 and IPv6 addresses, quoted strings, and the redaction placeholder,
-  so a literal never holds a redacted value.
+  hex, UUIDs, IPv4 and IPv6 addresses, quoted strings, the redaction placeholder (so a
+  literal never holds a redacted value), and C0 control characters other than tab, as
+  in binary junk (so a literal never holds a NUL byte, which no process argument can
+  hold, and a constant next to the junk is still found).
 - Each piece loses the whitespace and punctuation at its ends. The line's literal is
   its longest piece of at least ``MIN_LITERAL_CHARS`` characters, the first of equal
   ones; a piece that redaction would change is not used.
@@ -68,6 +70,8 @@ _HEX = "[0-9A-Fa-f]"
 _VARIABLE = re.compile(
     "|".join(
         (
+            # C0 control characters except tab.
+            r"[\x00-\x08\x0a-\x1f]+",
             re.escape(REDACTED),
             r'"[^"\n]*"',
             # Not after a letter, so the apostrophe in "can't" opens no quote.
@@ -83,6 +87,8 @@ _VARIABLE = re.compile(
     )
 )
 _TRIM = string.whitespace + string.punctuation
+# The characters that search_literals never passes to rg in a literal.
+_UNSEARCHABLE = frozenset("\n\x00")
 
 
 class RipgrepMissing(RuntimeError):
@@ -136,11 +142,12 @@ async def search_literals(
     """The lines below ``root`` that hold one of ``literals``, at most ``max_matches``.
 
     Each match names the literal it holds; a line with two literals is two matches. The
-    matches are in path order, then line order. An empty literal, and one with a line
-    break (``rg`` matches within a line), is not searched. Raises RipgrepMissing when
-    ``rg`` is not on ``PATH``; with no literal, it returns ``[]`` and does not run ``rg``.
+    matches are in path order, then line order. An empty literal is not searched, nor is
+    one with a line break (``rg`` matches within a line) or a NUL byte (no process
+    argument can hold one). Raises RipgrepMissing when ``rg`` is not on ``PATH``; with no
+    literal, it returns ``[]`` and does not run ``rg``.
     """
-    wanted = list(dict.fromkeys(lit for lit in literals if lit and "\n" not in lit))
+    wanted = list(dict.fromkeys(lit for lit in literals if lit and not _UNSEARCHABLE & set(lit)))
     if not wanted or max_matches < 1:
         return []
     rg = shutil.which("rg")

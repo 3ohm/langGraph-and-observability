@@ -89,6 +89,14 @@ Segmentation fault (core dumped)
             "Error: login failed password=hunter2secret for the admin account",
             ["Error: login failed password"],
         ),
+        # A C0 control character, as in binary junk, splits a line like a variable part;
+        # a tab does not.
+        (
+            "Error: decoder rejected input abc\x00defghijklmnop qrstuv",
+            ["Error: decoder rejected input abc"],
+        ),
+        ("Error: bad frame\x01\x1f header checksum mismatch", ["header checksum mismatch"]),
+        ("panic: worker\tlost its lease", ["panic: worker\tlost its lease"]),
         # Newest first: the line nearest the crash leads.
         (
             "2026-11-02T10:00:00Z INFO processing refunds for merchant 7\n"
@@ -102,6 +110,7 @@ def test_literals_table(log, expected):
     literals = literals_from_logs(log)
     assert literals == expected
     assert all(REDACTED not in literal and "hunter2" not in literal for literal in literals)
+    assert not [c for literal in literals for c in literal if c < " " and c != "\t"]
 
 
 def test_literals_capped_newest_first():
@@ -115,7 +124,9 @@ def test_literals_capped_newest_first():
 
 async def test_search_finds_raise_site():
     root = _app("python")
-    literals = ['data["customer"]', "no fixture app has this text", "", "two\nlines"]
+    # rg is not given an empty literal, one with a line break or one with a NUL byte
+    # (which no process argument can hold).
+    literals = ['data["customer"]', "no fixture app has this text", "", "two\nlines", "a\x00b"]
     matches = await search_literals(root, literals)
     assert matches == [SearchMatch(path="orders/service.py", line=24, literal='data["customer"]')]
 

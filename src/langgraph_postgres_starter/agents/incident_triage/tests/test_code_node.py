@@ -143,6 +143,22 @@ async def test_unmapped_frames_are_recorded():
     assert update["code_evidence"] == []
 
 
+async def test_nul_bytes_in_the_log_do_not_fail_the_step():
+    runtime = _runtime("python-keyerror")
+    state = await _state_before_code("python-keyerror", runtime)
+    # Binary junk, as a native crash can print.
+    state["log_text"] += "\nError: decoder rejected input abc\x00defghijklmnop qrstuv\n\x00\x00\x00"
+
+    update = await collect_code(state, runtime)
+
+    assert [s.path for s in update["code_evidence"]] == [
+        "orders/service.py",
+        "orders/service.py",
+        "orders/worker.py",
+    ]
+    assert update["notes"] == []
+
+
 async def test_match_inside_a_chosen_definition_is_not_extracted_again(monkeypatch):
     runtime = _runtime("python-keyerror")
     state = await _state_before_code("python-keyerror", runtime)
