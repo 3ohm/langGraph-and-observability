@@ -10,7 +10,9 @@ from psycopg.conninfo import make_conninfo
 from psycopg.rows import DictRow
 from psycopg_pool import AsyncConnectionPool
 
+from langgraph_postgres_starter.persistence.migrate import run_migrate
 from langgraph_postgres_starter.persistence.pool import create_pool, open_pool
+from langgraph_postgres_starter.persistence.resources import set_pool
 from langgraph_postgres_starter.settings import get_settings, load_settings
 
 PG_IMAGE = "pgvector/pgvector:0.8.4-pg18"
@@ -94,3 +96,29 @@ async def pool(fresh_dsn: str) -> AsyncIterator[AsyncConnectionPool[AsyncConnect
         yield p
     finally:
         await p.close()
+
+
+@pytest.fixture
+async def steps_pool(
+    pool: AsyncConnectionPool[AsyncConnection[DictRow]], fresh_dsn: str
+) -> AsyncIterator[AsyncConnectionPool[AsyncConnection[DictRow]]]:
+    """The test pool, ready to run the ``test_steps`` graph under the worker.
+
+    Applies the core, langgraph and worker migrations, creates ``test_step_calls`` and
+    registers the pool with ``set_pool``, so the steps record their marks in Postgres.
+    Afterwards it clears the registered pool and ``tests.graphs.steps.FAULTS``.
+    """
+    # Imported here, so that loading this conftest does not import the test-only graph.
+    # Always as tests.graphs.steps: the tests change this module's FAULTS.
+    from tests.graphs import steps
+
+    await run_migrate(
+        load_settings(database_url=fresh_dsn), components={"core", "langgraph", "worker"}
+    )
+    await steps.ensure_table(pool)
+    set_pool(pool)
+    try:
+        yield pool
+    finally:
+        set_pool(None)
+        steps.FAULTS.clear()
