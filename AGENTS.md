@@ -66,7 +66,8 @@ uv run scripts/remove_example.py                          # remove the example a
 6. **Plain LangGraph.** Do not add helpers that hide LangGraph's APIs.
 7. **Example-only parts.** A part of a shared file that only the example agent uses sits between
    `# example-agent:begin` and `# example-agent:end` lines, so `scripts/remove_example.py` can
-   delete it. Keep `remove_example.py` in step when you add one; CI's `removal` job checks it.
+   delete it. Keep `remove_example.py` in step when you add one or change a text it edits:
+   on a first run it refuses a drifted file, and CI's `removal` job checks the result.
 
 ## Conventions
 

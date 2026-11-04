@@ -16,7 +16,9 @@ make lint typecheck test
 ```
 
 The new name is a lowercase Python identifier (letters and digits in words joined by single
-underscores), not a keyword or a standard-library module. The script replaces
+underscores), not a keyword or a standard-library module, and not taken: neither a package in
+`uv.lock` (such as `langgraph` or `psycopg_pool`) nor a module that Python can import already
+(such as `yaml`). The script replaces
 `langgraph_postgres_starter` with it, and `langgraph-postgres-starter` (the distribution, the
 image and the Kubernetes names) with its hyphenated form, in every text file, and renames the
 paths that hold either name. It skips `.git/`, `.venv/`, `.superpowers/`, caches, binary files
@@ -36,8 +38,10 @@ and `.github/workflows/evals.yml`). It removes the agent's `langgraph.json` entr
 line, resets the settings defaults that name it (`APP_INTAKE_AGENT` becomes empty), and deletes
 the example's parts of the Makefile (`grammars`, `incident`), the Dockerfile (the tree-sitter
 grammars) and CI, which those files mark with `# example-agent:begin` and `# example-agent:end`
-lines. It prints each change; a second run changes nothing. CI's `removal` job proves on every
-commit that the rest still passes (P22).
+lines. It prints each change; a second run changes nothing. On a first run it refuses, and
+changes nothing, when a file it must edit has drifted from the text it expects, or when the
+removal would leave a Makefile recipe or CI step calling a make target that is gone. CI's
+`removal` job proves on every commit that the rest still passes (P22).
 
 Then:
 

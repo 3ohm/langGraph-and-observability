@@ -6,7 +6,10 @@ Run it from the repository root::
 
 The new name is a lowercase Python identifier, such as ``acme_agents``: lowercase
 letters and digits in words joined by single underscores, starting with a letter. It
-must not be a Python keyword or the name of a standard-library module.
+must not be a Python keyword or the name of a standard-library module, and it must not
+be taken: neither a package in ``uv.lock`` (in its hyphenated or underscored form) nor a
+module that this Python can already import. A taken name would give ``uv.lock`` two
+packages of one name, which uv refuses to read, and would shadow the other package.
 
 The script replaces each ``langgraph_postgres_starter`` with the new name, and each
 ``langgraph-postgres-starter`` (the distribution, the image, the Kubernetes names) with
@@ -27,10 +30,12 @@ script renames its own names too, so it can run again later.
 """
 
 import argparse
+import importlib.util
 import keyword
 import os
 import re
 import sys
+import tomllib
 from collections.abc import Iterator, Sequence
 from pathlib import Path
 
@@ -60,7 +65,10 @@ SKIP_FILES = frozenset({"LICENSE"})
 
 
 def name_error(name: str) -> str | None:
-    """Return why ``name`` cannot be the new package name, or None when it can."""
+    """Return why ``name`` cannot be the new package name, or None when it can.
+
+    It checks the name only; ``taken_error`` checks it against the repository.
+    """
     if not _NAME.fullmatch(name):
         return (
             "use lowercase letters and digits in words joined by single underscores, "
@@ -72,6 +80,30 @@ def name_error(name: str) -> str | None:
         return "it is the name of a standard-library module"
     if name == OLD_PACKAGE:
         return "it is the package's name already"
+    return None
+
+
+def _normalized(name: str) -> str:
+    """Return a distribution name normalized (PEP 503): ``Psycopg_Pool`` is ``psycopg-pool``."""
+    return re.sub(r"[-_.]+", "-", name).lower()
+
+
+def taken_error(name: str, root: Path) -> str | None:
+    """Return why ``name`` is taken, or None when it is free.
+
+    Taken: ``uv.lock`` holds a package, other than this project, with the name's
+    normalized form, which covers its hyphenated and underscored forms; or this Python
+    can import a module of that name already.
+    """
+    lock = root / "uv.lock"
+    if lock.is_file():
+        packages = tomllib.loads(lock.read_text(encoding="utf-8")).get("package", [])
+        locked = {_normalized(p["name"]) for p in packages if "name" in p}
+        locked.discard(_normalized(OLD_DIST))
+        if _normalized(name) in locked:
+            return f"uv.lock already has a package named {_normalized(name)!r}"
+    if (spec := importlib.util.find_spec(name)) is not None:
+        return f"Python can import a module of that name already ({spec.origin or 'a namespace'})"
     return None
 
 
@@ -132,7 +164,7 @@ def main(argv: Sequence[str] | None = None) -> int:
     args = parser.parse_args(argv)
     name: str = args.name
     if (error := name_error(name)) is not None:
-        print(f"{PROG}: {name!r} is not a valid package name: {error}", file=sys.stderr)
+        print(f"{PROG}: {name!r} cannot be the new package name: {error}", file=sys.stderr)
         return 2
     root = Path.cwd()
     if not ((root / "pyproject.toml").is_file() and (root / "src" / OLD_PACKAGE).is_dir()):
@@ -141,6 +173,9 @@ def main(argv: Sequence[str] | None = None) -> int:
             f"pyproject.toml and src/{OLD_PACKAGE}/ (not {root})",
             file=sys.stderr,
         )
+        return 2
+    if (error := taken_error(name, root)) is not None:
+        print(f"{PROG}: {name!r} cannot be the new package name: {error}", file=sys.stderr)
         return 2
 
     contents, renames = plan(root, name)

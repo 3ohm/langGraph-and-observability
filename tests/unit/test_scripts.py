@@ -10,6 +10,7 @@ Coverage is off in those processes, so they add nothing to this run's report.
 import hashlib
 import json
 import os
+import re
 import shutil
 import subprocess
 import sys
@@ -17,6 +18,7 @@ import tomllib
 from pathlib import Path
 
 import pytest
+import yaml
 
 import langgraph_postgres_starter
 
@@ -25,6 +27,11 @@ PACKAGE = langgraph_postgres_starter.__name__
 DIST = PACKAGE.replace("_", "-")
 NEW_NAME = "acme_triage_kit"
 EXAMPLE_AGENT = "incident_triage"
+# A first removal needs the example agent; the removal job runs this suite without it.
+needs_example_agent = pytest.mark.skipif(
+    not (Path(langgraph_postgres_starter.__file__).parent / "agents" / EXAMPLE_AGENT).is_dir(),
+    reason="the example agent was removed",
+)
 
 _IGNORED = shutil.ignore_patterns(
     ".git",
@@ -50,6 +57,8 @@ _BUILD_FILES = (
 )
 _UNIT_TESTS = ["-m", "pytest", "--collect-only", "-q", "-p", "no:cacheprovider"]
 _UNIT_MARKERS = ["-m", "not integration and not e2e"]
+# The variables that a make running this suite (make test) passes to its children.
+_MAKE_VARIABLES = ("MAKEFLAGS", "MFLAGS", "MAKELEVEL", "MAKEOVERRIDES")
 
 
 @pytest.fixture
@@ -108,6 +117,20 @@ def _files_containing(root: Path, text: str, *, skip: frozenset[str] = frozenset
     return found
 
 
+def _make_targets(root: Path) -> list[str]:
+    """Return the targets that the Makefile defines and that the CI workflows call."""
+    defined = re.findall(r"^([a-z0-9][a-z0-9_.-]*):(?!=)", (root / "Makefile").read_text(), re.M)
+    called = []
+    for workflow in sorted((root / ".github" / "workflows").glob("*.yml")):
+        jobs = yaml.safe_load(workflow.read_text())["jobs"].values()
+        for line in (
+            line for job in jobs for s in job["steps"] for line in s.get("run", "").splitlines()
+        ):
+            for words in re.findall(r"\bmake\s+([^&|;#]*)", line):
+                called += [w for w in words.split() if "=" not in w and not w.startswith("-")]
+    return sorted(set(defined) | set(called))
+
+
 def _fake_dist_info(site: Path, copy: Path) -> Path:
     """Make the renamed distribution's metadata findable, as ``uv sync`` would install it.
 
@@ -147,7 +170,21 @@ def test_rename_dry_run(repo_copy, tmp_path):
 
 
 @pytest.mark.parametrize(
-    "name", ["Acme", "1acme", "acme-kit", "_acme", "acme_", "acme__kit", "class", "json", PACKAGE]
+    "name",
+    [
+        "Acme",
+        "1acme",
+        "acme-kit",
+        "_acme",
+        "acme_",
+        "acme__kit",
+        "class",
+        "json",  # a standard-library module
+        PACKAGE,  # the current name
+        "langgraph",  # a package in uv.lock: the lock would hold two of that name
+        "psycopg_pool",  # in uv.lock as psycopg-pool
+        "yaml",  # importable already (PyYAML), though uv.lock names it pyyaml
+    ],
 )
 def test_rename_rejects_a_bad_name(repo_copy, name):
     before = _snapshot(repo_copy)
@@ -179,6 +216,22 @@ def test_remove_example_in_temp_copy(repo_copy):
     collected = _run(repo_copy, *_UNIT_TESTS, *_UNIT_MARKERS, python_path=(repo_copy / "src",))
     assert collected.returncode == 0, collected.stdout + collected.stderr
 
+    # No recipe or CI step calls a make target that the removal deleted: each target that
+    # the Makefile defines or CI calls dry-runs, with the $(MAKE) lines of its recipe.
+    env = {k: v for k, v in os.environ.items() if k not in _MAKE_VARIABLES}
+    targets = _make_targets(repo_copy)
+    assert {"setup", "lint", "typecheck", "test"} <= set(targets)
+    for target in targets:
+        dry_run = subprocess.run(  # noqa: S603 - make from PATH, with fixed arguments
+            ["make", "-n", target],  # noqa: S607
+            cwd=repo_copy,
+            env=env,
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+        assert dry_run.returncode == 0, f"make -n {target}: {dry_run.stderr}"
+
 
 def test_remove_example_is_idempotent(repo_copy):
     first = _run(repo_copy, "scripts/remove_example.py")
@@ -189,6 +242,48 @@ def test_remove_example_is_idempotent(repo_copy):
     assert second.returncode == 0, second.stderr
     assert _snapshot(repo_copy) == after_first
     assert "Nothing to change" in second.stdout
+
+
+@needs_example_agent
+@pytest.mark.parametrize(
+    ("path", "old", "new"),
+    [
+        ("Makefile", "\t$(MAKE) grammars\n", "\t@$(MAKE) grammars\n"),
+        (".github/workflows/ci.yml", "- run: make grammars\n", "- run: make grammars # fetch\n"),
+    ],
+    ids=["makefile-setup-recipe", "ci-grammars-step"],
+)
+def test_remove_example_refuses_a_drifted_edit_on_the_first_run(repo_copy, path, old, new):
+    # A text that the removal must edit has changed: the first run changes nothing.
+    target = repo_copy / path
+    assert old in target.read_text()
+    target.write_text(target.read_text().replace(old, new))
+    before = _snapshot(repo_copy)
+
+    result = _run(repo_copy, "scripts/remove_example.py")
+    assert result.returncode == 1
+    assert path in result.stderr and "nothing was changed" in result.stderr
+    assert _snapshot(repo_copy) == before
+
+
+@pytest.mark.parametrize(
+    ("path", "addition"),
+    [
+        ("Makefile", "\nci: ## lint, then fetch the grammars\n\t$(MAKE) lint grammars\n"),
+        (".github/workflows/ci.yml", "      - run: make grammars lint\n"),
+    ],
+    ids=["makefile-recipe", "ci-step"],
+)
+def test_remove_example_refuses_to_leave_a_call_to_a_removed_target(repo_copy, path, addition):
+    # The marked part deletes the grammars target; a call that nothing else removes remains.
+    target = repo_copy / path
+    target.write_text(target.read_text() + addition)
+    before = _snapshot(repo_copy)
+
+    result = _run(repo_copy, "scripts/remove_example.py")
+    assert result.returncode == 1
+    assert f"{path}: make grammars" in result.stderr and "nothing was changed" in result.stderr
+    assert _snapshot(repo_copy) == before
 
 
 def test_remove_example_refuses_outside_a_repo_root(repo_copy, tmp_path):

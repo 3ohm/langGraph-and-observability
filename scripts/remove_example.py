@@ -17,9 +17,18 @@ tree-sitter grammars and the CI steps that fetch them. A file marks such a part 
 the lines between them, and the blank lines after it.
 
 The script works out every change before it makes one, then prints each change as it
-makes it. It changes only what still holds the example's text, so a second run changes
-nothing. It refuses to run outside the repository root, imports nothing from the
-package and uses the standard library only.
+makes it. It refuses, and changes nothing:
+
+- outside the repository root;
+- on a first run (the agent's package is still there), when a file it must change has
+  drifted: an edit's text is not there, or a marked file has no marked part. Change the
+  script to match the file, or the file to match the script;
+- when, after the removal, a Makefile recipe or a CI step would still call a make target
+  that the Makefile no longer has (``$(MAKE) grammars``, ``make grammars``).
+
+After a first run, the script changes only what still holds the example's text, so a
+second run changes nothing. It imports nothing from the package and uses the standard
+library only.
 
 Afterwards the docs (``README.md``, ``AGENTS.md``, ``docs/``) still describe the
 example: update them for your fork. ``docs/guides/customize.md`` shows how to add your
@@ -28,6 +37,7 @@ own agent.
 
 import argparse
 import json
+import re
 import shutil
 import sys
 from collections.abc import Sequence
@@ -168,11 +178,75 @@ def _without_example_graph(text: str) -> str:
     return json.dumps(config, indent=indent) + "\n"
 
 
+def make_targets(makefile: str) -> set[str]:
+    """Return the targets that the rules of a Makefile define (variables are not rules)."""
+    targets: set[str] = set()
+    for line in makefile.splitlines():
+        if line.startswith(("\t", "#")) or ":" not in line:
+            continue
+        head, _, rest = line.partition(":")
+        # NAME := value, and NAME = value with a colon in the value.
+        if not rest.startswith("=") and "=" not in head:
+            targets.update(head.split())
+    return targets
+
+
+def make_calls(text: str, *, makefile: bool) -> list[str]:
+    """Return the targets that the commands in ``text`` pass to ``make`` or ``$(MAKE)``.
+
+    The commands are a Makefile's recipe lines, which start with a tab, or every line of a
+    workflow that is not a comment. Variables (``A=b``) and flags are not targets.
+    """
+    calls: list[str] = []
+    for line in text.splitlines():
+        if makefile and not line.startswith("\t"):
+            continue
+        command = line.strip()
+        if command.startswith("#"):
+            continue
+        for part in re.split(r"&&|\|\||[;|]", command):
+            words = part.partition(" #")[0].split()
+            # A workflow step's first line: - run: make lint
+            while words and words[0] in ("-", "run:"):
+                words = words[1:]
+            if words and words[0].lstrip("@+-").strip("\"'") in ("make", "$(MAKE)"):
+                names = (word.strip("\"'") for word in words[1:])
+                calls += [n for n in names if n and "=" not in n and not n.startswith("-")]
+    return calls
+
+
+def _dangling_make_calls(root: Path, deletions: list[Path], texts: dict[Path, str]) -> list[str]:
+    """Return a line for each make call, after the removal, to a target the Makefile lacks."""
+
+    def after(path: Path) -> str | None:
+        if path in deletions or not path.is_file():
+            return None
+        return texts[path] if path in texts else path.read_text(encoding="utf-8")
+
+    makefile = root / "Makefile"
+    defined = make_targets(after(makefile) or "")
+    workflows = sorted((root / ".github" / "workflows").glob("*.y*ml"))
+    sources = [(makefile, True), *((workflow, False) for workflow in workflows)]
+    problems = []
+    for path, is_makefile in sources:
+        text = after(path)
+        for target in dict.fromkeys(make_calls(text or "", makefile=is_makefile)):
+            if target not in defined:
+                problems.append(
+                    f"{path.relative_to(root).as_posix()}: make {target} would call a target "
+                    "that the Makefile no longer has"
+                )
+    return problems
+
+
 def plan(root: Path) -> tuple[list[Path], dict[Path, str]]:
     """Return the paths to delete, and the new text of each file to change.
 
-    It reads files only. Raises RemovalError for a file that cannot be changed.
+    It reads files only. Raises RemovalError for a file that cannot be changed: on a
+    first run, a file that has drifted from the text this script expects; on any run, a
+    make call that the removal would leave without its target.
     """
+    first_run = (root / DELETE[0]).is_dir()
     deletions = [root / name for name in DELETE if (root / name).exists()]
     texts: dict[Path, str] = {}
 
@@ -183,15 +257,31 @@ def plan(root: Path) -> tuple[list[Path], dict[Path, str]]:
     texts[config] = _without_example_graph(config.read_text(encoding="utf-8"))
     for name in MARKED_FILES:
         path = root / name
-        if path.is_file():
-            try:
-                texts[path] = remove_marked_parts(current(path))
-            except RemovalError as error:
-                raise RemovalError(f"{name}: {error}") from None
+        if not path.is_file():
+            if first_run:
+                raise RemovalError(f"{name} is missing")
+            continue
+        if first_run and BEGIN not in current(path):
+            raise RemovalError(f"{name} has no {BEGIN!r} line: it has drifted")
+        try:
+            texts[path] = remove_marked_parts(current(path))
+        except RemovalError as error:
+            raise RemovalError(f"{name}: {error}") from None
     for edit in EDITS:
         path = root / edit.path
-        if path.is_file():
-            texts[path] = current(path).replace(edit.old, edit.new)
+        if not path.is_file():
+            if first_run:
+                raise RemovalError(f"{edit.path} is missing")
+            continue
+        if first_run and edit.old not in current(path):
+            first_line = edit.old.strip().splitlines()[0]
+            raise RemovalError(
+                f"{edit.path} no longer holds the text that this script edits, "
+                f"starting {first_line!r}: the file has drifted"
+            )
+        texts[path] = current(path).replace(edit.old, edit.new)
+    if problems := _dangling_make_calls(root, deletions, texts):
+        raise RemovalError("; ".join(problems))
     changed = {
         path: text for path, text in texts.items() if text != path.read_text(encoding="utf-8")
     }
