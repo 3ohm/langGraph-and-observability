@@ -7,7 +7,8 @@ it. ``build_adapters`` picks them from the settings:
   serves an incident fixture (``fixtures/FORMAT.md``).
 - ``APP_LLM_MODE`` picks the model. ``recorded`` replies with recorded responses;
   ``bedrock`` calls Claude on Amazon Bedrock (``llm/bedrock.py``).
-- ``APP_RESULT_SINKS`` lists the sinks. ``log`` is the same in every mode.
+- ``APP_RESULT_SINKS`` lists the sinks, by name. ``log`` is the same in every mode;
+  ``sqs`` sends to ``APP_RESULT_QUEUE_URL`` (``sinks/sqs.py``).
 """
 
 import functools
@@ -28,6 +29,10 @@ from langgraph_postgres_starter.agents.incident_triage.adapters.llm.interface im
 from langgraph_postgres_starter.agents.incident_triage.adapters.llm.recorded import RecordedLlm
 from langgraph_postgres_starter.agents.incident_triage.adapters.sinks.interface import ResultSink
 from langgraph_postgres_starter.agents.incident_triage.adapters.sinks.log import LogSink
+from langgraph_postgres_starter.agents.incident_triage.adapters.sinks.sqs import (
+    SqsSink,
+    make_sqs_client,
+)
 from langgraph_postgres_starter.agents.incident_triage.adapters.source.ecr import (
     EcrLabelReader,
     make_ecr_client,
@@ -63,14 +68,6 @@ class Adapters:
     sinks: tuple[ResultSink, ...]
 
 
-# The real adapters that are not built yet, each with the task of the implementation
-# plan (docs/plans/2026-11-02-incident-triage-v1.md) that adds it. The task that adds
-# an adapter removes its entry.
-_NOT_BUILT_YET: dict[str, int] = {
-    "sink.sqs": 32,
-}
-
-
 def build_adapters(
     settings: Settings, *, fixture_id: str | None, run_id: UUID | None = None
 ) -> Adapters:
@@ -83,20 +80,10 @@ def build_adapters(
 
     With ``APP_ADAPTERS=real`` no fixture is loaded, and ``fixture_id`` is not used.
 
-    Raises NotImplementedError when the settings select a real adapter that is not
-    built yet; the message names each such adapter and its task, as in ``sink.sqs
-    (Task 32)``. In simulated mode, raises ValueError without a ``fixture_id`` and
-    FileNotFoundError when the fixture is missing.
+    Raises ValueError for a sink that ``_build_sink`` cannot build. In simulated mode,
+    raises ValueError without a ``fixture_id`` and FileNotFoundError when the fixture is
+    missing.
     """
-    not_built = [name for name in _real_adapters(settings) if name in _NOT_BUILT_YET]
-    if not_built:
-        tasks = ", ".join(f"{name} (Task {_NOT_BUILT_YET[name]})" for name in not_built)
-        raise NotImplementedError(
-            f"the settings select real adapters that are not built yet: {tasks}. The task "
-            "numbers are those of docs/plans/2026-11-02-incident-triage-v1.md. Use "
-            'APP_ADAPTERS=simulated, APP_LLM_MODE=recorded and APP_RESULT_SINKS=["log"].'
-        )
-    # The adapters that are not built yet raise above: from here every sink is log.
     if settings.adapters == "real":
         fixture = None
     elif fixture_id is None:
@@ -114,8 +101,30 @@ def build_adapters(
         locator=_build_locator(settings, fixture, calls),
         source=_build_source(settings, calls),
         llm=_build_llm(settings, calls),
-        sinks=tuple(LogSink(calls) for _ in settings.result_sinks),
+        sinks=tuple(_build_sink(name, settings, calls) for name in settings.result_sinks),
     )
+
+
+def _build_sink(name: str, settings: Settings, calls: CallLog) -> ResultSink:
+    """The sink named ``name`` in ``APP_RESULT_SINKS``: ``log`` or ``sqs``.
+
+    Raises ValueError for ``sqs`` without ``APP_RESULT_QUEUE_URL``, and for any other
+    name. Building ``SqsSink`` touches no network: it builds its boto3 client on its
+    first send.
+    """
+    if name == "log":
+        return LogSink(calls)
+    if name == "sqs":
+        if not settings.result_queue_url:
+            raise ValueError(
+                "the sqs result sink (APP_RESULT_SINKS) sends to APP_RESULT_QUEUE_URL, "
+                "which is not set"
+            )
+        return SqsSink(
+            functools.partial(make_sqs_client, settings.aws_region, settings.sqs_endpoint_url),
+            settings.result_queue_url,
+        )
+    raise ValueError(f"unknown result sink {name!r} in APP_RESULT_SINKS: the sinks are log, sqs")
 
 
 def _build_llm(settings: Settings, calls: CallLog) -> LlmAdapter:
@@ -192,12 +201,3 @@ def _build_source(settings: Settings, calls: CallLog) -> SourceProvider:
             min_age_s=settings.run_deadline_seconds,
         )
     return LocalSourceProvider(settings.fixtures_dir / "apps", calls)
-
-
-def _real_adapters(settings: Settings) -> list[str]:
-    """The adapters that the settings select in their real form, by name."""
-    names = ["k8s", "datadog", "locator", "source"] if settings.adapters == "real" else []
-    if settings.llm_mode == "bedrock":
-        names.append("llm")
-    names += [f"sink.{sink}" for sink in settings.result_sinks if sink != "log"]
-    return names

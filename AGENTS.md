@@ -25,7 +25,8 @@ docs/                       design/  plans/  adr/  practices/  guides/
 deploy/                     example manifests (Kubernetes, IAM, SQL, ElasticMQ)
 scripts/                    rename, remove the example agent, send an incident, sync the eval dataset
 .claude/agents/             build agents (implementer, reviewer)
-conftest.py                 fixtures for every test directory (environment isolation, strict msgpack)
+conftest.py                 fixtures for every test directory (environment isolation, strict msgpack,
+                            Postgres from tests/fixtures_pg.py)
 ```
 
 ## Commands

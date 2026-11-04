@@ -22,6 +22,7 @@ from langgraph.runtime import Runtime
 from langgraph_postgres_starter.agent_spec import RunInfo
 from langgraph_postgres_starter.agents.incident_triage.adapters import build_adapters
 from langgraph_postgres_starter.agents.incident_triage.adapters.datadog.interface import DdEvent
+from langgraph_postgres_starter.agents.incident_triage.adapters.datadog.real import RealDatadog
 from langgraph_postgres_starter.agents.incident_triage.adapters.k8s.fake import FakeK8s
 from langgraph_postgres_starter.agents.incident_triage.adapters.k8s.interface import (
     ContainerStatus,
@@ -30,6 +31,7 @@ from langgraph_postgres_starter.agents.incident_triage.adapters.k8s.interface im
     PodInfo,
     Terminated,
 )
+from langgraph_postgres_starter.agents.incident_triage.adapters.k8s.real import RealK8s
 from langgraph_postgres_starter.agents.incident_triage.adapters.llm.bedrock import BedrockLlm
 from langgraph_postgres_starter.agents.incident_triage.adapters.llm.interface import (
     AnalysisRequest,
@@ -37,6 +39,7 @@ from langgraph_postgres_starter.agents.incident_triage.adapters.llm.interface im
 )
 from langgraph_postgres_starter.agents.incident_triage.adapters.llm.recorded import RecordedLlm
 from langgraph_postgres_starter.agents.incident_triage.adapters.sinks.log import LogSink
+from langgraph_postgres_starter.agents.incident_triage.adapters.sinks.sqs import SqsSink
 from langgraph_postgres_starter.agents.incident_triage.adapters.source.git import (
     GitSourceProvider,
 )
@@ -457,36 +460,10 @@ async def test_recorded_llm_malformed_reply_names_its_file(root):
     assert str(path) in str(exc_info.value)
 
 
-# Each task that adds a real adapter removes its row here (ruling R21).
-@pytest.mark.parametrize(
-    ("overrides", "adapter", "task"),
-    [
-        ({"result_sinks": ["log", "sqs"]}, "sink.sqs", 32),
-    ],
-    ids=["sink.sqs"],
-)
-def test_real_mode_not_ready_names_task(overrides, adapter, task):
-    with pytest.raises(NotImplementedError) as exc_info:
-        build_adapters(load_settings(**overrides), fixture_id=SAMPLE)
-    assert f"{adapter} (Task {task})" in str(exc_info.value)
+def _no_network(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Make any network call, boto3 session or subprocess fail the test."""
 
-
-def test_bedrock_mode_builds_the_model_without_network(monkeypatch, root):
-    def no_network(*args, **kwargs):
-        raise AssertionError("building the adapters must not touch the network")
-
-    monkeypatch.setattr(socket, "getaddrinfo", no_network)
-    monkeypatch.setattr(socket.socket, "connect", no_network)
-    # boto3 looks for credentials, which can mean a network call, when it builds a client.
-    monkeypatch.setattr(boto3.session, "Session", no_network)
-
-    adapters = build_adapters(_settings(root, llm_mode="bedrock"), fixture_id=SAMPLE)
-
-    assert isinstance(adapters.llm, BedrockLlm)
-
-
-async def test_real_mode_builds_source_adapters_without_network(monkeypatch, tmp_path):
-    def no_network(*args, **kwargs):
+    def no_network(*args: Any, **kwargs: Any) -> None:
         raise AssertionError("building the adapters must not touch the network or run git")
 
     monkeypatch.setattr(socket, "getaddrinfo", no_network)
@@ -494,6 +471,62 @@ async def test_real_mode_builds_source_adapters_without_network(monkeypatch, tmp
     # boto3 looks for credentials, which can mean a network call, when it builds a client.
     monkeypatch.setattr(boto3.session, "Session", no_network)
     monkeypatch.setattr(asyncio, "create_subprocess_exec", no_network)
+
+
+def test_real_mode_builds_every_adapter_without_network(monkeypatch, tmp_path):
+    # Ruling R21: with every real adapter selected, and dummy settings, building them
+    # touches no network, loads no kube config and starts no process.
+    _no_network(monkeypatch)
+    settings = load_settings(
+        adapters="real",
+        llm_mode="bedrock",
+        result_sinks=["log", "sqs"],
+        result_queue_url="https://sqs.us-east-1.amazonaws.com/123456789012/results.fifo",
+        dd_api_key="dd-api-key-for-tests",
+        dd_app_key="dd-app-key-for-tests",
+        git_token="token-for-tests",  # noqa: S106 - a fake token
+        source_cache_dir=tmp_path / "cache",
+        source_map_file=tmp_path / "source-map.yaml",
+    )
+
+    adapters = build_adapters(settings, fixture_id=None)
+
+    assert isinstance(adapters.k8s, RealK8s)
+    assert isinstance(adapters.datadog, RealDatadog)
+    assert isinstance(adapters.locator, ChainLocator)
+    assert isinstance(adapters.source, GitSourceProvider)
+    assert isinstance(adapters.llm, BedrockLlm)
+    assert [type(sink) for sink in adapters.sinks] == [LogSink, SqsSink]
+    assert [sink.name for sink in adapters.sinks] == ["log", "sqs"]
+    assert not (tmp_path / "cache").exists()
+
+
+def test_sinks_built_by_name(root):
+    adapters = build_adapters(
+        _settings(root, result_sinks=["sqs", "log"], result_queue_url="https://q.example/r"),
+        fixture_id=SAMPLE,
+    )
+    assert [type(sink) for sink in adapters.sinks] == [SqsSink, LogSink]
+
+    with pytest.raises(ValueError, match="APP_RESULT_QUEUE_URL"):
+        build_adapters(_settings(root, result_sinks=["log", "sqs"]), fixture_id=SAMPLE)
+    # Settings accepts only the known names; a settings object built without validation
+    # can still name another.
+    unknown = _settings(root).model_copy(update={"result_sinks": ["log", "slack"]})
+    with pytest.raises(ValueError, match="'slack'"):
+        build_adapters(unknown, fixture_id=SAMPLE)
+
+
+def test_bedrock_mode_builds_the_model_without_network(monkeypatch, root):
+    _no_network(monkeypatch)
+
+    adapters = build_adapters(_settings(root, llm_mode="bedrock"), fixture_id=SAMPLE)
+
+    assert isinstance(adapters.llm, BedrockLlm)
+
+
+async def test_real_mode_builds_source_adapters_without_network(monkeypatch, tmp_path):
+    _no_network(monkeypatch)
     settings = load_settings(
         adapters="real",
         source_cache_dir=tmp_path / "cache",

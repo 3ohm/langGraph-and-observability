@@ -2,8 +2,10 @@
 
 pytest applies a conftest.py to the tests in its directory and below it. This one is at
 the repo root, so the agent tests under ``src/langgraph_postgres_starter/agents/`` get
-the same isolation as the tests under ``tests/``. The database and queue fixtures stay
-in ``tests/conftest.py``.
+the same isolation as the tests under ``tests/``. It also registers the Postgres
+fixtures of ``tests/fixtures_pg.py`` (``pg_dsn``, ``fresh_dsn``, ``pool``) for every
+directory. The queue fixtures and the test graph's fixtures stay in
+``tests/conftest.py``.
 """
 
 import os
@@ -14,6 +16,9 @@ import pytest
 from langsmith import utils as ls_utils
 
 from langgraph_postgres_starter.settings import Settings, get_settings
+
+# A plugin module, not a conftest.py: pytest would apply tests/conftest.py to tests/ only.
+pytest_plugins = ["tests.fixtures_pg"]
 
 # LangSmith's variables. With LANGSMITH_TRACING=true and a key in the developer's shell, a
 # test that starts a Worker would build a real client and upload the test's runs.
