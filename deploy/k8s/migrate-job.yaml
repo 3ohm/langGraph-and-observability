@@ -42,7 +42,8 @@ spec:
         - name: migrate
           image: langgraph-postgres-starter
           args: ["migrate"]
-          # The ConfigMap names the agents, whose migrations run too.
+          # The settings of the ConfigMap. migrate also runs the migrations of each agent that
+          # the registry loads: the built-in agents and any in APP_EXTRA_AGENTS.
           envFrom:
             - configMapRef:
                 name: langgraph-postgres-starter-config

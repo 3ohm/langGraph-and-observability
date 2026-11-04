@@ -46,7 +46,7 @@ Settings not listed here keep their defaults; `.env.example` lists every setting
 | Source locator | `source/locator.py`, `source/ecr.py` | `APP_SOURCE_ANNOTATION_REPO_KEY`, `APP_SOURCE_ANNOTATION_COMMIT_KEY`, `APP_SOURCE_MAP_FILE`, `APP_GIT_ALLOWED_HOSTS`, `APP_AWS_REGION` | ECR statement of the policy |
 | Git source | `source/git.py` | `APP_GIT_TOKEN`, `APP_GIT_ALLOWED_HOSTS`, `APP_SOURCE_CACHE_DIR`, `APP_SOURCE_CACHE_MAX_MB` (2048), `APP_RUN_DEADLINE_SECONDS` (900), `APP_CODE_BUDGET_CHARS` (60000) | the token |
 | Model | `llm/bedrock.py` | `APP_BEDROCK_MODEL_ID`, `APP_AWS_REGION`, `APP_MODEL_EFFORT` (`medium`), `APP_MAX_OUTPUT_TOKENS` (16000) | Bedrock statements of the policy |
-| Result sink `sqs` | `sinks/sqs.py` | `APP_RESULT_SINKS` (`["log", "sqs"]`), `APP_RESULT_QUEUE_URL`, `APP_AWS_REGION`, `APP_SQS_ENDPOINT_URL` | `sqs:SendMessage` |
+| Result sink `sqs` | `sinks/sqs.py` | `APP_RESULT_SINKS` (default `["log"]`; the ConfigMap sets `["log", "sqs"]`), `APP_RESULT_QUEUE_URL`, `APP_AWS_REGION`, `APP_SQS_ENDPOINT_URL` | `sqs:SendMessage` |
 | Intake (the worker) | `worker/intake.py` | `APP_SQS_QUEUE_URL`, `APP_AWS_REGION`, `APP_SQS_ENDPOINT_URL` | the SQS receive statement |
 
 The code paths are under `src/langgraph_postgres_starter/agents/incident_triage/adapters/`, except

@@ -88,8 +88,8 @@ a check that the builders could not run.
   ripgrep, which `ubuntu-latest` lacks). The 3.15 canary is expected to be red until PyYAML and
   zstandard ship 3.15 wheels.
 - **O3, the upstream checkpointer issue.** Open the issue and pull request in LangGraph's
-  repository for the `AsyncPostgresSaver` `_cursor` lock that spec §7.2 describes; the docstring
-  of `src/langgraph_postgres_starter/persistence/checkpointer.py` refers to them.
+  repository for the `AsyncPostgresSaver` `_cursor` lock that spec §7.2 describes, then add
+  their links to the docstring of `src/langgraph_postgres_starter/persistence/checkpointer.py`.
 - **O4, the producer's `alert_id`.** Confirm what the system that sends incidents puts in
   `alert_id`. It must identify one occurrence of an alert, not a stable monitor ID: with an
   `alert_id`, dedup ignores time, so a reused ID drops every later incident as a duplicate.

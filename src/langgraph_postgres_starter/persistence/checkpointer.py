@@ -25,8 +25,9 @@ class PoolAwarePostgresSaver(AsyncPostgresSaver):
     """An ``AsyncPostgresSaver`` that, on a pool, runs checkpoint calls concurrently.
 
     Delete this class when upstream ``AsyncPostgresSaver._cursor`` stops taking
-    ``self.lock`` on a pool (spec §7.2 names the upstream issue and pull request). Two
-    tests in ``tests/unit/test_upstream_shape.py`` watch the upstream method:
+    ``self.lock`` on a pool. Spec §7.2 asks for an upstream issue and pull request; none
+    is open yet: opening them is an owner action (O3 in ``docs/release-checklist.md``).
+    Two tests in ``tests/unit/test_upstream_shape.py`` watch the upstream method:
     ``test_upstream_still_takes_instance_lock`` fails when upstream fixes the lock, and
     ``test_upstream_cursor_signature_unchanged`` fails when its signature changes.
     """
