@@ -19,7 +19,6 @@ from typing import Any, cast
 
 import langsmith
 import pytest
-import requests
 from langchain_core.runnables import RunnableConfig
 from langchain_core.tracers.langchain import LangChainTracer
 from langgraph.checkpoint.memory import InMemorySaver
@@ -206,11 +205,9 @@ class NoteLlm:
         )
 
 
-class NoNetworkSession(requests.Session):
-    """A requests session that fails every request."""
-
-    def request(self, *args, **kwargs):
-        raise AssertionError("a unit test tried to reach the network")
+def _no_network(*args, **kwargs):
+    """Stands in for the HTTP session's ``request``: a unit test reaches no network."""
+    raise AssertionError("a unit test tried to reach the network")
 
 
 # --- full runs ------------------------------------------------------------------------
@@ -378,8 +375,9 @@ async def test_cancelled_step_runs_no_handler():
     run = _run("python-keyerror", datadog=FakeDatadog(delay_s=60))
     graph = _compile()
 
+    # 5 s: time enough to reach the Datadog step on a slow machine, which then waits 60 s.
     with pytest.raises(TimeoutError):
-        async with asyncio.timeout(0.5):
+        async with asyncio.timeout(5):
             await graph.ainvoke(run.input, run.config, context=run.context, durability="sync")
 
     snapshot = await graph.aget_state(run.config)
@@ -394,12 +392,7 @@ class RecordingClient(langsmith.Client):
     """A langsmith client that keeps each run it would create or update, and sends nothing."""
 
     def __init__(self) -> None:
-        super().__init__(
-            api_url=NO_NETWORK,
-            api_key="test-key",
-            session=NoNetworkSession(),
-            auto_batch_tracing=False,
-        )
+        super().__init__(api_url=NO_NETWORK, api_key="test-key", auto_batch_tracing=False)
         self.created: list[dict[str, Any]] = []
         self.updated: list[dict[str, Any]] = []
 
@@ -410,10 +403,12 @@ class RecordingClient(langsmith.Client):
         self.updated.append(kwargs)
 
 
-async def test_context_stays_out_of_traces_and_checkpoints():
+async def test_context_stays_out_of_traces_and_checkpoints(monkeypatch):
     run = _run("python-keyerror", settings=load_settings(**SECRETS))
     thread_id = run.config["configurable"]["thread_id"]
     client = RecordingClient()
+    # The session that langsmith built for the client fails every request.
+    monkeypatch.setattr(client.session, "request", _no_network)
     # The tracer that LangSmith tracing adds (LANGSMITH_TRACING), with the client above.
     tracer = LangChainTracer(client=client, project_name="test")
     saver = InMemorySaver(serde=make_serde(spec.serde_types))

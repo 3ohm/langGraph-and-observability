@@ -1,6 +1,7 @@
 """The pool-aware checkpointer against a real Postgres (spec 7.1, 7.2; P3 and P7)."""
 
 import asyncio
+import contextlib
 import dataclasses
 import operator
 import uuid
@@ -67,7 +68,18 @@ async def _peak_holders(holders: _Holders, saver: AsyncPostgresSaver) -> int:
     return holders.peak
 
 
+async def _prewarm(pool, n: int) -> None:
+    """Open ``n`` of the pool's connections, so no measured call waits for one to open."""
+    async with contextlib.AsyncExitStack() as stack:
+        for _ in range(n):
+            await stack.enter_async_context(pool.connection())
+    assert pool.get_stats()["pool_size"] >= n
+
+
 async def test_pool_aware_saver_is_concurrent(pool, checkpoint_tables, monkeypatch):
+    # With connections still to open, the pool could hand out one at a time and hide the
+    # concurrency; 8 open connections serve the 8 calls at once.
+    await _prewarm(pool, 8)
     holders = _Holders(pool.connection)
     monkeypatch.setattr(pool, "connection", holders.connection)
     serde = make_serde([])

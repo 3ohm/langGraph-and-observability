@@ -135,6 +135,32 @@ async def test_resume_skips_completed_steps(make_executor, repo, saver, steps_po
     assert await _log(saver, run.run_id) == ["a", "b", "c"]
 
 
+async def test_last_attempt_fails_the_run(make_executor, repo):
+    # Spec 8.2: after APP_MAX_ATTEMPTS attempts the run is failed, with the error recorded.
+    executor = make_executor(max_attempts=1)
+    steps.FAULTS["fatal"] = Fault(fail_step="b", kind="fatal")
+    run = await _claimed(repo, "fatal")
+
+    with structlog.testing.capture_logs() as logs:
+        status = await executor.execute(run)
+
+    assert status == RunStatus.FAILED
+    row = await _get(repo, run.run_id)
+    assert (row.status, row.lease_owner, row.lease_expires_at, row.attempt) == (
+        RunStatus.FAILED,
+        None,
+        None,
+        1,
+    )
+    assert row.ended_at is not None
+    error = {"type": "ValueError", "message": "injected fatal fault in step b (attempt 1)"}
+    assert row.error == error
+    [failed] = [entry for entry in logs if entry["event"] == "run.failed"]
+    assert failed["log_level"] == "error"
+    assert (failed["run_id"], failed["attempt"], failed["error"]) == (str(run.run_id), 1, error)
+    assert executor.active_run_ids() == []
+
+
 async def test_deadline_exceeded_returns_pending_with_error(make_executor, repo, steps_pool):
     executor = make_executor(run_deadline_seconds=1)
     steps.FAULTS["slow"] = Fault(delay_s={"b": 5})

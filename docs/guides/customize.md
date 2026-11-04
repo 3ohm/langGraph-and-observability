@@ -133,6 +133,7 @@ else in the package imports it. Delete these files and folders:
 - `src/<package>/worker/`
 - `tests/unit/test_executor_logs.py`
 - `tests/unit/test_health.py`
+- `tests/unit/test_intake_invalid.py`
 - `tests/unit/test_registry.py`
 - `tests/unit/test_worker_main.py`
 - `tests/integration/test_cli.py`

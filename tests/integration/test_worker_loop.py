@@ -14,6 +14,7 @@ from uuid import UUID
 
 import httpx
 import pytest
+import structlog
 from langgraph.graph.state import CompiledStateGraph
 
 from langgraph_postgres_starter import __version__
@@ -21,6 +22,8 @@ from langgraph_postgres_starter.agent_spec import RunInfo
 from langgraph_postgres_starter.persistence.checkpointer import make_checkpointer
 from langgraph_postgres_starter.persistence.serde import make_serde
 from langgraph_postgres_starter.settings import load_settings
+from langgraph_postgres_starter.worker.executor import RunExecutor
+from langgraph_postgres_starter.worker.intake import SqsIntake
 from langgraph_postgres_starter.worker.main import Worker
 from langgraph_postgres_starter.worker.registry import load_agents
 from langgraph_postgres_starter.worker.runs import RunRepo, RunRow, RunStatus
@@ -222,17 +225,18 @@ async def test_recovery_resumes_expired_run(make_worker, repo, steps_pool):
 
 
 async def test_heartbeat_keeps_the_lease(make_worker, sqs, queue, repo, steps_pool):
-    steps.FAULTS["hb"] = Fault(delay_s={"b": 4})
+    steps.FAULTS["hb"] = Fault(delay_s={"b": 10})
     # Recovery runs once, at start: a later recovery would claim the pod's own run again
-    # when its lease expires, which renews the lease without a heartbeat.
-    worker = make_worker(lease_seconds=2, heartbeat_seconds=1, recovery_interval_seconds=60)
+    # when its lease expires, which renews the lease without a heartbeat. A lease of 6 s
+    # spans five heartbeats, so a slow heartbeat or two cannot let it expire.
+    worker = make_worker(lease_seconds=6, heartbeat_seconds=1, recovery_interval_seconds=60)
     await worker.start()
     _send(sqs, queue, "hb")
     run = await _run_for_key(repo, "hb")
     await _wait_for_mark(steps_pool, run.run_id, "b:start")
 
     # Longer than the lease: only heartbeats keep it.
-    await asyncio.sleep(3)
+    await asyncio.sleep(8)
     async with steps_pool.connection() as conn:
         cur = await conn.execute(
             "SELECT status, lease_owner, lease_expires_at > now() AS live FROM runs"
@@ -298,6 +302,60 @@ async def test_stop_releases_runs_that_outlast_the_drain_timeout(
         0,
     )
     assert (await _marks(steps_pool, run.run_id))["b:done"] == 0
+
+
+def _fail_once(monkeypatch, cls: type, name: str) -> list[object]:
+    """Make the method ``cls.name`` raise on its first call only; return its calls."""
+    real = getattr(cls, name)
+    calls: list[object] = []
+
+    async def fail_first(self, *args, **kwargs):
+        calls.append(args)
+        if len(calls) == 1:
+            raise RuntimeError(f"injected {name} failure")
+        return await real(self, *args, **kwargs)
+
+    monkeypatch.setattr(cls, name, fail_first)
+    return calls
+
+
+@pytest.mark.parametrize(
+    ("cls", "method", "event", "delay_s"),
+    [
+        (SqsIntake, "poll", "intake.failed", 0),
+        (RunRepo, "claim_recoverable", "recovery.failed", 0),
+        # A run of over 3 s, so that heartbeats come after the failed one.
+        (RunRepo, "heartbeat", "heartbeat.failed", 3),
+        # The crashed run keeps its lease until it expires; recovery then resumes it.
+        (RunExecutor, "execute", "run.crashed", 0),
+    ],
+    ids=["intake", "recovery", "heartbeat", "run"],
+)
+async def test_a_failure_is_logged_and_the_worker_goes_on(
+    make_worker, sqs, queue, repo, monkeypatch, cls, method, event, delay_s
+):
+    calls = _fail_once(monkeypatch, cls, method)
+    steps.FAULTS["first"] = Fault(delay_s={"b": delay_s})
+    worker = make_worker()
+
+    with structlog.testing.capture_logs() as logs:
+        await worker.start()
+        _send(sqs, queue, "first")
+        first = await _run_for_key(repo, "first")
+        await _wait_for_status(repo, first.run_id, RunStatus.SUCCESS)
+        _send(sqs, queue, "second")
+        second = await _run_for_key(repo, "second")
+        await _wait_for_status(repo, second.run_id, RunStatus.SUCCESS)
+        # The loop, or the worker, calls the method again after the failure.
+        async with asyncio.timeout(10):
+            while True:
+                if len(calls) >= 2:
+                    break
+                await asyncio.sleep(0.05)
+
+    [failed] = [entry for entry in logs if entry["event"] == event]
+    assert failed["log_level"] == "error"
+    assert failed["error"] == {"type": "RuntimeError", "message": f"injected {method} failure"}
 
 
 async def test_concurrency_limit(make_worker, sqs, queue, steps_pool):

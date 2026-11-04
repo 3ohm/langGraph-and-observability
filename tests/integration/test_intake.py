@@ -122,9 +122,6 @@ async def test_duplicate_message_creates_one_run(make_intake, repo, sqs):
             {"error": "JSONDecodeError", "line": 1, "column": 9},
             id="not-json",
         ),
-        # Deep enough for json.loads to raise RecursionError on macOS and Linux, and
-        # below the 256 KiB message size limit.
-        pytest.param("[" * 200_000, {"error": "RecursionError"}, id="too-deep"),
         pytest.param(
             '{"secret": "s3cr3t-value"}',
             {"error": "ValidationError", "errors": [{"type": "missing", "loc": ["key"]}]},
@@ -133,6 +130,8 @@ async def test_duplicate_message_creates_one_run(make_intake, repo, sqs):
     ],
 )
 async def test_invalid_message_reaches_dlq(make_intake, repo, sqs, body, error):
+    # A body too deep for json.loads is a unit test (tests/unit/test_intake_invalid.py):
+    # the depth at which the parser gives up depends on the platform.
     dlq = _queue(sqs)
     dlq_arn = sqs.get_queue_attributes(QueueUrl=dlq, AttributeNames=["QueueArn"])["Attributes"][
         "QueueArn"
