@@ -20,7 +20,7 @@ At most ``APP_WORKER_CONCURRENCY`` runs execute at once, each in its own task. A
 that intake recorded but could not start, because recovery took the slot in the
 meantime, stays pending for the next recovery. A loop that fails logs the error and
 goes on. A run task that fails logs ``run.crashed``; its run keeps the lease until the
-lease expires and recovery claims it again.
+lease expires and recovery claims it again, which counts as an attempt.
 
 ``Worker.stop`` drains (§8.4): it stops intake, recovery and the pruner, asks every
 active run to stop after its current step, waits up to ``APP_DRAIN_TIMEOUT_SECONDS``,
@@ -365,7 +365,12 @@ class Worker:
             free = self._free_slots()
             if self._draining or free <= 0:
                 return
-            runs = await repo.claim_recoverable(self._owner, self._settings.lease_seconds, free)
+            runs = await repo.claim_recoverable(
+                self._owner,
+                self._settings.lease_seconds,
+                free,
+                max_attempts=self._settings.max_attempts,
+            )
             for run in runs:
                 self._start_run(run, executor)
         if runs:

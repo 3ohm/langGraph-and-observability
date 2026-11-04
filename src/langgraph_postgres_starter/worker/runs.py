@@ -8,8 +8,9 @@ pod extends the lease (``heartbeat``). It ends the attempt with ``mark_success``
 under the caller's lease, so a pod that has lost a lease cannot change the run.
 
 When a pod dies, its leases expire, and another pod's periodic check claims the runs
-(§8.3). Lease times come from the database clock (``now()``), never from the pod's,
-so pods agree on when a lease has expired.
+(§8.3); each such reclaim counts as an attempt (``claim_recoverable``). Lease times
+come from the database clock (``now()``), never from the pod's, so pods agree on when
+a lease has expired.
 
 The pool is in autocommit mode (``create_pool``): each statement is its own
 transaction.
@@ -29,6 +30,9 @@ from psycopg.types.json import Jsonb
 from psycopg_pool import AsyncConnectionPool
 
 from langgraph_postgres_starter.ids import new_id
+from langgraph_postgres_starter.logging import get_logger
+
+_log = get_logger(__name__)
 
 type _Pool = AsyncConnectionPool[AsyncConnection[DictRow]]
 
@@ -84,25 +88,41 @@ RETURNING *
 
 # MATERIALIZED: the candidates are selected and locked once, whatever plan the UPDATE
 # gets. SKIP LOCKED passes over the rows that another pod's claim has locked.
+# A running candidate lost its lease, so its reclaim counts as an attempt (ruling R71):
+# `attempt` is the new count, and `exhausted` marks a run that it fails instead.
 _CLAIM_RECOVERABLE = """
 WITH candidates AS MATERIALIZED (
-    SELECT run_id
+    SELECT run_id,
+           attempt + (status = 'running')::int AS attempt,
+           status = 'running' AND attempt + 1 >= %(max_attempts)s AS exhausted
     FROM runs
     WHERE status = 'pending' OR (status = 'running' AND lease_expires_at < now())
     ORDER BY created_at, run_id
     LIMIT %(limit)s
     FOR UPDATE SKIP LOCKED
-), claimed AS (
+), updated AS (
     UPDATE runs r
-    SET status = 'running',
-        lease_owner = %(owner)s,
-        lease_expires_at = now() + make_interval(secs => %(lease_s)s),
-        started_at = coalesce(r.started_at, now())
+    SET attempt = c.attempt,
+        status = CASE WHEN c.exhausted THEN 'failed' ELSE 'running' END,
+        lease_owner = CASE WHEN c.exhausted THEN NULL ELSE %(owner)s END,
+        lease_expires_at = CASE
+            WHEN c.exhausted THEN NULL
+            ELSE now() + make_interval(secs => %(lease_s)s)
+        END,
+        started_at = coalesce(r.started_at, now()),
+        ended_at = CASE WHEN c.exhausted THEN now() ELSE r.ended_at END,
+        error = CASE
+            WHEN c.exhausted THEN jsonb_build_object(
+                'type', 'LeaseExpired',
+                'message', format('the run lost its lease %%s times', c.attempt)
+            )
+            ELSE r.error
+        END
     FROM candidates c
     WHERE r.run_id = c.run_id
     RETURNING r.*
 )
-SELECT * FROM claimed ORDER BY created_at, run_id
+SELECT * FROM updated ORDER BY created_at, run_id
 """
 
 _HEARTBEAT = """
@@ -195,7 +215,7 @@ class RunRepo:
         return None if row is None else _run_row(row)
 
     async def claim_recoverable(
-        self, owner: str, lease_s: float, limit: int
+        self, owner: str, lease_s: float, limit: int, *, max_attempts: int
     ) -> builtins.list[RunRow]:
         """Take a lease on up to ``limit`` claimable runs, oldest first (spec §8.3).
 
@@ -204,16 +224,27 @@ class RunRepo:
         ``claim`` does, so two pods never claim the same run. Returns the claimed runs,
         oldest first.
 
-        Known v1 limitation: only ``mark_error`` counts attempts. A run whose worker dies
-        (OOMKill, SIGKILL, node loss) comes back here when its lease expires, with
-        ``attempt`` unchanged, so a run that kills its worker every time is retried
-        without end.
+        A running run whose lease expired was not ended by its pod (OOMKill, SIGKILL,
+        node loss), so its reclaim counts as an attempt (ruling R71): ``attempt`` goes
+        up by one. When the new count reaches ``max_attempts``, the run is not claimed:
+        it is set ``failed``, with ``ended_at`` and the error ``LeaseExpired``, and a
+        ``run.failed`` line is logged. A pending run, new or drained (``release``), is
+        claimed with ``attempt`` unchanged.
         """
+        params = {"owner": owner, "lease_s": lease_s, "limit": limit, "max_attempts": max_attempts}
         async with self._pool.connection() as conn:
-            cur = await conn.execute(
-                _CLAIM_RECOVERABLE, {"owner": owner, "lease_s": lease_s, "limit": limit}
-            )
-            return [_run_row(row) for row in await cur.fetchall()]
+            cur = await conn.execute(_CLAIM_RECOVERABLE, params)
+            runs = [_run_row(row) for row in await cur.fetchall()]
+        for run in runs:
+            if run.status == RunStatus.FAILED:
+                _log.error(
+                    "run.failed",
+                    run_id=str(run.run_id),
+                    agent=run.agent,
+                    attempt=run.attempt,
+                    error=run.error,
+                )
+        return [run for run in runs if run.status == RunStatus.RUNNING]
 
     async def heartbeat(self, owner: str, run_ids: Sequence[UUID], lease_s: float) -> int:
         """Extend ``owner``'s leases on ``run_ids`` to now plus ``lease_s``.

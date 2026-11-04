@@ -160,14 +160,15 @@ def test_cli_migrate_all_reports_langgraph_setup_in_run_order(db, capsys):
     assert main(["migrate"]) == 0
 
     lines = _lines(capsys.readouterr().out)
-    assert lines[:3] == [
+    assert lines[:4] == [
         {"component": "core", "version": 1, "name": "action_ledger"},
         {"component": "langgraph", "step": "setup"},
         {"component": "worker", "version": 1, "name": "runs"},
+        {"component": "worker", "version": 2, "name": "runs_ended_at_index"},
     ]
     # Then the migrations of the built-in agents that have tables.
     with_tables = {spec.name for spec in registry.builtin_agents() if spec.migrations_dir}
-    assert {line["component"] for line in lines[3:]} == with_tables
+    assert {line["component"] for line in lines[4:]} == with_tables
 
 
 def test_cli_migrate_passes_agent_migrations(db, capsys, tmp_path, monkeypatch):

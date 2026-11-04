@@ -6,6 +6,7 @@ Each test sets ``ended_at`` explicitly and passes ``now`` to ``prune_once``.
 
 import asyncio
 import dataclasses
+import json
 import uuid
 from collections.abc import Sequence
 from datetime import UTC, datetime, timedelta
@@ -19,7 +20,7 @@ from langgraph_postgres_starter.persistence.checkpointer import PoolAwarePostgre
 from langgraph_postgres_starter.persistence.serde import make_serde
 from langgraph_postgres_starter.settings import load_settings
 from langgraph_postgres_starter.worker.main import Worker
-from langgraph_postgres_starter.worker.retention import PruneReport, prune_once
+from langgraph_postgres_starter.worker.retention import _SELECT_BATCH, PruneReport, prune_once
 from langgraph_postgres_starter.worker.runs import RunRepo, RunStatus
 from tests.graphs.steps import STEPS_SPEC, StepsInput
 
@@ -130,6 +131,19 @@ async def _advisory_locks(pool) -> int:
     assert row is not None
     count: int = row["n"]
     return count
+
+
+async def test_batch_query_uses_the_finished_runs_index(steps_pool, now):
+    # Worker migration 0002: the pruner finds finished runs by ended_at through a partial
+    # index, not by reading every run. With sequential scans off, the plan shows the index.
+    async with steps_pool.connection() as conn, conn.transaction():
+        await conn.execute("SET LOCAL enable_seqscan = off")
+        cur = await conn.execute(
+            "EXPLAIN (FORMAT JSON) " + _SELECT_BATCH, {"cutoff": now, "limit": 100}
+        )
+        row = await cur.fetchone()
+    assert row is not None
+    assert "runs_finished_ended_at_idx" in json.dumps(row["QUERY PLAN"])
 
 
 async def test_prunes_only_old_finished_runs(steps_pool, saver, settings, now):

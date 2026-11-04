@@ -194,6 +194,8 @@ def test_kill_9_resumes_at_failed_step(workers, sqs, queue_url, db):
     assert counts["c:done"] == 1
     # Every other mark appears once: step a did not even start again.
     assert counts == ALL_STEPS_ONCE + Counter({"b:start": 1})
+    # Worker B's reclaim of the run, whose lease A left behind, counted as an attempt.
+    assert _run(db, run_id)["attempt"] == 1
 
 
 def test_sigterm_drains_then_resumes(workers, sqs, queue_url, db):

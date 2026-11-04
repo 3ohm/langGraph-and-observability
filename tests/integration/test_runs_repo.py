@@ -5,6 +5,7 @@ import uuid
 from datetime import timedelta
 
 import pytest
+import structlog
 
 from langgraph_postgres_starter.persistence.migrate import run_migrate
 from langgraph_postgres_starter.settings import load_settings
@@ -72,7 +73,8 @@ async def test_claim_recoverable_never_double_claims(repo, pool):
         pass
 
     a, b = await asyncio.gather(
-        repo.claim_recoverable("pod-a", 60, 10), repo.claim_recoverable("pod-b", 60, 10)
+        repo.claim_recoverable("pod-a", 60, 10, max_attempts=3),
+        repo.claim_recoverable("pod-b", 60, 10, max_attempts=3),
     )
 
     ids_a, ids_b = {run.run_id for run in a}, {run.run_id for run in b}
@@ -85,7 +87,7 @@ async def test_claim_recoverable_never_double_claims(repo, pool):
 async def test_claim_recoverable_takes_oldest_first(repo):
     ids = await _create(repo, 3)
 
-    claimed = await repo.claim_recoverable("pod-a", 60, 2)
+    claimed = await repo.claim_recoverable("pod-a", 60, 2, max_attempts=3)
 
     assert [run.run_id for run in claimed] == ids[:2]
     assert (await _get(repo, ids[2])).status is RunStatus.PENDING
@@ -99,7 +101,7 @@ async def test_expired_lease_is_reclaimed(repo):
 
     await asyncio.sleep(1.1)
     taken = await repo.claim(by_claim, "pod-b", 60)
-    recovered = await repo.claim_recoverable("pod-c", 60, 10)
+    recovered = await repo.claim_recoverable("pod-c", 60, 10, max_attempts=3)
 
     assert taken is not None
     assert (taken.status, taken.lease_owner) == (RunStatus.RUNNING, "pod-b")
@@ -110,11 +112,74 @@ async def test_expired_lease_is_reclaimed(repo):
     assert await repo.mark_success(by_recovery, "pod-a") is False
 
 
+async def test_claim_recoverable_skips_locked_runs(repo, pool):
+    ids = await _create(repo, 5)
+    locked = ids[:3]
+    async with pool.connection() as conn, conn.transaction():
+        await conn.execute(
+            "SELECT run_id FROM runs WHERE run_id = ANY(%s::uuid[]) FOR UPDATE", [locked]
+        )
+        # SKIP LOCKED: the claim passes over the rows that another transaction holds, at
+        # once, instead of waiting for them.
+        claimed = await asyncio.wait_for(
+            repo.claim_recoverable("pod-b", 60, 10, max_attempts=3), timeout=2
+        )
+
+    assert [run.run_id for run in claimed] == ids[3:]
+    assert [(await _get(repo, run_id)).status for run_id in locked] == [RunStatus.PENDING] * 3
+
+
+async def test_lease_expiry_counts_as_an_attempt(repo):
+    # Ruling R71: a run whose lease expired was not ended by its pod (OOMKill, SIGKILL,
+    # node loss). Each reclaim counts as an attempt, and the reclaim that reaches
+    # max_attempts fails the run instead of claiming it: a run that kills its pod stops.
+    [run_id] = await _create(repo)
+    # The claim of a pending run is no attempt. A lease of -1 s has expired at once.
+    [first] = await repo.claim_recoverable("pod-a", -1, 10, max_attempts=3)
+    assert (first.run_id, first.attempt) == (run_id, 0)
+    reclaims = []
+    for owner in ("pod-b", "pod-c"):
+        [run] = await repo.claim_recoverable(owner, -1, 10, max_attempts=3)
+        reclaims.append((run.status, run.lease_owner, run.attempt))
+    assert reclaims == [(RunStatus.RUNNING, "pod-b", 1), (RunStatus.RUNNING, "pod-c", 2)]
+
+    with structlog.testing.capture_logs() as logs:
+        assert await repo.claim_recoverable("pod-d", 60, 10, max_attempts=3) == []
+
+    run = await _get(repo, run_id)
+    lease_expired = {"type": "LeaseExpired", "message": "the run lost its lease 3 times"}
+    assert (run.status, run.attempt, run.error) == (RunStatus.FAILED, 3, lease_expired)
+    assert (run.lease_owner, run.lease_expires_at) == (None, None)
+    assert run.ended_at is not None
+    [failed] = [entry for entry in logs if entry["event"] == "run.failed"]
+    assert failed["log_level"] == "error"
+    assert (failed["run_id"], failed["agent"], failed["error"]) == (
+        str(run_id),
+        AGENT,
+        lease_expired,
+    )
+    # A failed run is not recovered; only `retry` brings it back.
+    assert await repo.claim_recoverable("pod-e", 60, 10, max_attempts=3) == []
+
+
+async def test_drained_run_is_not_counted(repo):
+    # A drained run (SIGTERM, spec 8.4) was released by its pod: no attempt is counted,
+    # even with max_attempts=1.
+    [run_id] = await _create(repo)
+    for owner in ("pod-a", "pod-b", "pod-c"):
+        [run] = await repo.claim_recoverable(owner, 60, 10, max_attempts=1)
+        assert (run.run_id, run.attempt, run.lease_owner) == (run_id, 0, owner)
+        assert await repo.release([run_id], owner) == 1
+
+    run = await _get(repo, run_id)
+    assert (run.status, run.attempt, run.error) == (RunStatus.PENDING, 0, None)
+
+
 async def test_live_lease_is_not_reclaimed(repo):
     [run_id] = await _create(repo)
     await repo.claim(run_id, "pod-a", 60)
 
-    assert await repo.claim_recoverable("pod-b", 60, 10) == []
+    assert await repo.claim_recoverable("pod-b", 60, 10, max_attempts=3) == []
     assert await repo.claim(run_id, "pod-b", 60) is None
     assert (await _get(repo, run_id)).lease_owner == "pod-a"
 
@@ -149,7 +214,7 @@ async def test_mark_error_pending_then_failed(repo):
     assert (run.lease_owner, run.lease_expires_at) == (None, None)
     assert run.ended_at is not None
     # A failed run is not recovered; only `retry` brings it back.
-    assert await repo.claim_recoverable("pod-b", 60, 10) == []
+    assert await repo.claim_recoverable("pod-b", 60, 10, max_attempts=3) == []
 
 
 async def test_outcomes_need_the_lease(repo):
@@ -182,7 +247,8 @@ async def test_release_clears_lease(repo):
     assert (run.status, run.lease_owner, run.lease_expires_at) == (RunStatus.PENDING, None, None)
     assert run.attempt == 1
     # Another pod's periodic check resumes it at once (spec 8.4 step 4).
-    assert [run.run_id for run in await repo.claim_recoverable("pod-b", 60, 10)] == [run_id]
+    recovered = await repo.claim_recoverable("pod-b", 60, 10, max_attempts=3)
+    assert [run.run_id for run in recovered] == [run_id]
 
 
 async def test_retry_resets_failed(repo):

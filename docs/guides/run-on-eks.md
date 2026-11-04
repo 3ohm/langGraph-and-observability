@@ -154,6 +154,13 @@ kubectl -n langgraph-postgres-starter exec deploy/langgraph-postgres-starter-wor
 ```
 
 `runs show <run_id>` prints one run, with its error. Logs are structlog JSON lines with run IDs.
+
+A run counts its attempts (P9). A failed attempt is a graph error after the graph's own retries,
+or a lost lease: the run's pod died without ending it (OOMKill, SIGKILL, node loss), and another
+pod claimed it again after the lease expired. After `APP_MAX_ATTEMPTS` (3) attempts the run is
+`failed`. A run failed by lost leases has the error type `LeaseExpired`: it most likely kills its
+pod, so check the pod's memory limit and the run's input before `runs retry`. A drained run
+(SIGTERM) counts no attempt.
 With `LANGSMITH_TRACING=true` and `LANGSMITH_API_KEY`, each run is traced to the project
 `langgraph-postgres-starter-<env>`, redacted (P15).
 
