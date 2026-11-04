@@ -1,6 +1,12 @@
-# Local stack (spec 10.2 and 13.5): Postgres and ElasticMQ (local SQS).
-# Start it with: docker compose up -d postgres elasticmq
+# Local stack (spec 10.2 and 13.5): postgres -> elasticmq -> migrate (runs once) -> worker.
+# Start it with `make up` (docker compose up -d --build); stop it with `make down`.
+# To start Postgres and ElasticMQ only: docker compose up -d postgres elasticmq
 # Ports bind to 127.0.0.1 only, so the dev credentials below are not reachable from the network.
+
+# The image of migrate and worker (Dockerfile). Both services share one tag.
+x-app: &app
+  build: .
+  image: langgraph-postgres-starter:local
 
 services:
   postgres:
@@ -28,6 +34,53 @@ services:
     ports:
       - "127.0.0.1:9324:9324" # SQS API
       - "127.0.0.1:9325:9325"
+
+  # Applies every migration, then exits (spec 7.3, P4). The worker starts after it succeeds.
+  migrate:
+    <<: *app
+    command: ["migrate"]
+    environment:
+      # Dev only: the Postgres credential of this Compose stack (see postgres above).
+      APP_DATABASE_URL: postgresql://postgres:postgres@postgres:5432/postgres
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: "no"
+
+  # The queue worker (the image's default command) in simulated mode: fake adapters with
+  # fixtures, the recorded LLM, and ElasticMQ as SQS.
+  worker:
+    <<: *app
+    environment:
+      # Dev only: the Postgres credential of this Compose stack (see postgres above).
+      APP_DATABASE_URL: postgresql://postgres:postgres@postgres:5432/postgres
+      APP_ADAPTERS: simulated
+      APP_LLM_MODE: recorded
+      APP_SQS_ENDPOINT_URL: http://elasticmq:9324
+      APP_SQS_QUEUE_URL: http://elasticmq:9324/000000000000/incidents
+      # Dev only: dummy AWS credentials. ElasticMQ accepts any; botocore needs some to sign.
+      AWS_ACCESS_KEY_ID: test
+      AWS_SECRET_ACCESS_KEY: test
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+      elasticmq:
+        condition: service_started
+    healthcheck:
+      # Readiness (spec 8.6) on APP_HEALTH_PORT, 8080 by default. The image has no curl, so
+      # the image's Python makes the request; a 503 raises, which also exits non-zero.
+      test:
+        - CMD
+        - python
+        - -c
+        - "import sys, urllib.request; sys.exit(0 if urllib.request.urlopen('http://127.0.0.1:8080/ready', timeout=2).status == 200 else 1)"
+      interval: 5s
+      timeout: 5s
+      retries: 6
+      start_period: 30s
+    # SIGTERM, then 60 s to drain before SIGKILL, as in the pod's grace period (spec 8.4).
+    # The drain itself waits at most APP_DRAIN_TIMEOUT_SECONDS (45).
+    stop_grace_period: 60s
 
 volumes:
   postgres-data:

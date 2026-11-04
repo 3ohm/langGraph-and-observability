@@ -8,12 +8,17 @@ it begins and ``"<step>:done"`` when it ends. With a pool registered
 ``MEMORY_MARKS``, by run ID. Tests read and clear ``MEMORY_MARKS`` directly.
 
 Tests put a ``Fault`` in ``FAULTS`` under a run's input ``key`` to make a step slow, or
-to make it fail a number of times.
+to make it fail a number of times. A worker subprocess cannot see the test's ``FAULTS``,
+so at import the module also loads ``FAULTS`` from the ``LPS_TEST_FAULTS`` environment
+variable (``FAULTS_ENV``), which holds the JSON that ``faults_json`` makes.
 """
 
 import asyncio
+import json
 import operator
-from dataclasses import dataclass, field
+import os
+from collections.abc import Mapping
+from dataclasses import asdict, dataclass, field
 from datetime import datetime
 from typing import Annotated, Literal, TypedDict
 from uuid import UUID
@@ -70,7 +75,22 @@ class Fault:
     delay_s: dict[str, float] = field(default_factory=dict)
 
 
-FAULTS: dict[str, Fault] = {}
+FAULTS_ENV = "LPS_TEST_FAULTS"
+
+
+def faults_json(faults: Mapping[str, Fault]) -> str:
+    """Encode ``faults`` for ``FAULTS_ENV``: a JSON object of each key's ``Fault`` fields."""
+    return json.dumps({key: asdict(fault) for key, fault in faults.items()})
+
+
+def load_faults(raw: str | None) -> dict[str, Fault]:
+    """Decode what ``faults_json`` made. None or an empty string means no faults."""
+    if not raw:
+        return {}
+    return {key: Fault(**fields) for key, fields in json.loads(raw).items()}
+
+
+FAULTS: dict[str, Fault] = load_faults(os.environ.get(FAULTS_ENV))
 MEMORY_MARKS: dict[UUID, list[str]] = {}
 
 

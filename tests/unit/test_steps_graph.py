@@ -125,3 +125,14 @@ def test_dedup_key_depends_on_the_key_only():
     later = STEPS_SPEC.dedup_key(model, datetime(2026, 11, 3, tzinfo=UTC))
 
     assert first == later == "test_steps:k1"
+
+
+def test_faults_round_trip_through_the_environment_format():
+    # Worker subprocesses read their faults from steps.FAULTS_ENV at import.
+    faults = {
+        "slow": Fault(delay_s={"b": 5.0}),
+        "broken": Fault(fail_step="c", kind="fatal", times=2, delay_s={"a": 0.5}),
+    }
+
+    assert steps.load_faults(steps.faults_json(faults)) == faults
+    assert steps.load_faults(None) == steps.load_faults("") == {}
