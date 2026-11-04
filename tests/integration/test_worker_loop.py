@@ -14,7 +14,9 @@ from uuid import UUID
 
 import httpx
 import pytest
+from langgraph.graph.state import CompiledStateGraph
 
+from langgraph_postgres_starter import __version__
 from langgraph_postgres_starter.agent_spec import RunInfo
 from langgraph_postgres_starter.persistence.checkpointer import make_checkpointer
 from langgraph_postgres_starter.persistence.serde import make_serde
@@ -154,6 +156,36 @@ async def test_processes_queued_message(make_worker, sqs, queue, repo, steps_poo
     assert ready.json() == {
         "ready": True,
         "checks": {"database": True, "pool_open": True, "intake": True},
+    }
+
+
+async def test_runs_carry_trace_metadata(make_worker, sqs, queue, repo, monkeypatch):
+    configs = []
+    ainvoke = CompiledStateGraph.ainvoke
+
+    async def spy(self, input, config=None, **kwargs):
+        configs.append(config)
+        return await ainvoke(self, input, config, **kwargs)
+
+    monkeypatch.setattr(CompiledStateGraph, "ainvoke", spy)
+    worker = make_worker(git_sha="abc123", cluster_name="eu-1")
+    await worker.start()
+
+    _send(sqs, queue, "md")
+    run = await _run_for_key(repo, "md")
+    await _wait_for_status(repo, run.run_id, RunStatus.SUCCESS)
+
+    # P14: the run's metadata reaches the trace through config["metadata"], and only
+    # these keys: no settings, no DSN, no input.
+    [config] = configs
+    assert config["metadata"] == {
+        "run_id": str(run.run_id),
+        "dedup_key": run.dedup_key,
+        "agent": STEPS_SPEC.name,
+        "cluster": "eu-1",
+        "env": "dev",
+        "app_version": __version__,
+        "git_sha": "abc123",
     }
 
 

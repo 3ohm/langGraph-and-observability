@@ -9,6 +9,7 @@ import json
 import pytest
 
 from langgraph_postgres_starter import __main__
+from langgraph_postgres_starter.persistence.pool import DatabaseUnavailable
 from langgraph_postgres_starter.settings import load_settings
 from langgraph_postgres_starter.worker import main as worker_main
 from langgraph_postgres_starter.worker.main import EXIT_STARTUP_FAILED, Worker
@@ -38,6 +39,29 @@ async def test_start_fails_when_the_intake_agent_is_not_registered():
     with pytest.raises(ValueError, match="'nope'"):
         await worker.start()
     await worker.stop()
+
+
+async def test_stop_closes_tracing_after_a_failed_start(monkeypatch):
+    calls: list[object] = []
+    client = object()
+
+    def configure(settings):
+        calls.append("configure")
+        return client
+
+    async def close(tracing):
+        calls.append(("close", tracing))
+
+    monkeypatch.setattr(worker_main, "configure_tracing", configure)
+    monkeypatch.setattr(worker_main, "close_tracing", close)
+    settings = load_settings(database_url=DEAD_DSN, db_connect_timeout_s=1, health_port=0)
+    worker = Worker(settings, agents={STEPS_SPEC.name: STEPS_SPEC}, sqs_client=None, owner="pod-a")
+
+    with pytest.raises(DatabaseUnavailable):
+        await worker.start()
+
+    # Tracing starts first, and stop() closes it (spec 8.4 step 5).
+    assert calls == ["configure", ("close", client)]
 
 
 def test_main_exits_when_the_database_is_unreachable(monkeypatch, capsys):

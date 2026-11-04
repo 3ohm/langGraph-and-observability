@@ -1,7 +1,9 @@
 """The queue worker: intake, heartbeats, recovery and drain (spec §8; P9, P10).
 
-``Worker.start`` opens the pool, builds the checkpointer and the run executor, starts
-the health server on ``APP_HEALTH_PORT`` (§8.6) and starts these loops:
+``Worker.start`` configures tracing (``observability.langsmith.configure_tracing``; off
+unless LangSmith tracing and a key are set), opens the pool, builds the checkpointer and
+the run executor, which gives each run its trace metadata (``run_metadata``), starts the
+health server on ``APP_HEALTH_PORT`` (§8.6) and starts these loops:
 
 - intake, only when ``APP_SQS_QUEUE_URL`` is set: while a run slot is free, it
   long-polls SQS for at most as many messages as there are free slots, then claims and
@@ -23,7 +25,7 @@ lease expires and recovery claims it again.
 ``Worker.stop`` drains (§8.4): it stops intake, recovery and the pruner, asks every
 active run to stop after its current step, waits up to ``APP_DRAIN_TIMEOUT_SECONDS``,
 cancels the runs that are still going, and returns this pod's remaining runs to
-pending. Then it stops the health server and closes the pool.
+pending. Then it stops the health server, closes the pool and flushes the traces.
 
 ``main`` is the ``worker`` command. It runs a Worker until SIGTERM or SIGINT.
 
@@ -33,6 +35,7 @@ Logs name runs, counts and error types, never the settings, a DSN or a run's inp
 import argparse
 import asyncio
 import contextlib
+import functools
 import os
 import signal
 import socket
@@ -50,6 +53,12 @@ from pydantic import ValidationError
 
 from langgraph_postgres_starter.agent_spec import AgentSpec
 from langgraph_postgres_starter.logging import configure_logging, get_logger
+from langgraph_postgres_starter.observability.langsmith import (
+    TracingClient,
+    close_tracing,
+    configure_tracing,
+)
+from langgraph_postgres_starter.observability.metadata import run_metadata
 from langgraph_postgres_starter.persistence.checkpointer import (
     PoolAwarePostgresSaver,
     make_checkpointer,
@@ -123,6 +132,7 @@ class Worker:
         self._sqs_client = sqs_client
         self._owner = owner
         self._started = False
+        self._tracing: TracingClient | None = None
         self._pool: _Pool | None = None
         self._repo: RunRepo | None = None
         self._executor: RunExecutor | None = None
@@ -173,7 +183,7 @@ class Worker:
         )
 
     async def stop(self) -> None:
-        """Drain the runs and shut down (spec §8.4). Returns when the pool is closed.
+        """Drain the runs and shut down (spec §8.4). Returns once the pool and tracing close.
 
         Safe to call more than once, before ``start`` and while another ``stop`` runs:
         each call waits for the same shutdown. Cancelling a caller does not cancel the
@@ -200,6 +210,7 @@ class Worker:
 
     async def _start(self, intake_agent: AgentSpec | None) -> None:
         settings = self._settings
+        self._tracing = configure_tracing(settings)
         pool = create_pool(settings)
         await open_pool(pool, timeout=settings.db_connect_timeout_s)
         self._pool = pool
@@ -213,7 +224,12 @@ class Worker:
         repo = RunRepo(pool)
         self._repo = repo
         executor = RunExecutor(
-            saver=saver, agents=self._agents, repo=repo, settings=settings, owner=self._owner
+            saver=saver,
+            agents=self._agents,
+            repo=repo,
+            settings=settings,
+            owner=self._owner,
+            metadata=functools.partial(run_metadata, settings=settings),
         )
         self._executor = executor
         queue_url, client = settings.sqs_queue_url, self._sqs_client
@@ -434,11 +450,13 @@ class Worker:
             else:
                 _log.info("worker.drained", runs=len(active), released=released)
         await _cancel([self._heartbeat_task])
-        # 5. Stop the health server and close the pool.
+        # 5. Stop the health server, close the pool and flush the traces.
         await self._stop_health()
         if self._pool is not None:
             await self._pool.close()
             set_pool(None)
+        if self._tracing is not None:
+            await close_tracing(self._tracing)
         _log.info("worker.stopped", owner=self._owner)
 
     async def _stop_health(self) -> None:
