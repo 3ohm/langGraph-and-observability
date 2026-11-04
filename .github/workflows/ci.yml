@@ -1,6 +1,7 @@
-# CI (spec 13.3). Every job uses the same steps: check out the code, install uv and
+# CI (spec 13.3). Every Python job uses the same steps: check out the code, install uv and
 # Python, install all dependency groups from uv.lock, then run one make target.
-# To add a job, copy one of the jobs below and change its make target.
+# To add a job, copy one of the Python jobs below and change its make target.
+# The docker job only checks out the code and builds the image.
 # Actions are pinned to full commit SHAs. Dependabot updates the SHAs and the tag comments.
 name: CI
 
@@ -39,6 +40,15 @@ jobs:
           enable-cache: true
       - run: uv sync --all-groups --frozen
       - run: make test
+
+  # Build the container image (spec 13.5). The job does not push it.
+  docker:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - run: docker build -t langgraph-postgres-starter:ci .
 
   # Early warning for the next Python version. A failure here does not fail the run.
   canary-3-15:

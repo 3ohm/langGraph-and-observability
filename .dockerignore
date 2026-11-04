@@ -1,0 +1,38 @@
+# Keep the build context small and free of secrets.
+# The Dockerfile copies pyproject.toml, uv.lock, .python-version, README.md, LICENSE and src/;
+# do not exclude those.
+
+# Version control, CI and local tooling
+.git/
+.github/
+.claude/
+.superpowers/
+.benchmarks/
+.pre-commit-config.yaml
+
+# Local settings and secrets
+.env
+.env.*
+
+# Virtual environment and caches
+.venv/
+**/__pycache__/
+**/*.py[cod]
+.mypy_cache/
+.pytest_cache/
+.ruff_cache/
+.coverage
+.coverage.*
+htmlcov/
+coverage.xml
+build/
+dist/
+*.egg-info/
+
+# Not needed in the image
+docs/
+tests/
+deploy/
+compose.yaml
+Dockerfile
+.dockerignore

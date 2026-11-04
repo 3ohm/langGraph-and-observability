@@ -1,0 +1,33 @@
+# Local stack (spec 10.2 and 13.5): Postgres and ElasticMQ (local SQS).
+# Start it with: docker compose up -d postgres elasticmq
+# Ports bind to 127.0.0.1 only, so the dev credentials below are not reachable from the network.
+
+services:
+  postgres:
+    image: pgvector/pgvector:0.8.4-pg18
+    environment:
+      POSTGRES_USER: postgres
+      # Dev only: a local credential for this Compose stack. Never use it anywhere else.
+      POSTGRES_PASSWORD: postgres
+    healthcheck:
+      # Check over TCP: while the image creates a new database, the server listens on the socket only.
+      test: ["CMD", "pg_isready", "--host=127.0.0.1", "--username=postgres", "--dbname=postgres"]
+      interval: 2s
+      timeout: 5s
+      retries: 30
+    ports:
+      - "127.0.0.1:5432:5432"
+    volumes:
+      # Postgres 18 images keep their data under /var/lib/postgresql/18/.
+      - postgres-data:/var/lib/postgresql
+
+  elasticmq:
+    image: softwaremill/elasticmq-native:1.7.1
+    volumes:
+      - ./deploy/elasticmq/elasticmq.conf:/opt/elasticmq.conf:ro
+    ports:
+      - "127.0.0.1:9324:9324" # SQS API
+      - "127.0.0.1:9325:9325"
+
+volumes:
+  postgres-data:
