@@ -1,0 +1,33 @@
+# Dependabot (spec 13.4): weekly updates for Python packages (uv) and GitHub Actions.
+# The cooldown waits 7 days after a release before Dependabot proposes it.
+version: 2
+updates:
+  - package-ecosystem: uv
+    directory: /
+    schedule:
+      interval: weekly
+    cooldown:
+      default-days: 7
+    groups:
+      # LangGraph, LangChain and LangSmith release together; update them in one PR.
+      langchain:
+        patterns:
+          - "langgraph*"
+          - "langchain*"
+          - "langsmith"
+    commit-message:
+      prefix: build
+      include: scope
+
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+    cooldown:
+      default-days: 7
+    groups:
+      github-actions:
+        patterns:
+          - "*"
+    commit-message:
+      prefix: ci
