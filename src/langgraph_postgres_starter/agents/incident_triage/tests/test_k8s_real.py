@@ -543,7 +543,7 @@ def test_real_mode_builds_real_k8s_without_network(monkeypatch):
     with pytest.raises(NotImplementedError) as exc_info:
         build_adapters(load_settings(adapters="real"), fixture_id=None)
     assert "k8s (Task" not in str(exc_info.value)
-    assert "datadog (Task 24)" in str(exc_info.value)
+    assert "locator (Task 28)" in str(exc_info.value)
 
 
 async def test_real_other_errors_propagate_and_odd_owners(monkeypatch, loads):
