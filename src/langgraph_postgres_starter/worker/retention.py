@@ -25,8 +25,14 @@ Each batch and each statement is retried up to ``MAX_RETRIES`` times on
 SerializationFailure and DeadlockDetected, after a short back-off; other errors
 propagate. The leader lock is released before its connection goes back to the pool.
 
-The leader lock belongs to a database session, so, as for migrations, the pool must
-reach Postgres directly, not through PgBouncer in transaction mode.
+The leader lock belongs to a database session. Behind PgBouncer in transaction mode
+(``APP_PGBOUNCER_MODE=true``) the lock and its unlock may run on different server
+sessions, so a single leader is best effort: two pods may prune at once, and a lock left
+on a server session makes the other pods skip their passes until PgBouncer closes that
+session. Retention stays correct either way, because each batch locks its runs
+``FOR UPDATE SKIP LOCKED`` and ``aprune(strategy="delete")`` is idempotent. Migrations
+need more than that: run ``migrate`` on a direct connection
+(``APP_MIGRATION_DATABASE_URL``), not through PgBouncer.
 """
 
 import asyncio

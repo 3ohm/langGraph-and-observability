@@ -41,12 +41,16 @@ def test_test_jobs_run_their_make_targets():
     assert {"postgres", "elasticmq"} <= set(WF["jobs"]["e2e"]["services"])
 
 
+# example-agent:begin (scripts/remove_example.py deletes this block)
 def test_test_jobs_fetch_grammars_after_sync():
     # Ruling R51: tests never download a grammar, so each job that runs tests fetches them first.
     for name in ("unit", "integration", "e2e", "canary-3-15"):
         runs = [s.get("run") for s in WF["jobs"][name]["steps"]]
         sync = runs.index("uv sync --all-groups --frozen")
         assert runs[sync + 1] == "make grammars", name
+
+
+# example-agent:end
 
 
 def test_test_jobs_install_ripgrep_before_tests():
@@ -70,6 +74,41 @@ def test_docker_job_smoke_tests_migrations():
     assert "docker compose run --rm --no-deps migrate" in script
 
 
+# --- the removal job (spec 13.3, 13.9; P22) ------------------------------------------
+
+REMOVAL = WF["jobs"]["removal"]
+REMOVAL_COPY = "${{ runner.temp }}/removal"
+
+
+def test_removal_job_installs_like_the_lint_job():
+    # Checkout without persisted credentials, uv with its cache, then the locked sync.
+    assert REMOVAL["steps"][:3] == WF["jobs"]["lint"]["steps"][:3]
+
+
+def test_removal_job_removes_the_example_from_a_copy_then_checks_the_rest():
+    steps = REMOVAL["steps"]
+    [copy] = [i for i, s in enumerate(steps) if "git archive HEAD" in s.get("run", "")]
+    assert '"$RUNNER_TEMP/removal"' in steps[copy]["run"]
+    after = steps[copy + 1 :]
+    assert all(s["working-directory"] == REMOVAL_COPY for s in after)
+    commands = [line.strip() for s in after for line in s["run"].splitlines() if line.strip()]
+    assert commands == [
+        "uv sync --all-groups --frozen",
+        "uv run scripts/remove_example.py",
+        "! grep -r incident_triage src",
+        'uv run pytest -m "not integration and not e2e"',
+        "make lint typecheck",
+    ]
+
+
+def test_removal_job_greps_in_a_step_of_its_own():
+    # GitHub runs a step with bash -e, which does not stop at a failed `!` command, so the
+    # inverted grep is the only command of its step: the step's status is the grep's.
+    [grep] = [s for s in REMOVAL["steps"] if "grep" in s.get("run", "")]
+    assert grep["run"].strip() == "! grep -r incident_triage src"
+
+
+# example-agent:begin (scripts/remove_example.py deletes from here to the end of the file)
 # --- the Evals workflow (spec 12.3; P21) ---------------------------------------------
 
 EVALS_PATH = ROOT / ".github/workflows/evals.yml"
@@ -152,3 +191,6 @@ def test_evals_run_against_bedrock_with_simulated_adapters():
     # The test appends its scorecard to the job summary.
     assert 'APP_EVAL_SCORECARD="$GITHUB_STEP_SUMMARY"' in step["run"]
     assert "uv run pytest" in step["run"]
+
+
+# example-agent:end

@@ -1,10 +1,13 @@
 # CI (spec 13.3). Every Python job uses the same steps: check out the code, install uv and
-# Python, install all dependency groups from uv.lock, then run one make target. A job that
-# runs tests first fetches the tree-sitter grammars (make grammars): tests never download one.
-# It also installs ripgrep from apt: the agent's code step runs rg, which the runner image
-# lacks (actions/runner-images, Ubuntu 24.04, image 20261026.354.1).
+# Python, install all dependency groups from uv.lock, then run one make target.
+# A job that runs tests first fetches the tree-sitter grammars (make grammars): tests never
+# download one.
+# A job that runs tests also installs ripgrep from apt: the agent's code step runs rg, which
+# the runner image lacks (actions/runner-images, Ubuntu 24.04, image 20261026.354.1).
 # To add a job, copy one of the Python jobs below and change its make target.
 # The docker job builds the image, then runs its migrations against a Compose Postgres.
+# The removal job deletes the example agent from a copy of the repository, then checks
+# that the rest still passes.
 # Actions are pinned to full commit SHAs. Dependabot updates the SHAs and the tag comments.
 name: CI
 
@@ -152,6 +155,40 @@ jobs:
         run: |
           docker compose up --detach --wait postgres
           docker compose run --rm --no-deps migrate
+
+  # The removable example agent (spec 13.3, 13.9; P22). scripts/remove_example.py deletes
+  # the agent from a copy of the commit; the copy gets its own environment, and then its
+  # unit tests, lint and typecheck must pass, with no file under src/ naming the agent.
+  # The grep runs alone in its step: bash -e does not stop at a failed `!` command.
+  removal:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: astral-sh/setup-uv@68559e99cc807c1eb7e9238fd43a15bba460eec2 # v10.3.3
+        with:
+          python-version: "3.14"
+          enable-cache: true
+      - run: uv sync --all-groups --frozen
+      - name: Copy the commit to a temporary folder
+        run: |
+          mkdir "$RUNNER_TEMP/removal"
+          git archive HEAD | tar -x -C "$RUNNER_TEMP/removal"
+      - name: Remove the example agent from the copy
+        working-directory: ${{ runner.temp }}/removal
+        run: |
+          uv sync --all-groups --frozen
+          uv run scripts/remove_example.py
+      - name: No file under src/ names the example agent
+        working-directory: ${{ runner.temp }}/removal
+        run: "! grep -r incident_triage src"
+      - name: Unit tests without the example agent
+        working-directory: ${{ runner.temp }}/removal
+        run: uv run pytest -m "not integration and not e2e"
+      - name: Lint and typecheck without the example agent
+        working-directory: ${{ runner.temp }}/removal
+        run: make lint typecheck
 
   # Early warning for the next Python version. A failure here does not fail the run.
   canary-3-15:
