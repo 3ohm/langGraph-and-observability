@@ -32,6 +32,23 @@ from langgraph_postgres_starter.agents.incident_triage.adapters.source.interface
 
 TOKEN = "ghp_" + "T0k3n" * 8
 ALLOWED = ("github.com", "Git.Example.com.")
+# Git reads no system or global config file (only the repository's own .git/config).
+NO_CONFIG_FILES = {"GIT_CONFIG_NOSYSTEM": "1", "GIT_CONFIG_GLOBAL": os.devnull}
+# The parent's variables that a git process gets, when the parent has them.
+PASSED_ON = {
+    "PATH",
+    "HOME",
+    "LANG",
+    "LC_ALL",
+    "SSL_CERT_FILE",
+    "SSL_CERT_DIR",
+    "HTTP_PROXY",
+    "HTTPS_PROXY",
+    "NO_PROXY",
+    "http_proxy",
+    "https_proxy",
+    "no_proxy",
+}
 
 
 @dataclass(frozen=True)
@@ -180,6 +197,7 @@ async def test_git_token_not_in_argv(tmp_path, remote, spawns, monkeypatch):
         assert _git_vars(spawn) == {
             "GIT_TERMINAL_PROMPT": "0",
             "GIT_ALLOW_PROTOCOL": "file",
+            **NO_CONFIG_FILES,
             "GIT_CONFIG_COUNT": "1",
             "GIT_CONFIG_KEY_0": "http.followRedirects",
             "GIT_CONFIG_VALUE_0": "false",
@@ -187,6 +205,41 @@ async def test_git_token_not_in_argv(tmp_path, remote, spawns, monkeypatch):
     assert TOKEN not in str(exc_info.value)
     assert TOKEN not in repr(logs)
     assert TOKEN not in (path / ".git" / "config").read_text()
+
+
+async def test_git_gets_a_minimal_environment(tmp_path, remote, spawns, monkeypatch):
+    # The worker's secrets never reach git: only the variables that git needs to run and
+    # to connect are passed on, with the provider's own GIT_* settings.
+    secrets = {
+        "APP_GIT_TOKEN": TOKEN,
+        "AWS_SECRET_ACCESS_KEY": "SECRET-aws",
+        "DD_API_KEY": "SECRET-dd",
+        "APP_DATABASE_URL": "postgresql://lps:SECRET-dsn@db/lps",
+    }
+    for name, value in secrets.items():
+        monkeypatch.setenv(name, value)
+    monkeypatch.setenv("HTTPS_PROXY", "http://proxy.internal:3128")
+    # A global config whose url.<base>.insteadOf would send the fetch to a folder that
+    # does not exist: git must not read it.
+    home = tmp_path / "home"
+    home.mkdir()
+    (home / ".gitconfig").write_text(f'[url "file:///nonexistent/"]\n\tinsteadOf = {remote.url}\n')
+    monkeypatch.setenv("HOME", str(home))
+
+    path = await _provider(tmp_path / "cache", TOKEN).checkout(_ref(remote, remote.first))
+
+    assert (path / "app.txt").read_text() == "first\n"
+    assert spawns
+    for spawn in spawns:
+        assert {k for k in spawn.env if not k.startswith("GIT_")} <= PASSED_ON
+        assert not set(secrets) & set(spawn.env)
+        assert not any(TOKEN in v or "SECRET" in v for v in spawn.env.values())
+        assert {k: spawn.env[k] for k in NO_CONFIG_FILES} == NO_CONFIG_FILES
+        assert (spawn.env["HOME"], spawn.env["HTTPS_PROXY"]) == (
+            str(home),
+            "http://proxy.internal:3128",
+        )
+        assert spawn.env["PATH"] == os.environ["PATH"]
 
 
 @pytest.mark.parametrize(
@@ -210,6 +263,7 @@ async def test_git_token_header_is_scoped_to_the_repository_host(
     assert _git_vars(spawn) == {
         "GIT_TERMINAL_PROMPT": "0",
         "GIT_ALLOW_PROTOCOL": "https",
+        **NO_CONFIG_FILES,
         "GIT_CONFIG_COUNT": "2",
         "GIT_CONFIG_KEY_0": f"http.https://{host}/.extraHeader",
         "GIT_CONFIG_VALUE_0": f"Authorization: Bearer {TOKEN}",
@@ -230,6 +284,7 @@ async def test_git_without_token_sets_no_header_but_refuses_redirects(tmp_path, 
     assert _git_vars(spawn) == {
         "GIT_TERMINAL_PROMPT": "0",
         "GIT_ALLOW_PROTOCOL": "https",
+        **NO_CONFIG_FILES,
         "GIT_CONFIG_COUNT": "1",
         "GIT_CONFIG_KEY_0": "http.followRedirects",
         "GIT_CONFIG_VALUE_0": "false",
@@ -358,6 +413,24 @@ async def test_eviction_spares_entries_a_run_may_still_read(tmp_path, remote):
 
     assert [entry.is_dir() for entry in recent] == [True, False]
     assert [log["event"] for log in logs if "over_budget" in log["event"]] == []
+
+
+async def test_eviction_deletes_temp_folders_a_killed_worker_left(tmp_path, remote):
+    # A worker that is killed during a checkout leaves its temporary folder. A later
+    # eviction deletes one that is older than the minimum age; a newer one may belong to
+    # a checkout that is still running.
+    cache = tmp_path / "cache"
+    other = cache / ("0" * 16)
+    stale = _fake_entry(other, ".tmp-killed", age_s=3000)
+    running = _fake_entry(other, ".tmp-running", age_s=60)
+
+    with capture_logs() as logs:
+        await _provider(cache).checkout(_ref(remote, remote.first))
+
+    assert not stale.exists()
+    assert running.is_dir()
+    deleted = [log["path"] for log in logs if log["event"] == "source.cache.temp_deleted"]
+    assert deleted == [str(stale)]
 
 
 async def test_reuse_of_an_entry_that_vanishes_fetches_again(tmp_path, remote, spawns, monkeypatch):

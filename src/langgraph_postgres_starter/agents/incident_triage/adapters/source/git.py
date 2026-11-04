@@ -39,11 +39,20 @@ repository's own host. GitHub accepts a token as a Bearer header for git over HT
 GitLab's git HTTP endpoint ignores Bearer and needs Basic auth (checked 2026-11-04), so
 a GitLab token does not work this way.
 
-Each git process gets ``http.followRedirects=false`` (the same ``GIT_CONFIG_*``
-variables, with or without a token), ``GIT_TERMINAL_PROMPT=0`` (fail rather than
-prompt), ``GIT_ALLOW_PROTOCOL`` set to the URL's own scheme, and none of the parent's
-other ``GIT_*`` variables. Each git call is stopped after ``timeout_s``: its process
+Each git process gets a minimal environment: of the parent's variables only ``PATH``,
+``HOME``, ``LANG``, ``LC_ALL``, ``SSL_CERT_FILE``, ``SSL_CERT_DIR`` and the proxy
+variables (``HTTP_PROXY``, ``HTTPS_PROXY``, ``NO_PROXY``, in upper and lower case), so
+the worker's own secrets (``APP_GIT_TOKEN``, ``AWS_*``, ``DD_*``) never reach git or its
+helpers. Git reads no system or global config file (``GIT_CONFIG_NOSYSTEM=1``,
+``GIT_CONFIG_GLOBAL`` the null device), so a ``url.<base>.insteadOf`` or a credential
+helper there cannot change where it fetches or what it sends. It also gets
+``http.followRedirects=false`` (the same ``GIT_CONFIG_*`` variables, with or without a
+token), ``GIT_TERMINAL_PROMPT=0`` (fail rather than prompt) and ``GIT_ALLOW_PROTOCOL``
+set to the URL's own scheme. Each git call is stopped after ``timeout_s``: its process
 group is killed and the call raises ``GitError``.
+
+A worker that is killed during a checkout leaves its temporary folder; the eviction
+after a later checkout deletes such a folder once it is older than ``min_age_s``.
 """
 
 import asyncio
@@ -85,6 +94,22 @@ _REF_NAME = re.compile(r"[A-Za-z0-9][A-Za-z0-9._/-]{0,254}")
 # The names of the cache's folders: a repository's, then an entry's.
 _REPO_DIR = re.compile(r"[0-9a-f]{16}")
 _TEMP_PREFIX = ".tmp-"
+# The parent's variables that git gets: to run, and to reach a host through a proxy with
+# the system's CA certificates. Nothing else is passed on.
+_PASSED_ENV = (
+    "PATH",
+    "HOME",
+    "LANG",
+    "LC_ALL",
+    "SSL_CERT_FILE",
+    "SSL_CERT_DIR",
+    "HTTP_PROXY",
+    "HTTPS_PROXY",
+    "NO_PROXY",
+    "http_proxy",
+    "https_proxy",
+    "no_proxy",
+)
 
 
 class GitError(RuntimeError):
@@ -312,10 +337,13 @@ class GitSourceProvider(SourceProvider):
     def _env(self, host: str | None) -> dict[str, str]:
         """The environment of the git processes for a repository on ``host``.
 
-        It is the parent's, without its ``GIT_*`` variables, plus the settings in the
-        module docstring. ``host`` is None for a ``file://`` URL, which gets no header.
+        It holds the parent's ``_PASSED_ENV`` variables that are set, plus the settings
+        in the module docstring. ``host`` is None for a ``file://`` URL, which gets no
+        header.
         """
-        env = {k: v for k, v in os.environ.items() if not k.upper().startswith("GIT_")}
+        env = {name: os.environ[name] for name in _PASSED_ENV if name in os.environ}
+        env["GIT_CONFIG_NOSYSTEM"] = "1"
+        env["GIT_CONFIG_GLOBAL"] = os.devnull
         env["GIT_TERMINAL_PROMPT"] = "0"
         # Only the URL's own transport, so an https fetch never falls back to another.
         env["GIT_ALLOW_PROTOCOL"] = "file" if host is None else "https"
@@ -394,19 +422,39 @@ def _size(folder: Path) -> int:
     return total
 
 
-def _evict(cache_dir: Path, keep: Path, max_bytes: int, min_age_s: float) -> None:
-    """Delete the least recently used entries until the cache is within ``max_bytes``.
+def _temp_dirs(cache_dir: Path) -> list[Path]:
+    """The checkouts' temporary folders: ``<16 hex>/.tmp-*`` folders, not symbolic links."""
+    if not cache_dir.is_dir():
+        return []
+    return [
+        temp
+        for repo_dir in cache_dir.iterdir()
+        if _REPO_DIR.fullmatch(repo_dir.name) and repo_dir.is_dir() and not repo_dir.is_symlink()
+        for temp in repo_dir.iterdir()
+        if temp.name.startswith(_TEMP_PREFIX) and temp.is_dir() and not temp.is_symlink()
+    ]
 
-    It never deletes ``keep`` or an entry used less than ``min_age_s`` ago. If only
-    those are left over budget, it logs ``source.cache_over_budget`` once, with sizes
-    only. A repository folder that is left empty is deleted too.
+
+def _evict(cache_dir: Path, keep: Path, max_bytes: int, min_age_s: float) -> None:
+    """Delete stale temporary folders, then old entries until the cache fits ``max_bytes``.
+
+    A temporary folder older than ``min_age_s`` was left by a checkout that never ended
+    (a worker killed during it), so it is deleted, whatever the budget. Entries go least
+    recently used first; it never deletes ``keep`` or an entry used less than
+    ``min_age_s`` ago. If only those are left over budget, it logs
+    ``source.cache_over_budget`` once, with sizes only. A repository folder that is left
+    empty is deleted too.
     """
+    now = time.time()
+    for temp in _temp_dirs(cache_dir):
+        if now - _mtime(temp) >= min_age_s:
+            shutil.rmtree(temp, ignore_errors=True)
+            _log.info("source.cache.temp_deleted", path=str(temp))
     entries = _entries(cache_dir)
     sizes = {entry: _size(entry) for entry in entries}
     total = sum(sizes.values())
     if total <= max_bytes:
         return
-    now = time.time()
     for entry in sorted(entries, key=_mtime):
         if total <= max_bytes:
             break
