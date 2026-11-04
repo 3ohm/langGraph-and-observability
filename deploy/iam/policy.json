@@ -1,0 +1,67 @@
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Sid": "ReceiveIncidentsFromTheInputQueue",
+      "Effect": "Allow",
+      "Action": [
+        "sqs:ReceiveMessage",
+        "sqs:DeleteMessage",
+        "sqs:ChangeMessageVisibility"
+      ],
+      "Resource": "arn:aws:sqs:<REGION>:<ACCOUNT_ID>:<INPUT_QUEUE_NAME>"
+    },
+    {
+      "Sid": "SendResultsToTheResultQueue",
+      "Effect": "Allow",
+      "Action": "sqs:SendMessage",
+      "Resource": "arn:aws:sqs:<REGION>:<ACCOUNT_ID>:<RESULT_QUEUE_NAME>"
+    },
+    {
+      "Sid": "ReadImageLabelsOfTheTriagedWorkloads",
+      "Effect": "Allow",
+      "Action": [
+        "ecr:BatchGetImage",
+        "ecr:GetDownloadUrlForLayer"
+      ],
+      "Resource": [
+        "arn:aws:ecr:<REGION>:<ACCOUNT_ID>:repository/<REPOSITORY_NAME>"
+      ]
+    },
+    {
+      "Sid": "InvokeTheGlobalInferenceProfile",
+      "Effect": "Allow",
+      "Action": "bedrock:InvokeModel",
+      "Resource": "arn:aws:bedrock:<REGION>:<ACCOUNT_ID>:inference-profile/global.anthropic.claude-opus-5-5",
+      "Condition": {
+        "StringEquals": {
+          "aws:RequestedRegion": "<REGION>"
+        }
+      }
+    },
+    {
+      "Sid": "InvokeTheModelInTheSourceRegionThroughTheProfile",
+      "Effect": "Allow",
+      "Action": "bedrock:InvokeModel",
+      "Resource": "arn:aws:bedrock:<REGION>::foundation-model/anthropic.claude-opus-5-5",
+      "Condition": {
+        "StringEquals": {
+          "aws:RequestedRegion": "<REGION>",
+          "bedrock:InferenceProfileArn": "arn:aws:bedrock:<REGION>:<ACCOUNT_ID>:inference-profile/global.anthropic.claude-opus-5-5"
+        }
+      }
+    },
+    {
+      "Sid": "InvokeTheModelInOtherRegionsThroughTheProfile",
+      "Effect": "Allow",
+      "Action": "bedrock:InvokeModel",
+      "Resource": "arn:aws:bedrock:::foundation-model/anthropic.claude-opus-5-5",
+      "Condition": {
+        "StringEquals": {
+          "aws:RequestedRegion": "unspecified",
+          "bedrock:InferenceProfileArn": "arn:aws:bedrock:<REGION>:<ACCOUNT_ID>:inference-profile/global.anthropic.claude-opus-5-5"
+        }
+      }
+    }
+  ]
+}

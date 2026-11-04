@@ -1,0 +1,43 @@
+# The real-mode settings that are not secret (.env.example lists every setting and its
+# default). The worker and the migrate Job load all of these keys as environment
+# variables. Secrets never go here: deployment.yaml and migrate-job.yaml read them from
+# Secrets. deployment.yaml also sets the settings that must match something in it
+# (the health port, the drain timeout, and the source cache); an `env` value there wins
+# over a key here.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: langgraph-postgres-starter-config
+  labels:
+    app.kubernetes.io/name: langgraph-postgres-starter
+data:
+  # prod: a missing secret stops the start.
+  APP_ENV: prod
+  APP_ADAPTERS: real
+  APP_LLM_MODE: bedrock
+  APP_CLUSTER_NAME: <CLUSTER_NAME>
+
+  # Use the same Region in deploy/iam/policy.json.
+  APP_AWS_REGION: <REGION>
+  APP_SQS_QUEUE_URL: https://sqs.<REGION>.amazonaws.com/<ACCOUNT_ID>/<INPUT_QUEUE_NAME>
+  APP_RESULT_SINKS: '["log", "sqs"]'
+  APP_RESULT_QUEUE_URL: https://sqs.<REGION>.amazonaws.com/<ACCOUNT_ID>/<RESULT_QUEUE_NAME>
+
+  # The settings default, the bare model ID anthropic.claude-opus-5-5, works in-Region
+  # only in eu-west-2 (the AWS model card). From other Regions, use an inference profile:
+  # this global one, or a geographic one (us., eu., au. or jp.). Confirm the ID in your
+  # account (aws bedrock list-inference-profiles), and keep the Bedrock ARNs of
+  # deploy/iam/policy.json in step with it.
+  APP_BEDROCK_MODEL_ID: global.anthropic.claude-opus-5-5
+
+  # The only hosts that source checkouts fetch from and send APP_GIT_TOKEN to.
+  APP_GIT_ALLOWED_HOSTS: '["github.com"]'
+
+  # true behind PgBouncer in transaction mode (spec 7.1).
+  APP_PGBOUNCER_MODE: "false"
+
+  DD_SITE: datadoghq.com
+
+  # Tracing starts only when the LANGSMITH_API_KEY secret is set too.
+  LANGSMITH_TRACING: "true"
+  APP_TRACE_CONTENT: redacted

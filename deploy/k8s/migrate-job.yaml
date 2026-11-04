@@ -1,0 +1,78 @@
+# The one-shot migration step (spec 7.3; P4): our SQL migrations, then
+# AsyncPostgresSaver.setup(), as the migration role. The worker never migrates.
+#
+# It reads the migration role's URL from a Secret that is not shipped here. Create it
+# from a file with the line APP_MIGRATION_DATABASE_URL=... (keep the file out of git):
+#   kubectl -n langgraph-postgres-starter create secret generic langgraph-postgres-starter-migration \
+#     --from-env-file=<FILE>
+# Its key:
+#   APP_MIGRATION_DATABASE_URL  required; connects as lps_migrator (deploy/sql/roles.sql)
+#
+# A Job's pod template cannot change. Before you apply a new image, delete the last Job
+# if it still exists (ttlSecondsAfterFinished deletes it an hour after it finishes). An
+# apply after that creates the Job again, and it runs again: applied migrations are
+# skipped (spec 7.3).
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: langgraph-postgres-starter-migrate
+  labels:
+    app.kubernetes.io/name: langgraph-postgres-starter
+    app.kubernetes.io/component: migrate
+spec:
+  backoffLimit: 2
+  ttlSecondsAfterFinished: 3600
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: langgraph-postgres-starter
+        app.kubernetes.io/component: migrate
+    spec:
+      restartPolicy: Never
+      # Migrations reach only Postgres: no Kubernetes API token, and no IAM role.
+      automountServiceAccountToken: false
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 10001
+        runAsGroup: 10001
+        fsGroup: 10001
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: migrate
+          image: langgraph-postgres-starter
+          args: ["migrate"]
+          # The ConfigMap names the agents, whose migrations run too.
+          envFrom:
+            - configMapRef:
+                name: langgraph-postgres-starter-config
+          env:
+            - name: APP_MIGRATION_DATABASE_URL
+              valueFrom:
+                secretKeyRef:
+                  name: langgraph-postgres-starter-migration
+                  key: APP_MIGRATION_DATABASE_URL
+          # Placeholders.
+          resources:
+            requests:
+              cpu: 100m
+              memory: 256Mi
+            limits:
+              memory: 512Mi
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 10001
+            runAsGroup: 10001
+            readOnlyRootFilesystem: true
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: ["ALL"]
+            seccompProfile:
+              type: RuntimeDefault
+          volumeMounts:
+            - name: tmp
+              mountPath: /tmp
+      volumes:
+        - name: tmp
+          emptyDir:
+            sizeLimit: 256Mi

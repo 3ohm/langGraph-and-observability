@@ -1,0 +1,156 @@
+# The queue worker (spec 8, 10.1). You scale it; the replica count is a placeholder.
+#
+# The worker reads its secrets from a Secret that is not shipped here. Create it in the
+# namespace from a file with one KEY=value line per key below (keep the file out of git):
+#   kubectl -n langgraph-postgres-starter create secret generic langgraph-postgres-starter-secrets \
+#     --from-env-file=<FILE>
+# Its keys:
+#   APP_DATABASE_URL   required; connects as the app role lps_app (deploy/sql/roles.sql)
+#   DD_API_KEY         required in real mode
+#   DD_APP_KEY         required in real mode
+#   APP_GIT_TOKEN      optional; sent only to APP_GIT_ALLOWED_HOSTS
+#   LANGGRAPH_AES_KEY  optional; encrypts checkpoints. It needs an image with the
+#                      `encryption` extra (pycryptodome), which the Dockerfile leaves out.
+#   LANGSMITH_API_KEY  optional; turns on tracing with LANGSMITH_TRACING=true
+# The migration role's URL is not here: only the migrate Job gets it.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: langgraph-postgres-starter-worker
+  labels:
+    app.kubernetes.io/name: langgraph-postgres-starter
+    app.kubernetes.io/component: worker
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: langgraph-postgres-starter
+      app.kubernetes.io/component: worker
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: langgraph-postgres-starter
+        app.kubernetes.io/component: worker
+    spec:
+      serviceAccountName: langgraph-postgres-starter
+      # SIGTERM starts the drain (spec 8.4), which waits at most APP_DRAIN_TIMEOUT_SECONDS
+      # (below). Kubernetes sends SIGKILL when these 60 seconds end.
+      terminationGracePeriodSeconds: 60
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 10001
+        runAsGroup: 10001
+        fsGroup: 10001
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: worker
+          image: langgraph-postgres-starter
+          args: ["worker"]
+          ports:
+            - name: health
+              containerPort: 8080
+          envFrom:
+            - configMapRef:
+                name: langgraph-postgres-starter-config
+          env:
+            # The lease owner (spec 8.2).
+            - name: POD_NAME
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.name
+            # The port of the probes and of `ports` above.
+            - name: APP_HEALTH_PORT
+              value: "8080"
+            # Below terminationGracePeriodSeconds.
+            - name: APP_DRAIN_TIMEOUT_SECONDS
+              value: "45"
+            # The source cache volume. Its sizeLimit leaves room above this budget.
+            - name: APP_SOURCE_CACHE_DIR
+              value: /var/cache/source
+            - name: APP_SOURCE_CACHE_MAX_MB
+              value: "2048"
+            # The root file system is read-only; git writes its config under HOME.
+            - name: HOME
+              value: /tmp
+            - name: APP_DATABASE_URL
+              valueFrom:
+                secretKeyRef:
+                  name: langgraph-postgres-starter-secrets
+                  key: APP_DATABASE_URL
+            - name: DD_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: langgraph-postgres-starter-secrets
+                  key: DD_API_KEY
+            - name: DD_APP_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: langgraph-postgres-starter-secrets
+                  key: DD_APP_KEY
+            - name: APP_GIT_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: langgraph-postgres-starter-secrets
+                  key: APP_GIT_TOKEN
+                  optional: true
+            - name: LANGGRAPH_AES_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: langgraph-postgres-starter-secrets
+                  key: LANGGRAPH_AES_KEY
+                  optional: true
+            - name: LANGSMITH_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: langgraph-postgres-starter-secrets
+                  key: LANGSMITH_API_KEY
+                  optional: true
+          # Liveness: the event loop answers. Readiness: Postgres, the pool and the intake
+          # loop (spec 8.6).
+          livenessProbe:
+            httpGet:
+              path: /ok
+              port: 8080
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 3
+          readinessProbe:
+            httpGet:
+              path: /ready
+              port: 8080
+            periodSeconds: 5
+            timeoutSeconds: 5
+            failureThreshold: 3
+          # Placeholders: size them from your own runs.
+          resources:
+            requests:
+              cpu: 500m
+              memory: 1Gi
+            limits:
+              memory: 2Gi
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 10001
+            runAsGroup: 10001
+            readOnlyRootFilesystem: true
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: ["ALL"]
+            seccompProfile:
+              type: RuntimeDefault
+          volumeMounts:
+            - name: tmp
+              mountPath: /tmp
+            - name: source-cache
+              mountPath: /var/cache/source
+      volumes:
+        - name: tmp
+          emptyDir:
+            sizeLimit: 1Gi
+        # The cache can run over APP_SOURCE_CACHE_MAX_MB while runs still read their
+        # checkouts, and the kubelet evicts the pod when an emptyDir passes its sizeLimit:
+        # so twice the budget.
+        - name: source-cache
+          emptyDir:
+            sizeLimit: 4Gi
