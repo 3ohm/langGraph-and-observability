@@ -3,6 +3,7 @@
 import os
 import uuid
 from collections.abc import AsyncIterator, Iterator
+from typing import Any
 
 import pytest
 from psycopg import AsyncConnection, sql
@@ -16,9 +17,20 @@ from langgraph_postgres_starter.persistence.resources import set_pool
 from langgraph_postgres_starter.settings import get_settings, load_settings
 
 PG_IMAGE = "pgvector/pgvector:0.8.4-pg18"
+ELASTICMQ_IMAGE = "softwaremill/elasticmq-native:1.7.1"
+ELASTICMQ_PORT = 9324
 
 # Read once, at import: _isolate_settings removes every APP_* variable before each test.
 TEST_DATABASE_URL = os.environ.get("APP_TEST_DATABASE_URL") or None
+TEST_SQS_ENDPOINT = os.environ.get("APP_TEST_SQS_ENDPOINT") or None
+
+# The developer's AWS variables that could reach a test client; the sqs fixture removes them.
+_AWS_IDENTITY_VARS = (
+    "AWS_SESSION_TOKEN",
+    "AWS_SECURITY_TOKEN",
+    "AWS_PROFILE",
+    "AWS_DEFAULT_PROFILE",
+)
 
 
 @pytest.fixture(autouse=True)
@@ -70,6 +82,47 @@ def pg_dsn() -> Iterator[str]:
 
     with PostgresContainer(PG_IMAGE, driver=None) as container:
         yield container.get_connection_url()
+
+
+@pytest.fixture(scope="session")
+def sqs_endpoint() -> Iterator[str]:
+    """An SQS API for the session: APP_TEST_SQS_ENDPOINT, or a new ElasticMQ container.
+
+    As with pg_dsn, the container starts on first use and is removed when the session
+    ends. Tests create their own queues.
+    """
+    if TEST_SQS_ENDPOINT:
+        yield TEST_SQS_ENDPOINT
+        return
+    # Imported here: unit test runs never load testcontainers.
+    from testcontainers.core.container import DockerContainer
+    from testcontainers.core.wait_strategies import LogMessageWaitStrategy
+
+    container = (
+        DockerContainer(ELASTICMQ_IMAGE)
+        .with_exposed_ports(ELASTICMQ_PORT)
+        .waiting_for(LogMessageWaitStrategy(r"ElasticMQ server .* started"))
+    )
+    with container:
+        host = container.get_container_host_ip()
+        yield f"http://{host}:{container.get_exposed_port(ELASTICMQ_PORT)}"
+
+
+@pytest.fixture
+def sqs(sqs_endpoint: str, monkeypatch: pytest.MonkeyPatch) -> Any:
+    """A boto3 SQS client for sqs_endpoint, built by ``make_sqs_client``.
+
+    ElasticMQ accepts any credentials. The fixture sets dummy ones and removes the
+    developer's session token and profile, so a test never sends real credentials.
+    """
+    # Imported here: loading this conftest does not import boto3.
+    from langgraph_postgres_starter.worker.intake import make_sqs_client
+
+    monkeypatch.setenv("AWS_ACCESS_KEY_ID", "test")
+    monkeypatch.setenv("AWS_SECRET_ACCESS_KEY", "test")
+    for name in _AWS_IDENTITY_VARS:
+        monkeypatch.delenv(name, raising=False)
+    return make_sqs_client(load_settings(sqs_endpoint_url=sqs_endpoint))
 
 
 @pytest.fixture

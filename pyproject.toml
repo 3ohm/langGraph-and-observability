@@ -34,6 +34,7 @@ encryption = ["pycryptodome>=4.3.0"]
 
 [dependency-groups]
 dev = [
+    "boto3-stubs[bedrock-runtime,ecr,sqs]>=1.43.123",
     "langgraph-cli[inmem]>=0.4.40",
     "mypy>=2.4.1",
     "pre-commit>=4.7.0",

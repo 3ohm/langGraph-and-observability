@@ -1,5 +1,5 @@
 import aiohttp
-import botocore.exceptions as botocore_exc  # type: ignore[import-untyped]
+import botocore.exceptions as botocore_exc
 import datadog_api_client.exceptions as datadog_exc
 import psycopg
 import pydantic
@@ -80,7 +80,7 @@ TABLE = [
         botocore_exc.ReadTimeoutError(endpoint_url=BEDROCK), False, id="botocore-ReadTimeoutError"
     ),
     pytest.param(
-        botocore_exc.SSLError(endpoint_url=BEDROCK, error="handshake"),
+        botocore_exc.SSLError(endpoint_url=BEDROCK, error=Exception("handshake")),
         False,
         id="botocore-SSLError",
     ),
