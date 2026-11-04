@@ -9,6 +9,7 @@ import copy
 import json
 from dataclasses import dataclass
 from datetime import UTC, datetime
+from types import SimpleNamespace
 from typing import Any
 
 import langsmith
@@ -17,6 +18,7 @@ import requests
 from langchain_core.callbacks import CallbackManager
 from langchain_core.tracers.langchain import LangChainTracer
 from langchain_core.tracers.langchain import get_client as langchain_get_client
+from langsmith import testing as ls_testing
 from langsmith import utils as ls_utils
 from langsmith.run_helpers import get_current_run_tree, get_tracing_context, tracing_context
 from langsmith.run_trees import get_cached_client
@@ -29,6 +31,7 @@ from langgraph_postgres_starter.observability.langsmith import (
     close_tracing,
     configure_tracing,
     content_hooks,
+    log_eval_results,
     trace_llm,
 )
 from langgraph_postgres_starter.observability.metadata import run_metadata
@@ -453,6 +456,84 @@ async def test_trace_llm_without_tracing_returns_the_response():
         return RESPONSE
 
     assert await analyze() is RESPONSE
+
+
+# --- eval results in a LangSmith experiment (spec §12.3) -------------------------------
+
+
+@pytest.fixture
+def logged(monkeypatch):
+    """What log_eval_results passes to langsmith.testing, in order, instead of sending it.
+
+    langsmith's functions need a test that its pytest plugin tracks; these stand-ins
+    record their arguments.
+    """
+    calls: list[tuple[str, Any]] = []
+    monkeypatch.setattr(
+        ls_testing, "log_outputs", lambda outputs: calls.append(("outputs", outputs))
+    )
+    monkeypatch.setattr(
+        ls_testing, "log_feedback", lambda **feedback: calls.append(("feedback", feedback))
+    )
+    return calls
+
+
+def test_log_eval_results_outside_a_tracked_test_records_nothing(logged):
+    assert log_eval_results({"cases": {}}, {"category_match": 1.0}) is None
+    assert logged == []
+
+
+def test_log_eval_results_records_outputs_and_scores_and_returns_the_link(
+    offline_client, logged, monkeypatch
+):
+    projects = []
+
+    def read_project(self, *, project_name):
+        projects.append(project_name)
+        return SimpleNamespace(url="https://smith.example/o/t/projects/p/1")
+
+    monkeypatch.setattr(REAL_CLIENT, "read_project", read_project)
+
+    # The plugin runs a tracked test as a run in the experiment's project.
+    @langsmith.traceable(name="test_evals", project_name="incident-triage:1a2b3c4d")
+    def tracked_test():
+        return log_eval_results(
+            {"cases": {"python-keyerror": []}}, {"category_match": 1.0, "root_cause_judge": None}
+        )
+
+    with tracing_context(enabled="local", client=offline_client):
+        url = tracked_test()
+
+    assert url == "https://smith.example/o/t/projects/p/1"
+    assert projects == ["incident-triage:1a2b3c4d"]
+    # A score that is None (not scored) is no feedback.
+    assert logged == [
+        ("outputs", {"cases": {"python-keyerror": []}}),
+        ("feedback", {"key": "category_match", "score": 1.0}),
+    ]
+
+
+def test_log_eval_results_without_the_experiment_returns_no_link(
+    offline_client, logged, monkeypatch, capsys
+):
+    def read_project(self, *, project_name):
+        raise ls_utils.LangSmithConnectionError("GET /sessions failed: password=hunter2")
+
+    monkeypatch.setattr(REAL_CLIENT, "read_project", read_project)
+    configure_logging(load_settings())
+
+    @langsmith.traceable(name="test_evals", project_name="incident-triage:1a2b3c4d")
+    def tracked_test():
+        return log_eval_results({}, {"category_match": 0.0})
+
+    with tracing_context(enabled="local", client=offline_client):
+        assert tracked_test() is None
+
+    assert logged == [("outputs", {}), ("feedback", {"key": "category_match", "score": 0.0})]
+    out = capsys.readouterr().out
+    [line] = [json.loads(text) for text in out.splitlines() if "experiment_unavailable" in text]
+    assert line["error"]["type"] == "LangSmithConnectionError"
+    assert "hunter2" not in out
 
 
 # --- run metadata --------------------------------------------------------------------

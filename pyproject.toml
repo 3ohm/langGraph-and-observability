@@ -94,6 +94,7 @@ module = [
     "tests.*",
     "langgraph_postgres_starter.agents.*.tests.*",
     "langgraph_postgres_starter.agents.*.evals.test_evals",
+    "langgraph_postgres_starter.agents.*.evals.test_evaluators",
 ]
 disallow_untyped_defs = false
 disallow_incomplete_defs = false

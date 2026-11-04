@@ -19,13 +19,16 @@ default client, which does not redact.
 
 The project is ``LANGSMITH_PROJECT`` (or ``LANGCHAIN_PROJECT``) when set, else
 ``langgraph-postgres-starter-<env>``: one project per environment.
+
+``log_eval_results`` records the eval test's scores in its LangSmith experiment (spec
+§12.3), so the agent's evals import no langsmith code.
 """
 
 import asyncio
 import functools
 import inspect
 import os
-from collections.abc import Callable
+from collections.abc import Callable, Mapping
 from typing import Any, Literal, cast
 
 import langsmith
@@ -161,6 +164,35 @@ def trace_llm[F: Callable[..., Any]](name: str) -> Callable[[F], F]:
         return cast(F, traced(call))
 
     return decorate
+
+
+def log_eval_results(outputs: dict[str, Any], scores: Mapping[str, float | None]) -> str | None:
+    """Record an eval's outputs and scores in its LangSmith experiment; return the link.
+
+    For the eval test when langsmith's pytest plugin tracks it (``@pytest.mark.langsmith``,
+    spec §12.3): ``outputs`` become the test run's outputs, and each score that is not
+    None becomes feedback on that run, under its key. The link is that of the
+    experiment, the test run's project (``TracerSession.url``); it is None, and the
+    error is logged, when LangSmith does not return it. Outside any run, as without the
+    plugin or with ``LANGSMITH_TEST_TRACKING=false``, it records nothing and returns
+    None. Inside a run that the plugin does not track, langsmith raises ValueError.
+    """
+    # Imported here: langsmith.testing imports pytest when pytest is installed.
+    from langsmith import testing
+
+    run = get_current_run_tree()
+    if run is None:
+        return None
+    testing.log_outputs(outputs)
+    for key, score in scores.items():
+        if score is not None:
+            testing.log_feedback(key=key, score=score)
+    try:
+        url: str | None = run.client.read_project(project_name=run.session_name).url
+    except Exception as exc:
+        _log.warning("tracing.experiment_unavailable", error=_error(exc))
+        return None
+    return url
 
 
 def _client_content_arguments(mode: TraceContent) -> dict[str, Any]:
