@@ -113,18 +113,18 @@ class Settings(BaseSettings):
     fake_datadog_delay_s: float = 0.0
 
     def require_runtime_secrets(self) -> None:
-        """Stop a ``prod`` start that lacks a secret or would trace full content.
+        """Stop a start that would trace full content, or a ``prod`` start that lacks a secret.
 
-        Raises ValueError when ``trace_content`` is ``full``, and MissingSecretsError
-        that names every missing setting. Does nothing outside ``prod``.
+        Raises ValueError when ``trace_content`` is ``full`` and ``env`` is not ``dev``.
+        In ``prod`` only, raises MissingSecretsError that names every missing setting.
         """
+        if self.trace_content == "full" and self.env != "dev":
+            raise ValueError(
+                "trace_content='full' (APP_TRACE_CONTENT) is allowed only when env='dev', "
+                f"not env={self.env!r}; use 'redacted' or 'none'"
+            )
         if self.env != "prod":
             return
-        if self.trace_content == "full":
-            raise ValueError(
-                "trace_content='full' (APP_TRACE_CONTENT) is not allowed when env='prod'; "
-                "use 'redacted' or 'none'"
-            )
         required = ["database_url", "sqs_queue_url"]
         if self.adapters == "real":
             required += ["dd_api_key", "dd_app_key"]

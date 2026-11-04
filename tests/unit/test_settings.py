@@ -174,7 +174,16 @@ def test_prod_rejects_full_trace_content():
 
 def test_secret_check_applies_only_in_prod():
     for env in ("dev", "test"):
-        load_settings(env=env, adapters="real", trace_content="full").require_runtime_secrets()
+        load_settings(env=env, adapters="real").require_runtime_secrets()
+
+
+def test_test_env_rejects_full_trace_content():
+    with pytest.raises((MissingSecretsError, ValueError), match="trace_content"):
+        load_settings(env="test", trace_content="full").require_runtime_secrets()
+
+
+def test_dev_allows_full_trace_content():
+    load_settings(env="dev", adapters="real", trace_content="full").require_runtime_secrets()
 
 
 def _env_name(field_name: str) -> str:
