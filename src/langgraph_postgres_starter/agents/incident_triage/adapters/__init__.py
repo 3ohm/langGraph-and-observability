@@ -19,6 +19,7 @@ from langgraph_postgres_starter.agents.incident_triage.adapters.datadog.interfac
 )
 from langgraph_postgres_starter.agents.incident_triage.adapters.k8s.fake import FakeK8s
 from langgraph_postgres_starter.agents.incident_triage.adapters.k8s.interface import K8sAdapter
+from langgraph_postgres_starter.agents.incident_triage.adapters.k8s.real import RealK8s
 from langgraph_postgres_starter.agents.incident_triage.adapters.llm.interface import LlmAdapter
 from langgraph_postgres_starter.agents.incident_triage.adapters.llm.recorded import RecordedLlm
 from langgraph_postgres_starter.agents.incident_triage.adapters.sinks.interface import ResultSink
@@ -31,7 +32,10 @@ from langgraph_postgres_starter.agents.incident_triage.adapters.source.local imp
     FixtureLocator,
     LocalSourceProvider,
 )
-from langgraph_postgres_starter.agents.incident_triage.fixtures.loader import load_fixture
+from langgraph_postgres_starter.agents.incident_triage.fixtures.loader import (
+    Fixture,
+    load_fixture,
+)
 from langgraph_postgres_starter.settings import Settings
 
 
@@ -51,7 +55,6 @@ class Adapters:
 # plan (docs/plans/2026-11-02-incident-triage-v1.md) that adds it. The task that adds
 # an adapter removes its entry.
 _NOT_BUILT_YET: dict[str, int] = {
-    "k8s": 23,
     "datadog": 24,
     "locator": 28,
     "source": 28,
@@ -71,8 +74,8 @@ def build_adapters(
     Constructing an adapter touches no network.
 
     Raises NotImplementedError when the settings select a real adapter that is not
-    built yet; the message names each such adapter and its task, as in ``k8s (Task
-    23)``. In simulated mode, raises ValueError without a ``fixture_id`` and
+    built yet; the message names each such adapter and its task, as in ``datadog
+    (Task 24)``. In simulated mode, raises ValueError without a ``fixture_id`` and
     FileNotFoundError when the fixture is missing.
     """
     not_built = [name for name in _real_adapters(settings) if name in _NOT_BUILT_YET]
@@ -83,8 +86,9 @@ def build_adapters(
             "numbers are those of docs/plans/2026-11-02-incident-triage-v1.md. Use "
             'APP_ADAPTERS=simulated, APP_LLM_MODE=recorded and APP_RESULT_SINKS=["log"].'
         )
-    # Every real adapter is unbuilt, so from here the mode is simulated, the model is
-    # recorded and every sink is log.
+    # Of the adapters that APP_ADAPTERS=real selects, only k8s is built, and the others
+    # raise above: from here the mode is simulated, the model is recorded and every sink
+    # is log. _build_k8s already picks RealK8s in real mode.
     if fixture_id is None:
         raise ValueError(
             "simulated adapters (APP_ADAPTERS=simulated) serve an incident fixture, but "
@@ -94,7 +98,7 @@ def build_adapters(
     fixture = load_fixture(fixture_id, root=settings.fixtures_dir)
     calls = CallLog.for_run(settings, run_id)
     return Adapters(
-        k8s=FakeK8s.from_fixture(fixture.k8s, calls),
+        k8s=_build_k8s(settings, fixture, calls),
         datadog=FakeDatadog.from_fixture(
             fixture.datadog, delay_s=settings.fake_datadog_delay_s, calls=calls
         ),
@@ -103,6 +107,18 @@ def build_adapters(
         llm=RecordedLlm(settings.fixtures_dir / "recorded", calls),
         sinks=tuple(LogSink(calls) for _ in settings.result_sinks),
     )
+
+
+def _build_k8s(settings: Settings, fixture: Fixture | None, calls: CallLog) -> K8sAdapter:
+    """``RealK8s`` with ``APP_ADAPTERS=real``, else the fake that serves ``fixture``.
+
+    Building ``RealK8s`` touches no network: it loads its config on its first call.
+    """
+    if settings.adapters == "real":
+        return RealK8s()
+    if fixture is None:
+        raise ValueError("the simulated Kubernetes adapter needs an incident fixture")
+    return FakeK8s.from_fixture(fixture.k8s, calls)
 
 
 def _real_adapters(settings: Settings) -> list[str]:

@@ -454,14 +454,13 @@ async def test_recorded_llm_malformed_reply_names_its_file(root):
 @pytest.mark.parametrize(
     ("overrides", "adapter", "task"),
     [
-        ({"adapters": "real"}, "k8s", 23),
         ({"adapters": "real"}, "datadog", 24),
         ({"adapters": "real"}, "locator", 28),
         ({"adapters": "real"}, "source", 28),
         ({"llm_mode": "bedrock"}, "llm", 31),
         ({"result_sinks": ["log", "sqs"]}, "sink.sqs", 32),
     ],
-    ids=["k8s", "datadog", "locator", "source", "llm", "sink.sqs"],
+    ids=["datadog", "locator", "source", "llm", "sink.sqs"],
 )
 def test_real_mode_not_ready_names_task(overrides, adapter, task):
     with pytest.raises(NotImplementedError) as exc_info:
