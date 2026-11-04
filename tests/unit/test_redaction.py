@@ -31,6 +31,8 @@ MORE_SECRETS = [
     ("Authorization: Basic dXNlcjpwYXNz", "Authorization: Basic [REDACTED]"),
     ("curl -H 'authorization: bearer tok123'", "curl -H 'authorization: bearer [REDACTED]'"),
     ("sent Bearer 0123456789abcdefXYZ", "sent Bearer [REDACTED]"),
+    ("sent BEARER 0123456789abcdefXYZ", "sent BEARER [REDACTED]"),
+    ("sent bEaReR 0123456789abcdefXYZ", "sent bEaReR [REDACTED]"),
     ("token ghp_" + "a" * 36, "token [REDACTED]"),
     (
         "jwt eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiIxMjM0In0.c2lnbmF0dXJl end",

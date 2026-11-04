@@ -176,6 +176,22 @@ def test_message_rejects_unknown_fields_and_versions():
         _message(workload={"kind": "ReplicaSet", "name": "api-7d9f"})
 
 
+@pytest.mark.parametrize(
+    ("fields", "field"),
+    [
+        ({"namespace": ""}, "namespace"),
+        ({"pod": ""}, "pod"),
+        ({"container": ""}, "container"),
+        ({"workload": {"kind": "Deployment", "name": ""}}, "name"),
+    ],
+    ids=["namespace", "pod", "container", "workload-name"],
+)
+def test_message_rejects_empty_names(fields, field):
+    # An empty name fails at intake, so the message goes to the dead-letter queue.
+    with pytest.raises(pydantic.ValidationError, match=field):
+        _message(**fields)
+
+
 def test_fired_at_is_stored_as_utc():
     naive = _message(fired_at=datetime(2026, 11, 2, 10, 1))
     other_zone = _message(

@@ -22,7 +22,10 @@ from langgraph_postgres_starter.agents.incident_triage.adapters.k8s.interface im
 from langgraph_postgres_starter.agents.incident_triage.context import TriageContext
 from langgraph_postgres_starter.agents.incident_triage.fixtures.loader import load_fixture
 from langgraph_postgres_starter.agents.incident_triage.nodes.k8s import collect_k8s
-from langgraph_postgres_starter.agents.incident_triage.nodes.resolve import resolve_target
+from langgraph_postgres_starter.agents.incident_triage.nodes.resolve import (
+    _deployment_of,
+    resolve_target,
+)
 from langgraph_postgres_starter.agents.incident_triage.schemas import (
     ImageRef,
     IncidentMessage,
@@ -205,6 +208,24 @@ async def test_resolve_nothing_found_continues(pod):
     collected = await collect_k8s({"message": message, **update}, runtime)
     assert collected["k8s_evidence"] == []
     assert collected["log_text"] == ""
+
+
+@pytest.mark.parametrize(
+    ("pod", "deployment"),
+    [
+        ("orders-7d9f8b6c5d-zz9qp", "orders"),
+        # A Deployment name is a DNS subdomain: it may hold dots.
+        ("orders.v2-7d9f8b6c5d-zz9qp", "orders.v2"),
+        ("api.payments-5b7c9d8f6-q2w4z", "api.payments"),
+        # No Deployment pattern: a Job pod, or a name that starts or ends badly.
+        ("billing-invoices-29870100-7xk2p", None),
+        (".orders-7d9f8b6c5d-zz9qp", None),
+        ("orders.-7d9f8b6c5d-zz9qp", None),
+    ],
+)
+def test_deployment_of_a_pod_name(pod, deployment):
+    expected = None if deployment is None else WorkloadRef(kind="Deployment", name=deployment)
+    assert _deployment_of(pod) == expected
 
 
 async def test_resolve_workload_without_pods_keeps_the_workload():

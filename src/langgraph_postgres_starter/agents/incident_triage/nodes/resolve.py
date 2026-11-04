@@ -48,8 +48,9 @@ SIDECARS = frozenset(
 # the hash (up to 10 characters) and the 5-character suffix with this alphabet
 # (k8s.io/apimachinery/pkg/util/rand).
 _SAFE = "bcdfghjklmnpqrstvwxz2456789"
+# A Deployment name is a DNS subdomain: lower-case letters, digits, "-" and ".".
 _DEPLOYMENT_POD = re.compile(
-    rf"(?P<name>[a-z0-9](?:[-a-z0-9]*[a-z0-9])?)-[{_SAFE}]{{1,10}}-[{_SAFE}]{{5}}"
+    rf"(?P<name>[a-z0-9](?:[-.a-z0-9]*[a-z0-9])?)-[{_SAFE}]{{1,10}}-[{_SAFE}]{{5}}"
 )
 
 

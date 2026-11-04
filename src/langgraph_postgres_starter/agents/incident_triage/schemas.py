@@ -53,7 +53,7 @@ class WorkloadRef(_Model):
     """A Kubernetes workload, by kind and name."""
 
     kind: Literal["Deployment", "StatefulSet", "DaemonSet", "Job"]
-    name: str
+    name: str = Field(min_length=1)
 
 
 class IncidentMessage(_Model):
@@ -61,7 +61,8 @@ class IncidentMessage(_Model):
 
     One of ``pod`` or ``workload`` is required. Without ``fired_at``, the time the
     message was received stands in for it. ``raw`` is the producer's original payload,
-    kept for reference.
+    kept for reference. A name that is given is never empty: an empty one fails
+    validation at intake, so the message goes to the dead-letter queue.
     """
 
     version: Literal[1]
@@ -69,10 +70,10 @@ class IncidentMessage(_Model):
     alert_id: str | None = None
     fired_at: UtcDatetime | None = None
     cluster: str | None = None
-    namespace: str
-    pod: str | None = None
+    namespace: str = Field(min_length=1)
+    pod: str | None = Field(default=None, min_length=1)
     workload: WorkloadRef | None = None
-    container: str | None = None
+    container: str | None = Field(default=None, min_length=1)
     raw: dict[str, Any] | None = None
 
     @model_validator(mode="after")

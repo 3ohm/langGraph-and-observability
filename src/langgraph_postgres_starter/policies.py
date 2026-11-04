@@ -15,6 +15,9 @@ timeouts and dropped connections of its transport, aiosonic, are transient here:
 is their one retry layer.
 """
 
+import socket
+import ssl
+
 import aiohttp
 import aiosonic.exceptions as aiosonic_exc  # type: ignore[import-untyped]
 import psycopg
@@ -26,10 +29,14 @@ from psycopg import errors as pg_errors
 # Transient by type; subclasses count too. OSError is not on the list: botocore's
 # connect, read, SSL and proxy errors subclass OSError (through botocore's vendored
 # requests), and botocore has already retried them. None of them subclasses
-# ConnectionError or TimeoutError.
+# ConnectionError, TimeoutError, socket.gaierror or ssl.SSLEOFError.
 _TRANSIENT_TYPES: tuple[type[BaseException], ...] = (
     ConnectionError,
     TimeoutError,
+    # A DNS lookup that failed, and a TLS connection closed during the handshake. Both
+    # subclass OSError only, and a retry often succeeds.
+    socket.gaierror,
+    ssl.SSLEOFError,
     # Raised by a node TimeoutPolicy. It does not subclass TimeoutError.
     NodeTimeoutError,
     # SerializationFailure and DeadlockDetected subclass OperationalError. They are
@@ -63,7 +70,8 @@ def is_transient(exc: BaseException) -> bool:
     """Return True if a node that raised ``exc`` may run again.
 
     True for connection errors, timeouts (``TimeoutError`` and LangGraph's
-    ``NodeTimeoutError``), Postgres serialization failures, deadlocks and operational
+    ``NodeTimeoutError``), failed DNS lookups (``socket.gaierror``), TLS connections
+    closed early (``ssl.SSLEOFError``), Postgres serialization failures, deadlocks and operational
     errors, aiohttp connection errors, aiosonic timeouts and connection errors, and a
     Kubernetes ``ApiException`` with status 429 or 5xx. False for everything else, which
     includes all botocore errors, the Datadog client's ``ApiException`` and LangGraph's

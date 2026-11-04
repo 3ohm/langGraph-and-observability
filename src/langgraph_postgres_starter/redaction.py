@@ -36,9 +36,9 @@ _AUTH_HEADER = re.compile(
     r"[A-Za-z0-9._~+/=-]+"
 )
 
-# A bearer token outside an Authorization header. The minimum length keeps ordinary
-# words that follow "Bearer" in prose.
-_BEARER = re.compile(r"(\b[Bb]earer[ \t]+)[A-Za-z0-9._~+/=-]{16,}")
+# A bearer token outside an Authorization header, in any case ("BEARER" too). The
+# minimum length keeps ordinary words that follow "Bearer" in prose.
+_BEARER = re.compile(r"(?i)(\bbearer[ \t]+)[A-Za-z0-9._~+/=-]{16,}")
 
 # Tokens with a known, distinctive shape.
 _KNOWN_TOKENS = re.compile(

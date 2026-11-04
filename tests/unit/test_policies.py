@@ -1,3 +1,7 @@
+import inspect
+import socket
+import ssl
+
 import aiohttp
 import aiosonic.exceptions as aiosonic_exc  # type: ignore[import-untyped]
 import botocore.exceptions as botocore_exc
@@ -34,6 +38,15 @@ TABLE = [
     pytest.param(ConnectionError("reset"), True, id="ConnectionError"),
     pytest.param(ConnectionResetError(), True, id="ConnectionResetError"),
     pytest.param(TimeoutError(), True, id="TimeoutError"),
+    # A failed DNS lookup and a TLS connection closed mid-handshake: both OSError only.
+    pytest.param(
+        socket.gaierror(socket.EAI_AGAIN, "Temporary failure in name resolution"),
+        True,
+        id="socket-gaierror",
+    ),
+    pytest.param(
+        ssl.SSLEOFError(8, "EOF occurred in violation of protocol"), True, id="SSLEOFError"
+    ),
     pytest.param(
         NodeTimeoutError("collect", 30.5, kind="run", run_timeout=30.0),
         True,
@@ -142,6 +155,15 @@ TABLE = [
 @pytest.mark.parametrize(("exc", "expected"), TABLE)
 def test_is_transient_table(exc, expected):
     assert is_transient(exc) is expected
+
+
+@pytest.mark.parametrize("module", [botocore_exc, datadog_exc], ids=["botocore", "datadog"])
+def test_no_client_error_subclasses_the_transient_os_errors(module):
+    # botocore and the Datadog client retry their own errors (one retry layer), so none
+    # of them may count as transient by subclassing gaierror or SSLEOFError.
+    errors = [obj for _, obj in inspect.getmembers(module, inspect.isclass)]
+    assert errors
+    assert [e for e in errors if issubclass(e, (socket.gaierror, ssl.SSLEOFError))] == []
 
 
 def test_default_policy():
