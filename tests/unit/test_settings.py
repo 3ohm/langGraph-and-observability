@@ -147,6 +147,78 @@ def test_unknown_override_is_rejected():
         load_settings(worker_concurency=2)
 
 
+# Each numeric bound, with a value just outside it. A count or a time of 0 would stop
+# the worker silently (a concurrency of 0 starts no run while /ready stays green).
+OUT_OF_BOUNDS = [
+    ("worker_concurrency", 0),
+    ("lease_seconds", 0),
+    ("heartbeat_seconds", 0),
+    ("recovery_interval_seconds", 0),
+    ("drain_timeout_seconds", 0),
+    ("max_attempts", 0),
+    ("run_deadline_seconds", 0),
+    ("log_tail_lines", 0),
+    ("dd_lookback_minutes", -1),
+    ("dd_max_events", 0),
+    ("dd_max_events", 1001),
+    ("code_budget_chars", 0),
+    ("sqs_wait_seconds", -1),
+    ("sqs_wait_seconds", 21),
+    ("health_port", 0),
+    ("health_port", 65536),
+    ("trace_sampling_rate", -0.1),
+    ("trace_sampling_rate", 1.1),
+    ("db_pool_min", 0),
+    ("db_pool_max", 1),
+]
+
+
+@pytest.mark.parametrize(
+    ("field", "value"), OUT_OF_BOUNDS, ids=[f"{field}={value}" for field, value in OUT_OF_BOUNDS]
+)
+def test_numeric_settings_are_bounded(field, value):
+    with pytest.raises(ValidationError, match=field):
+        load_settings(**{field: value})
+
+
+def test_bounds_apply_to_the_environment(monkeypatch):
+    monkeypatch.setenv("APP_WORKER_CONCURRENCY", "0")
+    with pytest.raises(ValidationError, match="worker_concurrency"):
+        load_settings()
+
+
+def test_values_on_the_bounds_are_accepted():
+    s = load_settings(
+        worker_concurrency=1,
+        lease_seconds=2,
+        heartbeat_seconds=1,
+        dd_lookback_minutes=0,
+        dd_max_events=1000,
+        sqs_wait_seconds=0,
+        health_port=65535,
+        trace_sampling_rate=0.0,
+        db_pool_min=2,
+        db_pool_max=2,
+    )
+    assert (s.worker_concurrency, s.heartbeat_seconds, s.db_pool_max) == (1, 1, 2)
+    assert load_settings(sqs_wait_seconds=20, health_port=1, trace_sampling_rate=1).health_port == 1
+
+
+@pytest.mark.parametrize(
+    ("overrides", "message"),
+    [
+        ({"db_pool_min": 5, "db_pool_max": 4}, "db_pool_max"),
+        ({"lease_seconds": 15}, "heartbeat_seconds"),
+        ({"lease_seconds": 60, "heartbeat_seconds": 61}, "heartbeat_seconds"),
+    ],
+    ids=["pool-max-below-min", "heartbeat-equals-lease", "heartbeat-above-lease"],
+)
+def test_related_settings_must_agree(overrides, message):
+    # A heartbeat at or after the lease's end lets another pod take a live run.
+    with pytest.raises(ValidationError, match=message):
+        load_settings(**overrides)
+
+
 def test_get_settings_is_cached():
     assert get_settings() is get_settings()
 

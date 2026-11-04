@@ -54,7 +54,7 @@ async def test_stop_closes_tracing_after_a_failed_start(monkeypatch):
 
     monkeypatch.setattr(worker_main, "configure_tracing", configure)
     monkeypatch.setattr(worker_main, "close_tracing", close)
-    settings = load_settings(database_url=DEAD_DSN, db_connect_timeout_s=1, health_port=0)
+    settings = load_settings(database_url=DEAD_DSN, db_connect_timeout_s=1)
     worker = Worker(settings, agents={STEPS_SPEC.name: STEPS_SPEC}, sqs_client=None, owner="pod-a")
 
     with pytest.raises(DatabaseUnavailable):
@@ -67,7 +67,6 @@ async def test_stop_closes_tracing_after_a_failed_start(monkeypatch):
 def test_main_exits_when_the_database_is_unreachable(monkeypatch, capsys):
     monkeypatch.setenv("APP_DATABASE_URL", DEAD_DSN)
     monkeypatch.setenv("APP_DB_CONNECT_TIMEOUT_S", "1")
-    monkeypatch.setenv("APP_HEALTH_PORT", "0")
 
     assert worker_main.main([]) == EXIT_STARTUP_FAILED
 

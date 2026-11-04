@@ -7,6 +7,7 @@ Each test sets ``ended_at`` explicitly and passes ``now`` to ``prune_once``.
 import asyncio
 import dataclasses
 import json
+import socket
 import uuid
 from collections.abc import Sequence
 from datetime import UTC, datetime, timedelta
@@ -105,6 +106,14 @@ async def _checkpoint_rows(pool, run_id: UUID) -> dict[str, int]:
             assert row is not None
             counts[table] = row["n"]
     return counts
+
+
+def _free_port() -> int:
+    """A TCP port on 127.0.0.1 that is free now, for the worker's health server."""
+    with socket.socket() as sock:
+        sock.bind(("127.0.0.1", 0))
+        port: int = sock.getsockname()[1]
+        return port
 
 
 def _all_present(counts: dict[str, int]) -> bool:
@@ -354,7 +363,7 @@ async def test_worker_runs_the_pruner(steps_pool, saver, fresh_dsn):
         steps_pool, saver, RunStatus.SUCCESS, datetime.now(UTC) - timedelta(days=20)
     )
     worker = Worker(
-        load_settings(database_url=fresh_dsn, health_port=0),
+        load_settings(database_url=fresh_dsn, health_port=_free_port()),
         agents=AGENTS,
         sqs_client=None,
         owner="pod-a",

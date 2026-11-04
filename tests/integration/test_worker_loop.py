@@ -69,7 +69,7 @@ async def make_worker(steps_pool, fresh_dsn, sqs, queue):
                 "sqs_queue_url": queue,
                 "sqs_wait_seconds": WAIT_S,
                 "intake_agent": STEPS_SPEC.name,
-                "health_port": 0,
+                "health_port": _free_port(),
                 "lease_seconds": 5,
                 "heartbeat_seconds": 1,
                 "recovery_interval_seconds": 1,

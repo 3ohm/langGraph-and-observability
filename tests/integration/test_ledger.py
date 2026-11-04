@@ -31,10 +31,17 @@ async def ledger(pool):
 
 
 @asynccontextmanager
-async def _serializable_pool(dsn: str, **settings: Any) -> AsyncIterator[_Pool]:
-    """An open pool on ``dsn`` whose transactions default to SERIALIZABLE."""
+async def _serializable_pool(dsn: str, *, one_connection: bool = False) -> AsyncIterator[_Pool]:
+    """An open pool on ``dsn`` whose transactions default to SERIALIZABLE.
+
+    ``one_connection`` makes a pool of one connection. The settings allow no such pool
+    (a worker needs two), so the test sets the size on a copy, which is not validated.
+    """
     options = "-c default_transaction_isolation=serializable"
-    p = create_pool(load_settings(**settings), dsn=make_conninfo(dsn, options=options))
+    settings = load_settings()
+    if one_connection:
+        settings = settings.model_copy(update={"db_pool_min": 1, "db_pool_max": 1})
+    p = create_pool(settings, dsn=make_conninfo(dsn, options=options))
     await open_pool(p, timeout=30)
     try:
         yield p
@@ -148,7 +155,7 @@ async def test_concurrent_same_key_runs_once_under_serializable_default(ledger, 
 
 
 async def test_connection_returns_with_its_isolation_level(ledger, fresh_dsn):
-    async with _serializable_pool(fresh_dsn, db_pool_min=1, db_pool_max=1) as strict:
+    async with _serializable_pool(fresh_dsn, one_connection=True) as strict:
         for _ in range(2):  # a first run, then a replay
             await run_once(strict, key=KEY, action="publish", args={"run_id": "r-1"}, fn=_Action())
 
