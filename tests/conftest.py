@@ -14,7 +14,7 @@ from psycopg_pool import AsyncConnectionPool
 from langgraph_postgres_starter.persistence.migrate import run_migrate
 from langgraph_postgres_starter.persistence.pool import create_pool, open_pool
 from langgraph_postgres_starter.persistence.resources import set_pool
-from langgraph_postgres_starter.settings import get_settings, load_settings
+from langgraph_postgres_starter.settings import Settings, get_settings, load_settings
 
 PG_IMAGE = "pgvector/pgvector:0.8.4-pg18"
 ELASTICMQ_IMAGE = "softwaremill/elasticmq-native:1.7.1"
@@ -32,15 +32,26 @@ _AWS_IDENTITY_VARS = (
     "AWS_DEFAULT_PROFILE",
 )
 
+# The variables that Settings reads by their vendor name (validation_alias), for example
+# LANGGRAPH_AES_KEY, which has neither the APP_ nor the DD_ prefix.
+_SETTINGS_ALIASES = frozenset(
+    field.validation_alias.upper()
+    for field in Settings.model_fields.values()
+    if isinstance(field.validation_alias, str)
+)
+
 
 @pytest.fixture(autouse=True)
 def _isolate_settings(monkeypatch: pytest.MonkeyPatch) -> Iterator[None]:
-    """Hide the developer's APP_* and DD_* variables and reset the cached settings.
+    """Hide the developer's settings variables and reset the cached settings.
 
-    Settings matches names case-insensitively, so the check does too.
+    It hides every APP_* and DD_* variable and every other name that Settings reads
+    (``_SETTINGS_ALIASES``). Settings matches names case-insensitively, so the check
+    does too.
     """
     for name in list(os.environ):
-        if name.upper().startswith(("APP_", "DD_")):
+        upper = name.upper()
+        if upper.startswith(("APP_", "DD_")) or upper in _SETTINGS_ALIASES:
             monkeypatch.delenv(name)
     get_settings.cache_clear()
     yield
