@@ -13,11 +13,12 @@ PHP prints an uncaught exception as a header, then its trace:
 
 A ``#<n>`` line names the function it calls, so its position is in the function that
 the next ``#<n>`` line names (``{main}`` for the top level), and the header's throw site
-is in the function that ``#0`` names. The parser gives each frame that function: the
-function whose code is at the frame's position, as for the other families. When
-``#0``'s position is the header's (a PHP function such as ``intdiv`` threw), the two are
-one frame. A frame with no next ``#<n>`` line has no function. A ``#0`` line with no
-header before it starts a new trace, such as Laravel's ``[stacktrace]``.
+is in the function that ``#0`` names. The parser gives each frame that function, so
+``Frame.function`` is the function that contains the frame's position, as for the other
+families, and not the function that the frame's line calls. When ``#0``'s position is
+the header's (a PHP function such as ``intdiv`` threw), the two are one frame. A frame
+with no next ``#<n>`` line has no function. A ``#0`` line with no header before it
+starts a new trace, such as Laravel's ``[stacktrace]``.
 
 Order: the header's throw site, then the ``#<n>`` positions in order; PHP prints a
 chain's first exception first.
