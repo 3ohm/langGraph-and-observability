@@ -97,6 +97,14 @@ The Deployment has `terminationGracePeriodSeconds: 60`, liveness on `/ok`, readi
 (P5), and `POD_NAME` from the downward API as the lease owner (P9). You set the replica count;
 there is no HPA or KEDA object.
 
+The shutdown fits in the 60-second grace period. On SIGTERM the worker drains its runs (P10)
+for at most `APP_DRAIN_TIMEOUT_SECONDS` (45), returns the runs that are left to pending, then
+stops the health server (at most 5 s for open connections), closes the pool (at most 5 s) and
+flushes the traces (at most 5 s): 60 s in the worst case, and the last three steps usually take
+well under a second. If you raise `APP_DRAIN_TIMEOUT_SECONDS`, raise
+`terminationGracePeriodSeconds` with it, at least 15 s above it. A step that is still running
+at SIGKILL starts again from its beginning on another pod.
+
 ## PgBouncer and direct connections
 
 - **The worker through PgBouncer in transaction mode:** set `APP_PGBOUNCER_MODE=true`. It turns

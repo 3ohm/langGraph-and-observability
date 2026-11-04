@@ -1,9 +1,11 @@
 """JSON logs on stdout, one object per line, through structlog.
 
 Each line has ``timestamp`` (ISO 8601, UTC), ``level``, ``logger`` and ``event``, plus
-the logger's bound fields and any ``structlog.contextvars`` (for example ``run_id``).
+the logger's bound fields and the ``structlog.contextvars`` bound at that moment.
 Records from the standard ``logging`` module, as libraries write them, get the same
-JSON form.
+JSON form, with the same contextvars. The worker's run executor binds ``run_id``,
+``agent`` and ``attempt`` while a run executes, so each line logged inside a run names
+it (spec §12.1).
 """
 
 import logging

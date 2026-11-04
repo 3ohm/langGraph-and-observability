@@ -16,10 +16,12 @@ Only one runner works on a database at a time: it holds the advisory lock
 ``pg_try_advisory_lock``. It does not block in ``pg_advisory_lock``, because a blocked
 session keeps a snapshot open, and ``CREATE INDEX CONCURRENTLY`` in the lock holder
 waits for that snapshot: a deadlock. The lock belongs to a session, so connect directly
-to Postgres, not through PgBouncer in transaction mode.
+to Postgres, not through PgBouncer in transaction mode. While it waits, the runner logs
+a ``migrate.waiting_for_lock`` warning about every 10 seconds.
 """
 
 import asyncio
+import logging
 import re
 from collections.abc import AsyncIterator, Sequence
 from contextlib import asynccontextmanager
@@ -45,6 +47,12 @@ _FILE_NAME = re.compile(r"(\d{4})_([a-z0-9_]+)\.sql")
 _NO_TRANSACTION = "-- migrate:no-transaction"
 _LOCK_KEY = "lps:migrate"
 _LOCK_POLL_S = 0.5
+# A waiting runner logs once per this many polls: about every 10 s.
+_LOCK_POLLS_PER_LOG = 20
+
+# A logging-module logger, not structlog's: the migrate command leaves logging
+# unconfigured, so its stdout holds only its results, and a warning goes to stderr.
+_log = logging.getLogger(__name__)
 
 _CREATE_SCHEMA_MIGRATIONS = """
 CREATE TABLE IF NOT EXISTS schema_migrations (
@@ -181,7 +189,11 @@ async def _migration_lock(pool: _Pool) -> AsyncIterator[AsyncConnection[DictRow]
     """Lend one connection that holds the migration lock, with ``schema_migrations`` ready."""
     async with pool.connection() as conn:
         # Poll: the lock lives in Postgres, so no asyncio.Event can signal it (see above).
+        polls = 0
         while not await _try_lock(conn):  # noqa: ASYNC110
+            polls += 1
+            if polls % _LOCK_POLLS_PER_LOG == 0:
+                _log.warning("migrate.waiting_for_lock")
             await asyncio.sleep(_LOCK_POLL_S)
         try:
             await conn.execute(_CREATE_SCHEMA_MIGRATIONS)

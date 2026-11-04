@@ -5,11 +5,13 @@ database that is down.
 """
 
 import json
+from typing import Any, cast
 
 import pytest
 
 from langgraph_postgres_starter import __main__
 from langgraph_postgres_starter.persistence.pool import DatabaseUnavailable
+from langgraph_postgres_starter.persistence.resources import current_pool, set_pool
 from langgraph_postgres_starter.settings import load_settings
 from langgraph_postgres_starter.worker import main as worker_main
 from langgraph_postgres_starter.worker.main import EXIT_STARTUP_FAILED, Worker
@@ -62,6 +64,35 @@ async def test_stop_closes_tracing_after_a_failed_start(monkeypatch):
 
     # Tracing starts first, and stop() closes it (spec 8.4 step 5).
     assert calls == ["configure", ("close", client)]
+
+
+class _FailingPool:
+    async def close(self) -> None:
+        raise RuntimeError("the pool did not close")
+
+
+async def test_stop_clears_the_pool_and_closes_tracing_when_the_pool_fails(monkeypatch):
+    # Spec 8.4 step 5: a pool that fails to close still leaves no registered pool, and
+    # the traces are still flushed.
+    closed: list[object] = []
+    tracing = object()
+
+    async def close(client):
+        closed.append(client)
+
+    monkeypatch.setattr(worker_main, "close_tracing", close)
+    pool = _FailingPool()
+    worker = Worker(load_settings(), agents={}, sqs_client=None, owner="pod-a")
+    # The state that start() leaves: an open pool, registered, and a tracing client.
+    worker._pool = cast(Any, pool)
+    worker._tracing = cast(Any, tracing)
+    set_pool(cast(Any, pool))
+
+    with pytest.raises(RuntimeError, match="the pool did not close"):
+        await worker.stop()
+
+    assert current_pool() is None
+    assert closed == [tracing]
 
 
 def test_main_exits_when_the_database_is_unreachable(monkeypatch, capsys):

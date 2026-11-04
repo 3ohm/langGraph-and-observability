@@ -1,9 +1,14 @@
-"""Migration discovery (spec 7.3): file names, order and validation. No database."""
+"""Migration discovery (spec 7.3): file names, order, validation and the lock wait. No database."""
 
+import contextlib
+import logging
+from collections.abc import AsyncIterator
 from pathlib import Path
+from typing import Any, cast
 
 import pytest
 
+from langgraph_postgres_starter.persistence import migrate
 from langgraph_postgres_starter.persistence.migrate import Migration, discover, run_migrate
 from langgraph_postgres_starter.settings import load_settings
 
@@ -79,3 +84,46 @@ async def test_run_migrate_checks_its_arguments_before_connecting(tmp_path):
         await run_migrate(settings, agent_sources=[("langgraph", tmp_path)])
     with pytest.raises(ValueError, match="APP_MIGRATION_DATABASE_URL or APP_DATABASE_URL"):
         await run_migrate(load_settings())
+
+
+class _Connection:
+    """A connection that records its statements; the lock calls are faked separately."""
+
+    broken = False
+
+    def __init__(self) -> None:
+        self.statements: list[str] = []
+
+    async def execute(self, query: str, params: object = None) -> None:
+        self.statements.append(query)
+
+
+class _Pool:
+    def __init__(self) -> None:
+        self.conn = _Connection()
+
+    @contextlib.asynccontextmanager
+    async def connection(self) -> AsyncIterator[_Connection]:
+        yield self.conn
+
+
+async def test_waiting_for_the_lock_logs_about_every_ten_seconds(monkeypatch, caplog):
+    # Another runner holds the lock for 45 polls (22.5 s at 0.5 s a poll): two lines,
+    # one about every 10 s of waiting, and none once the lock is taken.
+    answers = iter([False] * 45 + [True])
+
+    async def try_lock(conn):
+        return next(answers)
+
+    monkeypatch.setattr(migrate, "_try_lock", try_lock)
+    monkeypatch.setattr(migrate, "_LOCK_POLL_S", 0)
+    pool = _Pool()
+
+    with caplog.at_level(logging.INFO, logger=migrate.__name__):
+        async with migrate._migration_lock(cast(Any, pool)):
+            pass
+
+    waiting = [r for r in caplog.records if r.getMessage() == "migrate.waiting_for_lock"]
+    assert [r.levelname for r in waiting] == ["WARNING", "WARNING"]
+    assert next(answers, None) is None
+    assert any("pg_advisory_unlock" in statement for statement in pool.conn.statements)

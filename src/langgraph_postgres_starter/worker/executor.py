@@ -16,6 +16,10 @@ Each of these acts only while the pod still holds the run's lease. When it does 
 the executor logs ``run.lease_lost`` and returns the run's current status. A
 ``CancelledError`` propagates once the run has left ``active_run_ids``; the run keeps
 its lease, for the caller to release or to expire.
+
+For the whole invocation, the run's ``run_id``, ``agent`` and ``attempt`` are bound as
+``structlog.contextvars`` (spec §12.1), so every log line inside the run carries them:
+the executor's, a node's and an adapter's, and a library's through ``logging``.
 """
 
 import asyncio
@@ -29,6 +33,7 @@ from langgraph.checkpoint.base import BaseCheckpointSaver
 from langgraph.errors import GraphDrained
 from langgraph.graph.state import CompiledStateGraph
 from langgraph.runtime import RunControl
+from pydantic import ValidationError
 
 from langgraph_postgres_starter.agent_spec import AgentSpec, RunInfo
 from langgraph_postgres_starter.logging import get_logger
@@ -83,29 +88,33 @@ class RunExecutor:
         """
         # runs.attempt counts failed attempts; RunInfo.attempt counts invocations from 1.
         attempt = run.attempt + 1
-        log = _log.bind(run_id=str(run.run_id), agent=run.agent, attempt=attempt)
+        fields = {"run_id": str(run.run_id), "agent": run.agent, "attempt": attempt}
+        # The bound logger names the run in captured logs too, which skip contextvars.
+        log = _log.bind(**fields)
         control = RunControl()
         self._controls[run.run_id] = control
         try:
-            try:
-                await self._invoke(run, attempt, control, log)
-            except GraphDrained as exc:
-                log.info("run.drained", reason=exc.reason)
-                if await self._repo.release([run.run_id], self._owner) == 1:
-                    return RunStatus.PENDING
-                return await self._lease_lost(run, log)
-            except Exception as exc:
-                error = {
-                    "type": type(exc).__name__,
-                    "message": redact(str(exc))[:_MAX_ERROR_MESSAGE],
-                }
-                return await self._mark_error(run, error, log)
-            if await self._repo.mark_success(run.run_id, self._owner):
-                log.info("run.success")
-                return RunStatus.SUCCESS
-            return await self._lease_lost(run, log)
+            with structlog.contextvars.bound_contextvars(**fields):
+                return await self._execute(run, attempt, control, log)
         finally:
             self._controls.pop(run.run_id, None)
+
+    async def _execute(
+        self, run: RunRow, attempt: int, control: RunControl, log: structlog.stdlib.BoundLogger
+    ) -> RunStatus:
+        try:
+            await self._invoke(run, attempt, control, log)
+        except GraphDrained as exc:
+            log.info("run.drained", reason=exc.reason)
+            if await self._repo.release([run.run_id], self._owner) == 1:
+                return RunStatus.PENDING
+            return await self._lease_lost(run, log)
+        except Exception as exc:
+            return await self._mark_error(run, error_fields(exc), log)
+        if await self._repo.mark_success(run.run_id, self._owner):
+            log.info("run.success")
+            return RunStatus.SUCCESS
+        return await self._lease_lost(run, log)
 
     def request_drain_all(self, reason: str = "shutdown") -> int:
         """Ask every active run to stop after its current step (spec §8.4 step 2).
@@ -180,3 +189,24 @@ class RunExecutor:
             raise LookupError(f"run {run.run_id} does not exist")
         log.warning("run.lease_lost", status=current.status)
         return current.status
+
+
+def error_fields(exc: BaseException) -> dict[str, str]:
+    """An exception as stored in ``runs.error`` and logged: its type and its message.
+
+    The message is redacted and cut to ``_MAX_ERROR_MESSAGE`` characters. A pydantic
+    ``ValidationError``'s message names where each failure is and why, never the value
+    that failed, which is the run's input.
+    """
+    if isinstance(exc, ValidationError):
+        failures = exc.errors(include_url=False, include_context=False, include_input=False)
+        count = len(failures)
+        details = "; ".join(
+            f"{'.'.join(map(str, failure['loc'])) or '(root)'}: {failure['msg']}"
+            for failure in failures
+        )
+        plural = "" if count == 1 else "s"
+        message = f"{count} validation error{plural} for {exc.title}: {details}"
+    else:
+        message = str(exc)
+    return {"type": type(exc).__name__, "message": redact(message)[:_MAX_ERROR_MESSAGE]}

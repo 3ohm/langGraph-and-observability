@@ -66,9 +66,8 @@ from langgraph_postgres_starter.persistence.checkpointer import (
 from langgraph_postgres_starter.persistence.pool import create_pool, open_pool
 from langgraph_postgres_starter.persistence.resources import set_pool
 from langgraph_postgres_starter.persistence.serde import make_serde
-from langgraph_postgres_starter.redaction import redact
 from langgraph_postgres_starter.settings import Settings, load_settings
-from langgraph_postgres_starter.worker.executor import RunExecutor
+from langgraph_postgres_starter.worker.executor import RunExecutor, error_fields
 from langgraph_postgres_starter.worker.health import ReadinessProbe, create_health_app
 from langgraph_postgres_starter.worker.intake import SqsIntake, make_sqs_client
 from langgraph_postgres_starter.worker.registry import load_agents
@@ -90,8 +89,6 @@ PRUNE_INTERVAL_S = 3600.0
 _ERROR_BACKOFF_S = 1.0
 # /ready allows a long poll this many seconds beyond APP_SQS_WAIT_SECONDS.
 _POLL_MARGIN_S = 10.0
-# The longest error message in a log line.
-_MAX_ERROR_MESSAGE = 2000
 # The kubelet probes the pod's IP, so the health server listens on every interface.
 _HEALTH_HOST = "0.0.0.0"  # noqa: S104
 # How long the health server waits for open connections when it stops.
@@ -455,13 +452,18 @@ class Worker:
             else:
                 _log.info("worker.drained", runs=len(active), released=released)
         await _cancel([self._heartbeat_task])
-        # 5. Stop the health server, close the pool and flush the traces.
+        # 5. Stop the health server, close the pool and flush the traces. A pool that
+        # fails to close is still unregistered, and the traces are still flushed.
         await self._stop_health()
-        if self._pool is not None:
-            await self._pool.close()
-            set_pool(None)
-        if self._tracing is not None:
-            await close_tracing(self._tracing)
+        pool = self._pool
+        try:
+            if pool is not None:
+                await pool.close()
+        finally:
+            if pool is not None:
+                set_pool(None)
+            if self._tracing is not None:
+                await close_tracing(self._tracing)
         _log.info("worker.stopped", owner=self._owner)
 
     async def _stop_health(self) -> None:
@@ -483,8 +485,8 @@ async def _cancel(tasks: Iterable[asyncio.Task[Any] | None]) -> None:
 
 
 def _error(exc: BaseException) -> dict[str, str]:
-    """An exception as a log field: its type, and its message with secrets redacted."""
-    return {"type": type(exc).__name__, "message": redact(str(exc))[:_MAX_ERROR_MESSAGE]}
+    """An exception as a log field: its type, and its redacted message (``error_fields``)."""
+    return error_fields(exc)
 
 
 def main(argv: Sequence[str] | None = None) -> int:
