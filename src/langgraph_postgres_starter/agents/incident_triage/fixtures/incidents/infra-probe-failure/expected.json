@@ -1,0 +1,9 @@
+{
+  "category": "infrastructure",
+  "code": null,
+  "facts": [
+    "Liveness probe failed",
+    "/healthz",
+    "context deadline exceeded"
+  ]
+}

@@ -1,0 +1,109 @@
+{
+  "pods": [
+    {
+      "name": "report-builder-6f8d9c7b5-q2wzx",
+      "namespace": "analytics",
+      "node": "ip-10-0-88-41.eu-west-1.compute.internal",
+      "phase": "Running",
+      "containers": [
+        {
+          "name": "report-builder",
+          "image": "123456789012.dkr.ecr.eu-west-1.amazonaws.com/analytics/report-builder:4.1.0",
+          "image_id": "123456789012.dkr.ecr.eu-west-1.amazonaws.com/analytics/report-builder@sha256:dffffdf6adce93ce68e2e4db646ce8b3dba3cf9f6d9e56a3e26b6f4e78a7ec02",
+          "restart_count": 6,
+          "state": "waiting",
+          "waiting_reason": "CrashLoopBackOff",
+          "last_terminated": {
+            "reason": "OOMKilled",
+            "exit_code": 137,
+            "signal": null
+          },
+          "ready": false
+        }
+      ],
+      "annotations": {},
+      "owner": {
+        "kind": "Deployment",
+        "name": "report-builder"
+      }
+    }
+  ],
+  "events": [
+    {
+      "reason": "Pulled",
+      "message": "Container image \"123456789012.dkr.ecr.eu-west-1.amazonaws.com/analytics/report-builder:4.1.0\" already present on machine",
+      "type": "Normal",
+      "count": 6,
+      "last_seen": "2026-11-02T06:31:12Z",
+      "involved_kind": "Pod",
+      "involved_name": "report-builder-6f8d9c7b5-q2wzx"
+    },
+    {
+      "reason": "Created",
+      "message": "Created container: report-builder",
+      "type": "Normal",
+      "count": 7,
+      "last_seen": "2026-11-02T06:31:12Z",
+      "involved_kind": "Pod",
+      "involved_name": "report-builder-6f8d9c7b5-q2wzx"
+    },
+    {
+      "reason": "Started",
+      "message": "Started container report-builder",
+      "type": "Normal",
+      "count": 7,
+      "last_seen": "2026-11-02T06:31:12Z",
+      "involved_kind": "Pod",
+      "involved_name": "report-builder-6f8d9c7b5-q2wzx"
+    },
+    {
+      "reason": "BackOff",
+      "message": "Back-off restarting failed container report-builder in pod report-builder-6f8d9c7b5-q2wzx_analytics(c475844e-3075-51bc-90b7-9b5ec9865921)",
+      "type": "Warning",
+      "count": 20,
+      "last_seen": "2026-11-02T06:31:12Z",
+      "involved_kind": "Pod",
+      "involved_name": "report-builder-6f8d9c7b5-q2wzx"
+    },
+    {
+      "reason": "ScalingReplicaSet",
+      "message": "Scaled up replica set report-builder-6f8d9c7b5 from 0 to 1",
+      "type": "Normal",
+      "count": 1,
+      "last_seen": "2026-10-12T07:44:18Z",
+      "involved_kind": "Deployment",
+      "involved_name": "report-builder"
+    }
+  ],
+  "logs": {
+    "report-builder-6f8d9c7b5-q2wzx/report-builder/current": null,
+    "report-builder-6f8d9c7b5-q2wzx/report-builder/previous": "{\"ts\":\"2026-11-02T06:00:04Z\",\"level\":\"info\",\"msg\":\"building daily revenue report\",\"date\":\"2026-11-01\"}\n{\"ts\":\"2026-11-02T06:00:11Z\",\"level\":\"info\",\"msg\":\"loaded order events\",\"rows\":1840233}\n{\"ts\":\"2026-11-02T06:00:29Z\",\"level\":\"info\",\"msg\":\"loaded refund events\",\"rows\":96120}\n{\"ts\":\"2026-11-02T06:00:52Z\",\"level\":\"info\",\"msg\":\"aggregating by merchant\",\"merchants\":18211}\n"
+  },
+  "nodes": {
+    "ip-10-0-88-41.eu-west-1.compute.internal": [
+      {
+        "type": "MemoryPressure",
+        "status": "False",
+        "reason": "KubeletHasSufficientMemory"
+      },
+      {
+        "type": "DiskPressure",
+        "status": "False",
+        "reason": "KubeletHasNoDiskPressure"
+      },
+      {
+        "type": "PIDPressure",
+        "status": "False",
+        "reason": "KubeletHasSufficientPID"
+      },
+      {
+        "type": "Ready",
+        "status": "True",
+        "reason": "KubeletReady"
+      }
+    ]
+  },
+  "annotations": {
+    "deployment.kubernetes.io/revision": "22"
+  }
+}

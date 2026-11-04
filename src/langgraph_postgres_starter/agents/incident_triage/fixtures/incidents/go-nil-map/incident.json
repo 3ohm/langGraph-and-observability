@@ -1,0 +1,11 @@
+{
+  "version": 1,
+  "source": "datadog-monitor",
+  "alert_id": "dd-148226112",
+  "namespace": "warehouse",
+  "pod": "orders-api-6d5b8c9f7-wq8lh",
+  "container": "api",
+  "raw": {
+    "fixture_id": "go-nil-map"
+  }
+}

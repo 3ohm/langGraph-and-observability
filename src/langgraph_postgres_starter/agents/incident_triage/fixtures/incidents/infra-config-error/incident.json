@@ -1,0 +1,13 @@
+{
+  "version": 1,
+  "source": "alertmanager",
+  "alert_id": "am-KubeDeploymentReplicasMismatch-payments-payments-gateway",
+  "namespace": "payments",
+  "workload": {
+    "kind": "Deployment",
+    "name": "payments-gateway"
+  },
+  "raw": {
+    "fixture_id": "infra-config-error"
+  }
+}

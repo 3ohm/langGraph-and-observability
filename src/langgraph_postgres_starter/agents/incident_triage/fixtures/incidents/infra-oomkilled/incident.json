@@ -1,0 +1,10 @@
+{
+  "version": 1,
+  "source": "datadog-monitor",
+  "alert_id": "dd-148220311",
+  "namespace": "analytics",
+  "pod": "report-builder-6f8d9c7b5-q2wzx",
+  "raw": {
+    "fixture_id": "infra-oomkilled"
+  }
+}

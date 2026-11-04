@@ -1,0 +1,10 @@
+{
+  "version": 1,
+  "source": "datadog-monitor",
+  "alert_id": "dd-148226580",
+  "namespace": "pricing",
+  "pod": "discount-worker-7f9c6d5b8-zl2qp",
+  "raw": {
+    "fixture_id": "php-division-by-zero"
+  }
+}

@@ -1,0 +1,30 @@
+{
+  "events": [
+    {
+      "id": "8312004415592873020",
+      "title": "[Triggered on {kube_deployment:payout-scheduler}] payout-scheduler is crash looping",
+      "text": "payout-scheduler restarted 3 times in the last 30 minutes. Payouts are delayed.",
+      "timestamp": "2026-11-02T09:06:00Z",
+      "tags": [
+        "kube_cluster_name:prod-eu-west-1",
+        "kube_namespace:payments",
+        "kube_deployment:payout-scheduler"
+      ],
+      "source": "monitor"
+    },
+    {
+      "id": "8312004415592873021",
+      "title": "Events from the payout-scheduler-6c9d8f7b5-p4tnq Pod",
+      "text": "BackOff: Back-off restarting failed container scheduler in pod payout-scheduler-6c9d8f7b5-p4tnq",
+      "timestamp": "2026-11-02T09:07:33Z",
+      "tags": [
+        "kube_cluster_name:prod-eu-west-1",
+        "kube_namespace:payments",
+        "kube_deployment:payout-scheduler",
+        "pod_name:payout-scheduler-6c9d8f7b5-p4tnq",
+        "kube_container_name:scheduler"
+      ],
+      "source": "kubernetes"
+    }
+  ]
+}

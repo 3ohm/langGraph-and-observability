@@ -1,0 +1,118 @@
+{
+  "pods": [
+    {
+      "name": "search-api-7c9b8d6f5-mt4kx",
+      "namespace": "catalog",
+      "node": "ip-10-0-7-12.eu-west-1.compute.internal",
+      "phase": "Running",
+      "containers": [
+        {
+          "name": "search-api",
+          "image": "123456789012.dkr.ecr.eu-west-1.amazonaws.com/catalog/search-api:7.3.1",
+          "image_id": "123456789012.dkr.ecr.eu-west-1.amazonaws.com/catalog/search-api@sha256:349411274656a2037f89f94deb4310d57ba09f6113535a79b940ea823c7d98a6",
+          "restart_count": 9,
+          "state": "running",
+          "waiting_reason": null,
+          "last_terminated": {
+            "reason": "Error",
+            "exit_code": 137,
+            "signal": null
+          },
+          "ready": false
+        }
+      ],
+      "annotations": {},
+      "owner": {
+        "kind": "Deployment",
+        "name": "search-api"
+      }
+    }
+  ],
+  "events": [
+    {
+      "reason": "Unhealthy",
+      "message": "Liveness probe failed: Get \"http://10.0.7.41:8080/healthz\": context deadline exceeded (Client.Timeout exceeded while awaiting headers)",
+      "type": "Warning",
+      "count": 27,
+      "last_seen": "2026-11-02T14:42:55Z",
+      "involved_kind": "Pod",
+      "involved_name": "search-api-7c9b8d6f5-mt4kx"
+    },
+    {
+      "reason": "Unhealthy",
+      "message": "Readiness probe failed: Get \"http://10.0.7.41:8080/ready\": context deadline exceeded (Client.Timeout exceeded while awaiting headers)",
+      "type": "Warning",
+      "count": 41,
+      "last_seen": "2026-11-02T14:42:55Z",
+      "involved_kind": "Pod",
+      "involved_name": "search-api-7c9b8d6f5-mt4kx"
+    },
+    {
+      "reason": "Killing",
+      "message": "Container search-api failed liveness probe, will be restarted",
+      "type": "Normal",
+      "count": 9,
+      "last_seen": "2026-11-02T14:41:58Z",
+      "involved_kind": "Pod",
+      "involved_name": "search-api-7c9b8d6f5-mt4kx"
+    },
+    {
+      "reason": "Pulled",
+      "message": "Container image \"123456789012.dkr.ecr.eu-west-1.amazonaws.com/catalog/search-api:7.3.1\" already present on machine",
+      "type": "Normal",
+      "count": 9,
+      "last_seen": "2026-11-02T14:42:01Z",
+      "involved_kind": "Pod",
+      "involved_name": "search-api-7c9b8d6f5-mt4kx"
+    },
+    {
+      "reason": "Started",
+      "message": "Started container search-api",
+      "type": "Normal",
+      "count": 10,
+      "last_seen": "2026-11-02T14:42:02Z",
+      "involved_kind": "Pod",
+      "involved_name": "search-api-7c9b8d6f5-mt4kx"
+    },
+    {
+      "reason": "ScalingReplicaSet",
+      "message": "Scaled up replica set search-api-7c9b8d6f5 from 0 to 3",
+      "type": "Normal",
+      "count": 1,
+      "last_seen": "2026-10-25T11:03:27Z",
+      "involved_kind": "Deployment",
+      "involved_name": "search-api"
+    }
+  ],
+  "logs": {
+    "search-api-7c9b8d6f5-mt4kx/search-api/current": "2026-11-02T14:42:03.117Z info  search-api listening on :8080\n",
+    "search-api-7c9b8d6f5-mt4kx/search-api/previous": "2026-11-02T14:20:01.204Z info  search-api listening on :8080\n2026-11-02T14:20:14.877Z info  GET /search?q=boots 200 182ms\n2026-11-02T14:21:02.551Z warn  GET /search?q=rain+jacket 200 6214ms\n2026-11-02T14:21:30.008Z warn  GET /healthz 200 9870ms\n2026-11-02T14:21:41.390Z warn  GET /healthz 200 11202ms\n"
+  },
+  "nodes": {
+    "ip-10-0-7-12.eu-west-1.compute.internal": [
+      {
+        "type": "MemoryPressure",
+        "status": "False",
+        "reason": "KubeletHasSufficientMemory"
+      },
+      {
+        "type": "DiskPressure",
+        "status": "False",
+        "reason": "KubeletHasNoDiskPressure"
+      },
+      {
+        "type": "PIDPressure",
+        "status": "False",
+        "reason": "KubeletHasSufficientPID"
+      },
+      {
+        "type": "Ready",
+        "status": "True",
+        "reason": "KubeletReady"
+      }
+    ]
+  },
+  "annotations": {
+    "deployment.kubernetes.io/revision": "38"
+  }
+}

@@ -1,0 +1,14 @@
+{
+  "category": "application",
+  "code": {
+    "path": "internal/orders/service.go",
+    "start_line": 49,
+    "end_line": 55,
+    "symbol": "reserve"
+  },
+  "facts": [
+    "assignment to entry in nil map",
+    "reserve",
+    "SKU not in the catalog snapshot"
+  ]
+}

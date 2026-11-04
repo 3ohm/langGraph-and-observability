@@ -1,0 +1,10 @@
+{
+  "version": 1,
+  "source": "alertmanager",
+  "alert_id": "am-KubePodCrashLooping-payments-payment-settlement",
+  "namespace": "payments",
+  "pod": "payment-settlement-84c6f7b9d-r7vnx",
+  "raw": {
+    "fixture_id": "ts-undefined-property"
+  }
+}

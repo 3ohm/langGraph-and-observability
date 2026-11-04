@@ -1,0 +1,109 @@
+{
+  "pods": [
+    {
+      "name": "payment-settlement-84c6f7b9d-r7vnx",
+      "namespace": "payments",
+      "node": "ip-10-0-21-140.eu-west-1.compute.internal",
+      "phase": "Running",
+      "containers": [
+        {
+          "name": "settlement",
+          "image": "123456789012.dkr.ecr.eu-west-1.amazonaws.com/payments/payment-settlement:1.12.3",
+          "image_id": "123456789012.dkr.ecr.eu-west-1.amazonaws.com/payments/payment-settlement@sha256:6128b1540dd101dda8e76bb0c586fe767607c2d25da76d964ce69926dece5f86",
+          "restart_count": 4,
+          "state": "running",
+          "waiting_reason": null,
+          "last_terminated": {
+            "reason": "Error",
+            "exit_code": 1,
+            "signal": null
+          },
+          "ready": true
+        }
+      ],
+      "annotations": {},
+      "owner": {
+        "kind": "Deployment",
+        "name": "payment-settlement"
+      }
+    }
+  ],
+  "events": [
+    {
+      "reason": "Pulled",
+      "message": "Container image \"123456789012.dkr.ecr.eu-west-1.amazonaws.com/payments/payment-settlement:1.12.3\" already present on machine",
+      "type": "Normal",
+      "count": 4,
+      "last_seen": "2026-11-02T10:18:44Z",
+      "involved_kind": "Pod",
+      "involved_name": "payment-settlement-84c6f7b9d-r7vnx"
+    },
+    {
+      "reason": "Created",
+      "message": "Created container: settlement",
+      "type": "Normal",
+      "count": 5,
+      "last_seen": "2026-11-02T10:18:44Z",
+      "involved_kind": "Pod",
+      "involved_name": "payment-settlement-84c6f7b9d-r7vnx"
+    },
+    {
+      "reason": "Started",
+      "message": "Started container settlement",
+      "type": "Normal",
+      "count": 5,
+      "last_seen": "2026-11-02T10:18:44Z",
+      "involved_kind": "Pod",
+      "involved_name": "payment-settlement-84c6f7b9d-r7vnx"
+    },
+    {
+      "reason": "BackOff",
+      "message": "Back-off restarting failed container settlement in pod payment-settlement-84c6f7b9d-r7vnx_payments(d83a6fa9-3b70-5542-a6ae-1493887c9b41)",
+      "type": "Warning",
+      "count": 14,
+      "last_seen": "2026-11-02T10:18:44Z",
+      "involved_kind": "Pod",
+      "involved_name": "payment-settlement-84c6f7b9d-r7vnx"
+    },
+    {
+      "reason": "ScalingReplicaSet",
+      "message": "Scaled up replica set payment-settlement-84c6f7b9d from 0 to 1",
+      "type": "Normal",
+      "count": 1,
+      "last_seen": "2026-10-29T13:44:02Z",
+      "involved_kind": "Deployment",
+      "involved_name": "payment-settlement"
+    }
+  ],
+  "logs": {
+    "payment-settlement-84c6f7b9d-r7vnx/settlement/current": "payment-settlement listening on :8080\n",
+    "payment-settlement-84c6f7b9d-r7vnx/settlement/previous": "payment-settlement listening on :8080\n{\"eventId\":\"evt_1001\",\"orderId\":\"ord_55120\",\"amountCents\":4599,\"currency\":\"EUR\"}\n{\"eventId\":\"evt_1002\",\"orderId\":\"ord_55121\",\"amountCents\":1250,\"currency\":\"EUR\"}\nsettled 2 payment events\n{\"eventId\":\"evt_1004\",\"orderId\":\"ord_55124\",\"amountCents\":8900,\"currency\":\"EUR\"}\nsettled 1 payment events\n/app/dist/orders/service.js:30\n        amountCents: sign * event.charge.amount,\n                                         ^\n\nTypeError: Cannot read properties of undefined (reading 'amount')\n    at toLedgerEntry (/app/dist/orders/service.js:30:42)\n    at Array.map (<anonymous>)\n    at SettlementService.flush (/app/dist/orders/service.js:48:34)\n    at Timeout._onTimeout (/app/dist/main.js:31:27)\n    at listOnTimeout (node:internal/timers:608:17)\n    at process.processTimers (node:internal/timers:543:7)\n\nNode.js v24.11.1\n"
+  },
+  "nodes": {
+    "ip-10-0-21-140.eu-west-1.compute.internal": [
+      {
+        "type": "MemoryPressure",
+        "status": "False",
+        "reason": "KubeletHasSufficientMemory"
+      },
+      {
+        "type": "DiskPressure",
+        "status": "False",
+        "reason": "KubeletHasNoDiskPressure"
+      },
+      {
+        "type": "PIDPressure",
+        "status": "False",
+        "reason": "KubeletHasSufficientPID"
+      },
+      {
+        "type": "Ready",
+        "status": "True",
+        "reason": "KubeletReady"
+      }
+    ]
+  },
+  "annotations": {
+    "deployment.kubernetes.io/revision": "9"
+  }
+}

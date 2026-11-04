@@ -1,0 +1,14 @@
+{
+  "category": "application",
+  "code": {
+    "path": "src/Pricing/DiscountCalculator.php",
+    "start_line": 14,
+    "end_line": 27,
+    "symbol": "apply"
+  },
+  "facts": [
+    "DivisionByZeroError",
+    "intdiv",
+    "no eligible lines"
+  ]
+}

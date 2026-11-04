@@ -1,0 +1,109 @@
+{
+  "pods": [
+    {
+      "name": "order-service-5c8d9f6b7-tk4mz",
+      "namespace": "commerce",
+      "node": "ip-10-0-33-9.eu-west-1.compute.internal",
+      "phase": "Running",
+      "containers": [
+        {
+          "name": "order-service",
+          "image": "123456789012.dkr.ecr.eu-west-1.amazonaws.com/commerce/order-service:1.8.0",
+          "image_id": "123456789012.dkr.ecr.eu-west-1.amazonaws.com/commerce/order-service@sha256:9a43e05eced5294e7c40e0fb06933fd71feff5f957335b09c52e1622857b3ea9",
+          "restart_count": 5,
+          "state": "waiting",
+          "waiting_reason": "CrashLoopBackOff",
+          "last_terminated": {
+            "reason": "Error",
+            "exit_code": 1,
+            "signal": null
+          },
+          "ready": false
+        }
+      ],
+      "annotations": {},
+      "owner": {
+        "kind": "Deployment",
+        "name": "order-service"
+      }
+    }
+  ],
+  "events": [
+    {
+      "reason": "Pulled",
+      "message": "Container image \"123456789012.dkr.ecr.eu-west-1.amazonaws.com/commerce/order-service:1.8.0\" already present on machine",
+      "type": "Normal",
+      "count": 5,
+      "last_seen": "2026-11-02T09:47:30Z",
+      "involved_kind": "Pod",
+      "involved_name": "order-service-5c8d9f6b7-tk4mz"
+    },
+    {
+      "reason": "Created",
+      "message": "Created container: order-service",
+      "type": "Normal",
+      "count": 6,
+      "last_seen": "2026-11-02T09:47:30Z",
+      "involved_kind": "Pod",
+      "involved_name": "order-service-5c8d9f6b7-tk4mz"
+    },
+    {
+      "reason": "Started",
+      "message": "Started container order-service",
+      "type": "Normal",
+      "count": 6,
+      "last_seen": "2026-11-02T09:47:30Z",
+      "involved_kind": "Pod",
+      "involved_name": "order-service-5c8d9f6b7-tk4mz"
+    },
+    {
+      "reason": "BackOff",
+      "message": "Back-off restarting failed container order-service in pod order-service-5c8d9f6b7-tk4mz_commerce(73419d6b-6ce5-5918-8edf-69e0394cf232)",
+      "type": "Warning",
+      "count": 17,
+      "last_seen": "2026-11-02T09:47:30Z",
+      "involved_kind": "Pod",
+      "involved_name": "order-service-5c8d9f6b7-tk4mz"
+    },
+    {
+      "reason": "ScalingReplicaSet",
+      "message": "Scaled up replica set order-service-5c8d9f6b7 from 0 to 1",
+      "type": "Normal",
+      "count": 1,
+      "last_seen": "2026-11-02T09:20:41Z",
+      "involved_kind": "Deployment",
+      "involved_name": "order-service"
+    }
+  ],
+  "logs": {
+    "order-service-5c8d9f6b7-tk4mz/order-service/current": null,
+    "order-service-5c8d9f6b7-tk4mz/order-service/previous": "2026-11-02T09:41:07.512Z  INFO 1 --- [order-service] [           main] c.example.orders.OrdersApplication       : Starting OrdersApplication v1.8.0 using Java 21.0.8 with PID 1 (/workspace/BOOT-INF/classes started by cnb in /workspace)\n2026-11-02T09:41:07.516Z  INFO 1 --- [order-service] [           main] c.example.orders.OrdersApplication       : No active profile set, falling back to 1 default profile: \"default\"\n2026-11-02T09:41:09.204Z  INFO 1 --- [order-service] [           main] o.s.b.w.embedded.tomcat.TomcatWebServer  : Tomcat initialized with port 8080 (http)\n2026-11-02T09:41:09.981Z  INFO 1 --- [order-service] [           main] com.zaxxer.hikari.HikariDataSource       : HikariPool-1 - Starting...\n2026-11-02T09:41:10.322Z  INFO 1 --- [order-service] [           main] com.zaxxer.hikari.HikariDataSource       : HikariPool-1 - Start completed.\n2026-11-02T09:41:11.087Z  INFO 1 --- [order-service] [           main] o.s.b.w.embedded.tomcat.TomcatWebServer  : Tomcat started on port 8080 (http) with context path '/'\n2026-11-02T09:41:11.101Z  INFO 1 --- [order-service] [           main] c.example.orders.OrdersApplication       : Started OrdersApplication in 4.214 seconds (process running for 4.873)\n2026-11-02T09:41:11.392Z ERROR 1 --- [order-service] [           main] o.s.boot.SpringApplication               : Application run failed\n\njava.lang.NullPointerException: Cannot invoke \"com.example.orders.Address.postcode()\" because the return value of \"com.example.orders.Order.shippingAddress()\" is null\n\tat com.example.orders.OrderService.shippingLabel(OrderService.java:35) ~[classes/:na]\n\tat java.base/java.util.stream.ReferencePipeline$3$1.accept(ReferencePipeline.java:197) ~[na:na]\n\tat java.base/java.util.ArrayList$ArrayListSpliterator.forEachRemaining(ArrayList.java:1708) ~[na:na]\n\tat java.base/java.util.stream.AbstractPipeline.copyInto(AbstractPipeline.java:509) ~[na:na]\n\tat java.base/java.util.stream.AbstractPipeline.wrapAndCopyInto(AbstractPipeline.java:499) ~[na:na]\n\tat java.base/java.util.stream.AbstractPipeline.evaluate(AbstractPipeline.java:575) ~[na:na]\n\tat java.base/java.util.stream.AbstractPipeline.evaluateToArrayNode(AbstractPipeline.java:260) ~[na:na]\n\tat java.base/java.util.stream.ReferencePipeline.toArray(ReferencePipeline.java:616) ~[na:na]\n\tat java.base/java.util.stream.ReferencePipeline.toArray(ReferencePipeline.java:622) ~[na:na]\n\tat java.base/java.util.stream.ReferencePipeline.toList(ReferencePipeline.java:627) ~[na:na]\n\tat com.example.orders.OrderService.queuePendingShipments(OrderService.java:30) ~[classes/:na]\n\tat com.example.orders.OrdersApplication.lambda$queuePendingShipments$0(OrdersApplication.java:17) ~[classes/:na]\n\tat org.springframework.boot.SpringApplication.lambda$callRunner$4(SpringApplication.java:786) ~[spring-boot-3.5.7.jar:3.5.7]\n\tat org.springframework.util.function.ThrowingConsumer$1.acceptWithException(ThrowingConsumer.java:82) ~[spring-core-6.2.12.jar:6.2.12]\n\tat org.springframework.util.function.ThrowingConsumer.accept(ThrowingConsumer.java:60) ~[spring-core-6.2.12.jar:6.2.12]\n\tat org.springframework.util.function.ThrowingConsumer$1.accept(ThrowingConsumer.java:86) ~[spring-core-6.2.12.jar:6.2.12]\n\tat org.springframework.boot.SpringApplication.callRunner(SpringApplication.java:798) ~[spring-boot-3.5.7.jar:3.5.7]\n\tat org.springframework.boot.SpringApplication.callRunner(SpringApplication.java:786) ~[spring-boot-3.5.7.jar:3.5.7]\n\tat org.springframework.boot.SpringApplication.lambda$callRunners$3(SpringApplication.java:774) ~[spring-boot-3.5.7.jar:3.5.7]\n\tat java.base/java.util.stream.ForEachOps$ForEachOp$OfRef.accept(ForEachOps.java:184) ~[na:na]\n\tat java.base/java.util.stream.SortedOps$SizedRefSortingSink.end(SortedOps.java:357) ~[na:na]\n\tat java.base/java.util.stream.AbstractPipeline.copyInto(AbstractPipeline.java:510) ~[na:na]\n\tat java.base/java.util.stream.AbstractPipeline.wrapAndCopyInto(AbstractPipeline.java:499) ~[na:na]\n\tat java.base/java.util.stream.ForEachOps$ForEachOp.evaluateSequential(ForEachOps.java:151) ~[na:na]\n\tat java.base/java.util.stream.ForEachOps$ForEachOp$OfRef.evaluateSequential(ForEachOps.java:174) ~[na:na]\n\tat java.base/java.util.stream.AbstractPipeline.evaluate(AbstractPipeline.java:234) ~[na:na]\n\tat java.base/java.util.stream.ReferencePipeline.forEach(ReferencePipeline.java:596) ~[na:na]\n\tat org.springframework.boot.SpringApplication.callRunners(SpringApplication.java:774) ~[spring-boot-3.5.7.jar:3.5.7]\n\tat org.springframework.boot.SpringApplication.run(SpringApplication.java:342) ~[spring-boot-3.5.7.jar:3.5.7]\n\tat org.springframework.boot.SpringApplication.run(SpringApplication.java:1361) ~[spring-boot-3.5.7.jar:3.5.7]\n\tat org.springframework.boot.SpringApplication.run(SpringApplication.java:1350) ~[spring-boot-3.5.7.jar:3.5.7]\n\tat com.example.orders.OrdersApplication.main(OrdersApplication.java:12) ~[classes/:na]\n\tat java.base/jdk.internal.reflect.DirectMethodHandleAccessor.invoke(DirectMethodHandleAccessor.java:103) ~[na:na]\n\tat java.base/java.lang.reflect.Method.invoke(Method.java:580) ~[na:na]\n\tat org.springframework.boot.loader.launch.Launcher.launch(Launcher.java:106) ~[workspace/:na]\n\tat org.springframework.boot.loader.launch.Launcher.launch(Launcher.java:64) ~[workspace/:na]\n\tat org.springframework.boot.loader.launch.JarLauncher.main(JarLauncher.java:40) ~[workspace/:na]\n\n2026-11-02T09:41:11.410Z  INFO 1 --- [order-service] [ionShutdownHook] com.zaxxer.hikari.HikariDataSource       : HikariPool-1 - Shutdown initiated...\n2026-11-02T09:41:11.415Z  INFO 1 --- [order-service] [ionShutdownHook] com.zaxxer.hikari.HikariDataSource       : HikariPool-1 - Shutdown completed.\n"
+  },
+  "nodes": {
+    "ip-10-0-33-9.eu-west-1.compute.internal": [
+      {
+        "type": "MemoryPressure",
+        "status": "False",
+        "reason": "KubeletHasSufficientMemory"
+      },
+      {
+        "type": "DiskPressure",
+        "status": "False",
+        "reason": "KubeletHasNoDiskPressure"
+      },
+      {
+        "type": "PIDPressure",
+        "status": "False",
+        "reason": "KubeletHasSufficientPID"
+      },
+      {
+        "type": "Ready",
+        "status": "True",
+        "reason": "KubeletReady"
+      }
+    ]
+  },
+  "annotations": {
+    "deployment.kubernetes.io/revision": "57"
+  }
+}

@@ -1,0 +1,9 @@
+{
+  "category": "configuration",
+  "code": null,
+  "facts": [
+    "CreateContainerConfigError",
+    "DATABASE_URL",
+    "payments-gateway-db"
+  ]
+}

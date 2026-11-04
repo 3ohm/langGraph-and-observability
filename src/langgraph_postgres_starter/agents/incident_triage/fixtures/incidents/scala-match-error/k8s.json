@@ -1,0 +1,109 @@
+{
+  "pods": [
+    {
+      "name": "shipping-rates-7b8c9d6f5-fx9km",
+      "namespace": "fulfillment",
+      "node": "ip-10-0-70-3.eu-west-1.compute.internal",
+      "phase": "Running",
+      "containers": [
+        {
+          "name": "rates",
+          "image": "123456789012.dkr.ecr.eu-west-1.amazonaws.com/fulfillment/shipping-rates:0.9.7",
+          "image_id": "123456789012.dkr.ecr.eu-west-1.amazonaws.com/fulfillment/shipping-rates@sha256:7486f011d3b2e6461d8eb85c329f4a576bd2dd11d2ccf8a1ab22c9efebffbed8",
+          "restart_count": 5,
+          "state": "running",
+          "waiting_reason": null,
+          "last_terminated": {
+            "reason": "Error",
+            "exit_code": 1,
+            "signal": null
+          },
+          "ready": true
+        }
+      ],
+      "annotations": {},
+      "owner": {
+        "kind": "Deployment",
+        "name": "shipping-rates"
+      }
+    }
+  ],
+  "events": [
+    {
+      "reason": "Pulled",
+      "message": "Container image \"123456789012.dkr.ecr.eu-west-1.amazonaws.com/fulfillment/shipping-rates:0.9.7\" already present on machine",
+      "type": "Normal",
+      "count": 5,
+      "last_seen": "2026-11-02T15:02:26Z",
+      "involved_kind": "Pod",
+      "involved_name": "shipping-rates-7b8c9d6f5-fx9km"
+    },
+    {
+      "reason": "Created",
+      "message": "Created container: rates",
+      "type": "Normal",
+      "count": 6,
+      "last_seen": "2026-11-02T15:02:26Z",
+      "involved_kind": "Pod",
+      "involved_name": "shipping-rates-7b8c9d6f5-fx9km"
+    },
+    {
+      "reason": "Started",
+      "message": "Started container rates",
+      "type": "Normal",
+      "count": 6,
+      "last_seen": "2026-11-02T15:02:26Z",
+      "involved_kind": "Pod",
+      "involved_name": "shipping-rates-7b8c9d6f5-fx9km"
+    },
+    {
+      "reason": "BackOff",
+      "message": "Back-off restarting failed container rates in pod shipping-rates-7b8c9d6f5-fx9km_fulfillment(ca670141-afe4-5c59-a5c9-3214d3b6b4a0)",
+      "type": "Warning",
+      "count": 17,
+      "last_seen": "2026-11-02T15:02:26Z",
+      "involved_kind": "Pod",
+      "involved_name": "shipping-rates-7b8c9d6f5-fx9km"
+    },
+    {
+      "reason": "ScalingReplicaSet",
+      "message": "Scaled up replica set shipping-rates-7b8c9d6f5 from 0 to 1",
+      "type": "Normal",
+      "count": 1,
+      "last_seen": "2026-10-27T09:15:00Z",
+      "involved_kind": "Deployment",
+      "involved_name": "shipping-rates"
+    }
+  ],
+  "logs": {
+    "shipping-rates-7b8c9d6f5-fx9km/rates/current": "shipping-rates watching /data/parcels\n",
+    "shipping-rates-7b8c9d6f5-fx9km/rates/previous": "shipping-rates watching /data/parcels\nquoted parcel P-104822 royal_mail 520\nquoted parcel P-104823 dpd 975\nquoted parcel P-104824 royal_mail 735\nException in thread \"main\" scala.MatchError: (evri,2) (of class scala.Tuple2)\n\tat com.example.shipping.RateCalculator.baseRateCents(RateCalculator.scala:27)\n\tat com.example.shipping.RateCalculator.quote(RateCalculator.scala:22)\n\tat com.example.shipping.RateCalculator.quoteAll$$anonfun$1(RateCalculator.scala:18)\n\tat scala.collection.immutable.List.map(List.scala:247)\n\tat scala.collection.immutable.List.map(List.scala:79)\n\tat com.example.shipping.RateCalculator.quoteAll(RateCalculator.scala:18)\n\tat com.example.shipping.Main$.main(Main.scala:16)\n\tat com.example.shipping.Main.main(Main.scala)\n"
+  },
+  "nodes": {
+    "ip-10-0-70-3.eu-west-1.compute.internal": [
+      {
+        "type": "MemoryPressure",
+        "status": "False",
+        "reason": "KubeletHasSufficientMemory"
+      },
+      {
+        "type": "DiskPressure",
+        "status": "False",
+        "reason": "KubeletHasNoDiskPressure"
+      },
+      {
+        "type": "PIDPressure",
+        "status": "False",
+        "reason": "KubeletHasSufficientPID"
+      },
+      {
+        "type": "Ready",
+        "status": "True",
+        "reason": "KubeletReady"
+      }
+    ]
+  },
+  "annotations": {
+    "deployment.kubernetes.io/revision": "4"
+  }
+}

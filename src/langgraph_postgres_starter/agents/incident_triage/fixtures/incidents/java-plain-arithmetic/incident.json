@@ -1,0 +1,10 @@
+{
+  "version": 1,
+  "source": "alertmanager",
+  "alert_id": "am-KubeJobNotCompleted-billing-invoices",
+  "namespace": "billing",
+  "pod": "billing-invoices-29870100-7xk2p",
+  "raw": {
+    "fixture_id": "java-plain-arithmetic"
+  }
+}

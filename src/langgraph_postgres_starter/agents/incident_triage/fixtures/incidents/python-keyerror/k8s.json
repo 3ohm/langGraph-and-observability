@@ -1,0 +1,125 @@
+{
+  "pods": [
+    {
+      "name": "orders-7d9f8b6c5d-x2kqp",
+      "namespace": "shop",
+      "node": "ip-10-0-12-34.eu-west-1.compute.internal",
+      "phase": "Running",
+      "containers": [
+        {
+          "name": "orders",
+          "image": "123456789012.dkr.ecr.eu-west-1.amazonaws.com/shop/orders:2.31.0",
+          "image_id": "123456789012.dkr.ecr.eu-west-1.amazonaws.com/shop/orders@sha256:5f2f05f4f0055b7b01eaf88dc657d8c6e80d0884e2ea020a06d14cb1ef8314d4",
+          "restart_count": 6,
+          "state": "waiting",
+          "waiting_reason": "CrashLoopBackOff",
+          "last_terminated": {
+            "reason": "Error",
+            "exit_code": 1,
+            "signal": null
+          },
+          "ready": false
+        },
+        {
+          "name": "istio-proxy",
+          "image": "docker.io/istio/proxyv2:1.27.3",
+          "image_id": "docker.io/istio/proxyv2@sha256:6d4cbd3407cfb454a06887ca074e15ef0ead05e641f98496d4f2756b57a92527",
+          "restart_count": 0,
+          "state": "running",
+          "waiting_reason": null,
+          "last_terminated": null,
+          "ready": true
+        }
+      ],
+      "annotations": {
+        "kubectl.kubernetes.io/default-container": "orders",
+        "istio.io/rev": "default",
+        "ad.datadoghq.com/orders.logs": "[{\"source\":\"python\",\"service\":\"orders\"}]"
+      },
+      "owner": {
+        "kind": "Deployment",
+        "name": "orders"
+      }
+    }
+  ],
+  "events": [
+    {
+      "reason": "Pulled",
+      "message": "Container image \"123456789012.dkr.ecr.eu-west-1.amazonaws.com/shop/orders:2.31.0\" already present on machine",
+      "type": "Normal",
+      "count": 6,
+      "last_seen": "2026-11-02T10:04:55Z",
+      "involved_kind": "Pod",
+      "involved_name": "orders-7d9f8b6c5d-x2kqp"
+    },
+    {
+      "reason": "Created",
+      "message": "Created container: orders",
+      "type": "Normal",
+      "count": 7,
+      "last_seen": "2026-11-02T10:04:55Z",
+      "involved_kind": "Pod",
+      "involved_name": "orders-7d9f8b6c5d-x2kqp"
+    },
+    {
+      "reason": "Started",
+      "message": "Started container orders",
+      "type": "Normal",
+      "count": 7,
+      "last_seen": "2026-11-02T10:04:55Z",
+      "involved_kind": "Pod",
+      "involved_name": "orders-7d9f8b6c5d-x2kqp"
+    },
+    {
+      "reason": "BackOff",
+      "message": "Back-off restarting failed container orders in pod orders-7d9f8b6c5d-x2kqp_shop(961e0f28-50c0-5ffc-95b3-d40b4353cf7a)",
+      "type": "Warning",
+      "count": 20,
+      "last_seen": "2026-11-02T10:04:55Z",
+      "involved_kind": "Pod",
+      "involved_name": "orders-7d9f8b6c5d-x2kqp"
+    },
+    {
+      "reason": "ScalingReplicaSet",
+      "message": "Scaled up replica set orders-7d9f8b6c5d from 0 to 1",
+      "type": "Normal",
+      "count": 1,
+      "last_seen": "2026-11-01T11:20:09Z",
+      "involved_kind": "Deployment",
+      "involved_name": "orders"
+    }
+  ],
+  "logs": {
+    "orders-7d9f8b6c5d-x2kqp/orders/current": null,
+    "orders-7d9f8b6c5d-x2kqp/orders/previous": "2026-11-02 10:01:12,481 INFO orders.worker polling https://sqs.eu-west-1.amazonaws.com/123456789012/orders-paid\n2026-11-02 10:01:13,027 INFO orders.worker invoiced order ord-81719: 3 lines, total 54.97\n2026-11-02 10:01:13,264 INFO orders.worker invoiced order ord-81720: 1 lines, total 19.99\nTraceback (most recent call last):\n  File \"<frozen runpy>\", line 198, in _run_module_as_main\n  File \"<frozen runpy>\", line 88, in _run_code\n  File \"/app/orders/worker.py\", line 34, in <module>\n    main()\n    ~~~~^^\n  File \"/app/orders/worker.py\", line 23, in main\n    invoice = build_invoice(order)\n              ~~~~~~~~~~~~~^^^^^^^\n  File \"/app/orders/service.py\", line 34, in build_invoice\n    return Invoice.model_validate(order)\n           ~~~~~~~~~~~~~~~~~~~~~~^^^^^^^\n  File \"/usr/local/lib/python3.13/site-packages/pydantic/main.py\", line 792, in model_validate\n    return cls.__pydantic_validator__.validate_python(\n           ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^\n        obj,\n        ^^^^\n    ...<5 lines>...\n        by_name=by_name,\n        ^^^^^^^^^^^^^^^^\n    )\n    ^\n  File \"/app/orders/service.py\", line 24, in _flatten_customer\n    customer = data[\"customer\"]\n               ~~~~^^^^^^^^^^^^\nKeyError: 'customer'\n",
+    "orders-7d9f8b6c5d-x2kqp/istio-proxy/current": "2026-11-02T08:12:03.418514Z\tinfo\tEnvoy proxy is ready\n2026-11-02T10:01:12.902117Z\tinfo\txdsproxy\tconnected to delta upstream XDS server: istiod.istio-system.svc:15012\n",
+    "orders-7d9f8b6c5d-x2kqp/istio-proxy/previous": null
+  },
+  "nodes": {
+    "ip-10-0-12-34.eu-west-1.compute.internal": [
+      {
+        "type": "MemoryPressure",
+        "status": "False",
+        "reason": "KubeletHasSufficientMemory"
+      },
+      {
+        "type": "DiskPressure",
+        "status": "False",
+        "reason": "KubeletHasNoDiskPressure"
+      },
+      {
+        "type": "PIDPressure",
+        "status": "False",
+        "reason": "KubeletHasSufficientPID"
+      },
+      {
+        "type": "Ready",
+        "status": "True",
+        "reason": "KubeletReady"
+      }
+    ]
+  },
+  "annotations": {
+    "deployment.kubernetes.io/revision": "41"
+  }
+}

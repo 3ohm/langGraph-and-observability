@@ -1,0 +1,29 @@
+{
+  "events": [
+    {
+      "id": "8312004415592873022",
+      "title": "Carrier Evri onboarded",
+      "text": "Packing stations can now label parcels for the carrier evri.",
+      "timestamp": "2026-11-02T14:30:00Z",
+      "tags": [
+        "kube_cluster_name:prod-eu-west-1",
+        "kube_namespace:fulfillment"
+      ],
+      "source": null
+    },
+    {
+      "id": "8312004415592873023",
+      "title": "Events from the shipping-rates-7b8c9d6f5-fx9km Pod",
+      "text": "BackOff: Back-off restarting failed container rates in pod shipping-rates-7b8c9d6f5-fx9km",
+      "timestamp": "2026-11-02T15:01:58Z",
+      "tags": [
+        "kube_cluster_name:prod-eu-west-1",
+        "kube_namespace:fulfillment",
+        "kube_deployment:shipping-rates",
+        "pod_name:shipping-rates-7b8c9d6f5-fx9km",
+        "kube_container_name:rates"
+      ],
+      "source": "kubernetes"
+    }
+  ]
+}

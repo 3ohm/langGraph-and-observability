@@ -1,0 +1,109 @@
+{
+  "pods": [
+    {
+      "name": "discount-worker-7f9c6d5b8-zl2qp",
+      "namespace": "pricing",
+      "node": "ip-10-0-61-77.eu-west-1.compute.internal",
+      "phase": "Running",
+      "containers": [
+        {
+          "name": "worker",
+          "image": "123456789012.dkr.ecr.eu-west-1.amazonaws.com/pricing/discount-worker:5.2.0",
+          "image_id": "123456789012.dkr.ecr.eu-west-1.amazonaws.com/pricing/discount-worker@sha256:245272c4b7c87c7fa31dbf8fe44dfef632d8f017567ceb4a5e99ca69274e8cdb",
+          "restart_count": 5,
+          "state": "waiting",
+          "waiting_reason": "CrashLoopBackOff",
+          "last_terminated": {
+            "reason": "Error",
+            "exit_code": 255,
+            "signal": null
+          },
+          "ready": false
+        }
+      ],
+      "annotations": {},
+      "owner": {
+        "kind": "Deployment",
+        "name": "discount-worker"
+      }
+    }
+  ],
+  "events": [
+    {
+      "reason": "Pulled",
+      "message": "Container image \"123456789012.dkr.ecr.eu-west-1.amazonaws.com/pricing/discount-worker:5.2.0\" already present on machine",
+      "type": "Normal",
+      "count": 5,
+      "last_seen": "2026-11-02T12:36:20Z",
+      "involved_kind": "Pod",
+      "involved_name": "discount-worker-7f9c6d5b8-zl2qp"
+    },
+    {
+      "reason": "Created",
+      "message": "Created container: worker",
+      "type": "Normal",
+      "count": 6,
+      "last_seen": "2026-11-02T12:36:20Z",
+      "involved_kind": "Pod",
+      "involved_name": "discount-worker-7f9c6d5b8-zl2qp"
+    },
+    {
+      "reason": "Started",
+      "message": "Started container worker",
+      "type": "Normal",
+      "count": 6,
+      "last_seen": "2026-11-02T12:36:20Z",
+      "involved_kind": "Pod",
+      "involved_name": "discount-worker-7f9c6d5b8-zl2qp"
+    },
+    {
+      "reason": "BackOff",
+      "message": "Back-off restarting failed container worker in pod discount-worker-7f9c6d5b8-zl2qp_pricing(31ef031d-5a2a-599a-a21c-98cf2fe5b15a)",
+      "type": "Warning",
+      "count": 17,
+      "last_seen": "2026-11-02T12:36:20Z",
+      "involved_kind": "Pod",
+      "involved_name": "discount-worker-7f9c6d5b8-zl2qp"
+    },
+    {
+      "reason": "ScalingReplicaSet",
+      "message": "Scaled up replica set discount-worker-7f9c6d5b8 from 0 to 1",
+      "type": "Normal",
+      "count": 1,
+      "last_seen": "2026-10-28T15:30:19Z",
+      "involved_kind": "Deployment",
+      "involved_name": "discount-worker"
+    }
+  ],
+  "logs": {
+    "discount-worker-7f9c6d5b8-zl2qp/worker/current": null,
+    "discount-worker-7f9c6d5b8-zl2qp/worker/previous": "[2026-11-02T12:30:01+00:00] worker.INFO: consuming orders.priced\n[2026-11-02T12:30:02+00:00] worker.INFO: discounted order ord-55201 by 500 cents\n[2026-11-02T12:30:04+00:00] worker.INFO: discounted order ord-55202 by 1200 cents\nPHP Fatal error:  Uncaught DivisionByZeroError: Division by zero in /var/www/html/src/Pricing/DiscountCalculator.php:22\nStack trace:\n#0 /var/www/html/src/Pricing/DiscountCalculator.php(22): intdiv(1500, 0)\n#1 /var/www/html/bin/worker.php(18): App\\Pricing\\DiscountCalculator->apply(Array)\n#2 /var/www/html/vendor/php-amqplib/php-amqplib/PhpAmqpLib/Channel/AMQPChannel.php(1153): {closure}(Object(PhpAmqpLib\\Message\\AMQPMessage))\n#3 /var/www/html/vendor/php-amqplib/php-amqplib/PhpAmqpLib/Channel/AbstractChannel.php(469): PhpAmqpLib\\Channel\\AMQPChannel->basic_deliver(Object(PhpAmqpLib\\Wire\\AMQPReader), Object(PhpAmqpLib\\Message\\AMQPMessage))\n#4 /var/www/html/vendor/php-amqplib/php-amqplib/PhpAmqpLib/Channel/AbstractChannel.php(385): PhpAmqpLib\\Channel\\AbstractChannel->dispatch('60,60', '', Object(PhpAmqpLib\\Message\\AMQPMessage))\n#5 /var/www/html/bin/worker.php(25): PhpAmqpLib\\Channel\\AbstractChannel->wait()\n#6 {main}\n  thrown in /var/www/html/src/Pricing/DiscountCalculator.php on line 22\n"
+  },
+  "nodes": {
+    "ip-10-0-61-77.eu-west-1.compute.internal": [
+      {
+        "type": "MemoryPressure",
+        "status": "False",
+        "reason": "KubeletHasSufficientMemory"
+      },
+      {
+        "type": "DiskPressure",
+        "status": "False",
+        "reason": "KubeletHasNoDiskPressure"
+      },
+      {
+        "type": "PIDPressure",
+        "status": "False",
+        "reason": "KubeletHasSufficientPID"
+      },
+      {
+        "type": "Ready",
+        "status": "True",
+        "reason": "KubeletReady"
+      }
+    ]
+  },
+  "annotations": {
+    "deployment.kubernetes.io/revision": "31"
+  }
+}

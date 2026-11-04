@@ -1,0 +1,41 @@
+{
+  "events": [
+    {
+      "id": "8312004415592873015",
+      "title": "[Triggered on {kube_deployment:discount-worker}] discount-worker is crash looping",
+      "text": "discount-worker restarted 5 times in the last 30 minutes.",
+      "timestamp": "2026-11-02T12:35:00Z",
+      "tags": [
+        "kube_cluster_name:prod-eu-west-1",
+        "kube_namespace:pricing",
+        "kube_deployment:discount-worker"
+      ],
+      "source": "monitor"
+    },
+    {
+      "id": "8312004415592873016",
+      "title": "Promotion BLACKWEEK25 started",
+      "text": "The promotion takes 15.00 off every order, including orders of gift cards only.",
+      "timestamp": "2026-11-02T12:00:00Z",
+      "tags": [
+        "kube_cluster_name:prod-eu-west-1",
+        "kube_namespace:pricing"
+      ],
+      "source": null
+    },
+    {
+      "id": "8312004415592873017",
+      "title": "Events from the discount-worker-7f9c6d5b8-zl2qp Pod",
+      "text": "BackOff: Back-off restarting failed container worker in pod discount-worker-7f9c6d5b8-zl2qp",
+      "timestamp": "2026-11-02T12:36:02Z",
+      "tags": [
+        "kube_cluster_name:prod-eu-west-1",
+        "kube_namespace:pricing",
+        "kube_deployment:discount-worker",
+        "pod_name:discount-worker-7f9c6d5b8-zl2qp",
+        "kube_container_name:worker"
+      ],
+      "source": "kubernetes"
+    }
+  ]
+}

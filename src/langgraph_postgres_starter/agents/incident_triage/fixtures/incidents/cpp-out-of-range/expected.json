@@ -1,0 +1,14 @@
+{
+  "category": "application",
+  "code": {
+    "path": "src/pick_planner.cpp",
+    "start_line": 9,
+    "end_line": 17,
+    "symbol": "route_seconds"
+  },
+  "facts": [
+    "std::out_of_range",
+    "aisles_.at(task.aisle)",
+    "aisles are numbered from 1"
+  ]
+}

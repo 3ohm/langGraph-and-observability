@@ -1,0 +1,10 @@
+{
+  "version": 1,
+  "source": "alertmanager",
+  "alert_id": "am-KubePodCrashLooping-warehouse-order-batcher",
+  "namespace": "warehouse",
+  "pod": "order-batcher-0",
+  "raw": {
+    "fixture_id": "c-segfault"
+  }
+}

@@ -1,0 +1,29 @@
+{
+  "events": [
+    {
+      "id": "8312004415592873018",
+      "title": "Events from the label-printer-58d7c9b6f-hm3xd Pod",
+      "text": "BackOff: Back-off restarting failed container label-printer in pod label-printer-58d7c9b6f-hm3xd",
+      "timestamp": "2026-11-02T13:50:41Z",
+      "tags": [
+        "kube_cluster_name:prod-eu-west-1",
+        "kube_namespace:fulfillment",
+        "kube_deployment:label-printer",
+        "pod_name:label-printer-58d7c9b6f-hm3xd",
+        "kube_container_name:label-printer"
+      ],
+      "source": "kubernetes"
+    },
+    {
+      "id": "8312004415592873019",
+      "title": "Shipping to Ireland enabled",
+      "text": "Packed orders can now ship to addresses in Ireland.",
+      "timestamp": "2026-11-02T13:30:00Z",
+      "tags": [
+        "kube_cluster_name:prod-eu-west-1",
+        "kube_namespace:fulfillment"
+      ],
+      "source": null
+    }
+  ]
+}

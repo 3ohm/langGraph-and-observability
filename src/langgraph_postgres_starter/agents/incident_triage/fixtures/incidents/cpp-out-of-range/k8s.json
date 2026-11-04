@@ -1,0 +1,109 @@
+{
+  "pods": [
+    {
+      "name": "pick-planner-5f6d7c8b9-vn2rt",
+      "namespace": "warehouse",
+      "node": "ip-10-0-52-18.eu-west-1.compute.internal",
+      "phase": "Running",
+      "containers": [
+        {
+          "name": "planner",
+          "image": "123456789012.dkr.ecr.eu-west-1.amazonaws.com/warehouse/pick-planner:2.2.0",
+          "image_id": "123456789012.dkr.ecr.eu-west-1.amazonaws.com/warehouse/pick-planner@sha256:fb6733fcf811fc1a7b18cabb25745121fb816ae4af4fde55b39269843776cd53",
+          "restart_count": 6,
+          "state": "waiting",
+          "waiting_reason": "CrashLoopBackOff",
+          "last_terminated": {
+            "reason": "Error",
+            "exit_code": 1,
+            "signal": null
+          },
+          "ready": false
+        }
+      ],
+      "annotations": {},
+      "owner": {
+        "kind": "Deployment",
+        "name": "pick-planner"
+      }
+    }
+  ],
+  "events": [
+    {
+      "reason": "Pulled",
+      "message": "Container image \"123456789012.dkr.ecr.eu-west-1.amazonaws.com/warehouse/pick-planner:2.2.0\" already present on machine",
+      "type": "Normal",
+      "count": 6,
+      "last_seen": "2026-11-02T16:24:17Z",
+      "involved_kind": "Pod",
+      "involved_name": "pick-planner-5f6d7c8b9-vn2rt"
+    },
+    {
+      "reason": "Created",
+      "message": "Created container: planner",
+      "type": "Normal",
+      "count": 7,
+      "last_seen": "2026-11-02T16:24:17Z",
+      "involved_kind": "Pod",
+      "involved_name": "pick-planner-5f6d7c8b9-vn2rt"
+    },
+    {
+      "reason": "Started",
+      "message": "Started container planner",
+      "type": "Normal",
+      "count": 7,
+      "last_seen": "2026-11-02T16:24:17Z",
+      "involved_kind": "Pod",
+      "involved_name": "pick-planner-5f6d7c8b9-vn2rt"
+    },
+    {
+      "reason": "BackOff",
+      "message": "Back-off restarting failed container planner in pod pick-planner-5f6d7c8b9-vn2rt_warehouse(e265b61b-7837-5523-bc0c-bd7894ebe20a)",
+      "type": "Warning",
+      "count": 20,
+      "last_seen": "2026-11-02T16:24:17Z",
+      "involved_kind": "Pod",
+      "involved_name": "pick-planner-5f6d7c8b9-vn2rt"
+    },
+    {
+      "reason": "ScalingReplicaSet",
+      "message": "Scaled up replica set pick-planner-5f6d7c8b9 from 0 to 1",
+      "type": "Normal",
+      "count": 1,
+      "last_seen": "2026-11-02T15:58:30Z",
+      "involved_kind": "Deployment",
+      "involved_name": "pick-planner"
+    }
+  ],
+  "logs": {
+    "pick-planner-5f6d7c8b9-vn2rt/planner/current": null,
+    "pick-planner-5f6d7c8b9-vn2rt/planner/previous": "pick-planner watching /var/spool/picks\npick list wave-0412.txt: 23 tasks, route 618s\npick list wave-0413.txt: 31 tasks, route 902s\nterminate called after throwing an instance of 'std::out_of_range'\n  what():  vector::_M_range_check: __n (which is 12) >= this->size() (which is 12)\nAddressSanitizer:DEADLYSIGNAL\n=================================================================\n==1==ERROR: AddressSanitizer: ABRT on unknown address 0x000000000001 (pc 0x7f6d1e2a9eec bp 0x7ffd5c0a1f40 sp 0x7ffd5c0a1e00 T0)\n    #0 0x7f6d1e2a9eec in __pthread_kill_implementation nptl/pthread_kill.c:44\n    #1 0x7f6d1e25afb1 in raise ../sysdeps/posix/raise.c:26\n    #2 0x7f6d1e245471 in abort stdlib/abort.c:79\n    #3 0x7f6d1e49d918 in __gnu_cxx::__verbose_terminate_handler() ../../../../src/libstdc++-v3/libsupc++/vterminate.cc:95\n    #4 0x7f6d1e4a90b9 in __cxxabiv1::__terminate(void (*)()) ../../../../src/libstdc++-v3/libsupc++/eh_terminate.cc:48\n    #5 0x7f6d1e4a9124 in std::terminate() ../../../../src/libstdc++-v3/libsupc++/eh_terminate.cc:58\n    #6 0x7f6d1e4a9377 in __cxa_throw ../../../../src/libstdc++-v3/libsupc++/eh_throw.cc:98\n    #7 0x7f6d1e4a0a4b in std::__throw_out_of_range_fmt(char const*, ...) ../../../../src/libstdc++-v3/src/c++11/functexcept.cc:96\n    #8 0x55f0c2a4b6d1 in std::vector<warehouse::Aisle, std::allocator<warehouse::Aisle> >::_M_range_check(unsigned long) const /usr/include/c++/12/bits/stl_vector.h:1153\n    #9 0x55f0c2a4b6d1 in std::vector<warehouse::Aisle, std::allocator<warehouse::Aisle> >::at(unsigned long) const /usr/include/c++/12/bits/stl_vector.h:1197\n    #10 0x55f0c2a4b6d1 in warehouse::PickPlanner::route_seconds(std::vector<warehouse::PickTask, std::allocator<warehouse::PickTask> > const&) const /workspace/src/pick_planner.cpp:13\n    #11 0x55f0c2a49c4e in main /workspace/src/main.cpp:38\n    #12 0x7f6d1e246249 in __libc_start_call_main ../sysdeps/nptl/libc_start_call_main.h:58\n    #13 0x7f6d1e246304 in __libc_start_main_impl ../csu/libc-start.c:360\n    #14 0x55f0c2a49a10 in _start (/usr/local/bin/pick-planner+0x4a10)\n\nAddressSanitizer can not provide additional info.\nSUMMARY: AddressSanitizer: ABRT nptl/pthread_kill.c:44 in __pthread_kill_implementation\n==1==ABORTING\n"
+  },
+  "nodes": {
+    "ip-10-0-52-18.eu-west-1.compute.internal": [
+      {
+        "type": "MemoryPressure",
+        "status": "False",
+        "reason": "KubeletHasSufficientMemory"
+      },
+      {
+        "type": "DiskPressure",
+        "status": "False",
+        "reason": "KubeletHasNoDiskPressure"
+      },
+      {
+        "type": "PIDPressure",
+        "status": "False",
+        "reason": "KubeletHasSufficientPID"
+      },
+      {
+        "type": "Ready",
+        "status": "True",
+        "reason": "KubeletReady"
+      }
+    ]
+  },
+  "annotations": {
+    "deployment.kubernetes.io/revision": "15"
+  }
+}

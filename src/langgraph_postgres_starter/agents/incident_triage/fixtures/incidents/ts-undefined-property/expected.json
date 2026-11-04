@@ -1,0 +1,14 @@
+{
+  "category": "application",
+  "code": {
+    "path": "src/orders/service.ts",
+    "start_line": 25,
+    "end_line": 33,
+    "symbol": "toLedgerEntry"
+  },
+  "facts": [
+    "Cannot read properties of undefined (reading 'amount')",
+    "charge.refunded",
+    "event.charge"
+  ]
+}

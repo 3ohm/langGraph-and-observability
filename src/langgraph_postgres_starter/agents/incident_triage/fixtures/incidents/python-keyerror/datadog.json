@@ -1,0 +1,42 @@
+{
+  "events": [
+    {
+      "id": "8312004415592873006",
+      "title": "[Triggered on {kube_deployment:orders}] orders worker is crash looping",
+      "text": "orders restarted 6 times in the last 30 minutes. @slack-shop-oncall",
+      "timestamp": "2026-11-02T10:03:00Z",
+      "tags": [
+        "kube_cluster_name:prod-eu-west-1",
+        "kube_namespace:shop",
+        "kube_deployment:orders"
+      ],
+      "source": "monitor"
+    },
+    {
+      "id": "8312004415592873007",
+      "title": "Events from the orders-7d9f8b6c5d-x2kqp Pod",
+      "text": "BackOff: Back-off restarting failed container orders in pod orders-7d9f8b6c5d-x2kqp",
+      "timestamp": "2026-11-02T10:04:31Z",
+      "tags": [
+        "kube_cluster_name:prod-eu-west-1",
+        "kube_namespace:shop",
+        "kube_deployment:orders",
+        "pod_name:orders-7d9f8b6c5d-x2kqp",
+        "kube_container_name:orders"
+      ],
+      "source": "kubernetes"
+    },
+    {
+      "id": "8312004415592873008",
+      "title": "Deployed storefront 9.2.0",
+      "text": "Guest checkout is on in every region.",
+      "timestamp": "2026-11-02T09:55:20Z",
+      "tags": [
+        "kube_cluster_name:prod-eu-west-1",
+        "kube_namespace:shop",
+        "kube_deployment:storefront"
+      ],
+      "source": "github"
+    }
+  ]
+}

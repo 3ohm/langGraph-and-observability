@@ -1,0 +1,98 @@
+{
+  "pods": [
+    {
+      "name": "order-batcher-0",
+      "namespace": "warehouse",
+      "node": "ip-10-0-52-18.eu-west-1.compute.internal",
+      "phase": "Running",
+      "containers": [
+        {
+          "name": "batcher",
+          "image": "123456789012.dkr.ecr.eu-west-1.amazonaws.com/warehouse/order-batcher:1.3.0",
+          "image_id": "123456789012.dkr.ecr.eu-west-1.amazonaws.com/warehouse/order-batcher@sha256:f8c2455936f793625dba652fa2b5379902c897e959df0646959cedd63ac8ba6e",
+          "restart_count": 4,
+          "state": "waiting",
+          "waiting_reason": "CrashLoopBackOff",
+          "last_terminated": {
+            "reason": "Error",
+            "exit_code": 139,
+            "signal": null
+          },
+          "ready": false
+        }
+      ],
+      "annotations": {},
+      "owner": {
+        "kind": "StatefulSet",
+        "name": "order-batcher"
+      }
+    }
+  ],
+  "events": [
+    {
+      "reason": "Pulled",
+      "message": "Container image \"123456789012.dkr.ecr.eu-west-1.amazonaws.com/warehouse/order-batcher:1.3.0\" already present on machine",
+      "type": "Normal",
+      "count": 4,
+      "last_seen": "2026-11-02T13:12:04Z",
+      "involved_kind": "Pod",
+      "involved_name": "order-batcher-0"
+    },
+    {
+      "reason": "Created",
+      "message": "Created container: batcher",
+      "type": "Normal",
+      "count": 5,
+      "last_seen": "2026-11-02T13:12:04Z",
+      "involved_kind": "Pod",
+      "involved_name": "order-batcher-0"
+    },
+    {
+      "reason": "Started",
+      "message": "Started container batcher",
+      "type": "Normal",
+      "count": 5,
+      "last_seen": "2026-11-02T13:12:04Z",
+      "involved_kind": "Pod",
+      "involved_name": "order-batcher-0"
+    },
+    {
+      "reason": "BackOff",
+      "message": "Back-off restarting failed container batcher in pod order-batcher-0_warehouse(9d797b38-ffc3-51c6-a195-f03828c7986d)",
+      "type": "Warning",
+      "count": 14,
+      "last_seen": "2026-11-02T13:12:04Z",
+      "involved_kind": "Pod",
+      "involved_name": "order-batcher-0"
+    }
+  ],
+  "logs": {
+    "order-batcher-0/batcher/current": null,
+    "order-batcher-0/batcher/previous": "2026-11-02T13:05:41Z INFO order-batcher started, spool /var/spool/orders/next.batch\n2026-11-02T13:05:46Z INFO processing order batch for warehouse 1\n2026-11-02T13:05:46Z INFO batch done for warehouse LHR1: 42 orders, 377 units\n2026-11-02T13:05:52Z INFO processing order batch for warehouse 2\n2026-11-02T13:05:52Z INFO batch done for warehouse MAN2: 18 orders, 140 units\n2026-11-02T13:05:58Z INFO processing order batch for warehouse 4\nSegmentation fault (core dumped)\n"
+  },
+  "nodes": {
+    "ip-10-0-52-18.eu-west-1.compute.internal": [
+      {
+        "type": "MemoryPressure",
+        "status": "False",
+        "reason": "KubeletHasSufficientMemory"
+      },
+      {
+        "type": "DiskPressure",
+        "status": "False",
+        "reason": "KubeletHasNoDiskPressure"
+      },
+      {
+        "type": "PIDPressure",
+        "status": "False",
+        "reason": "KubeletHasSufficientPID"
+      },
+      {
+        "type": "Ready",
+        "status": "True",
+        "reason": "KubeletReady"
+      }
+    ]
+  },
+  "annotations": {}
+}

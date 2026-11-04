@@ -1,0 +1,45 @@
+{
+  "events": [
+    {
+      "id": "8312004415592873028",
+      "title": "OOM kill in report-builder-6f8d9c7b5-q2wzx",
+      "text": "Memory cgroup out of memory: the kernel killed process python (pid 1) in container report-builder at its 512Mi memory limit.",
+      "timestamp": "2026-11-02T06:01:03Z",
+      "tags": [
+        "kube_cluster_name:prod-eu-west-1",
+        "kube_namespace:analytics",
+        "kube_deployment:report-builder",
+        "pod_name:report-builder-6f8d9c7b5-q2wzx",
+        "kube_container_name:report-builder"
+      ],
+      "source": "oom_kill"
+    },
+    {
+      "id": "8312004415592873029",
+      "title": "[Triggered on {kube_container_name:report-builder}] report-builder memory near its limit",
+      "text": "kubernetes.memory.usage reached 509.6MiB, 99.5% of the container's 512Mi limit.",
+      "timestamp": "2026-11-02T06:01:00Z",
+      "tags": [
+        "kube_cluster_name:prod-eu-west-1",
+        "kube_namespace:analytics",
+        "kube_deployment:report-builder",
+        "kube_container_name:report-builder"
+      ],
+      "source": "monitor"
+    },
+    {
+      "id": "8312004415592873030",
+      "title": "Events from the report-builder-6f8d9c7b5-q2wzx Pod",
+      "text": "BackOff: Back-off restarting failed container report-builder in pod report-builder-6f8d9c7b5-q2wzx",
+      "timestamp": "2026-11-02T06:30:48Z",
+      "tags": [
+        "kube_cluster_name:prod-eu-west-1",
+        "kube_namespace:analytics",
+        "kube_deployment:report-builder",
+        "pod_name:report-builder-6f8d9c7b5-q2wzx",
+        "kube_container_name:report-builder"
+      ],
+      "source": "kubernetes"
+    }
+  ]
+}

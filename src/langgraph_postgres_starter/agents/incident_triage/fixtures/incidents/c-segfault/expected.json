@@ -1,0 +1,14 @@
+{
+  "category": "application",
+  "code": {
+    "path": "src/batch.c",
+    "start_line": 36,
+    "end_line": 50,
+    "symbol": "process_batch"
+  },
+  "facts": [
+    "Segmentation fault",
+    "warehouse 4",
+    "find_warehouse returns NULL"
+  ]
+}

@@ -69,7 +69,8 @@ Their keys are the fields of the dataclasses in `adapters/k8s/interface.py` and
 ## `recorded/<id>/<prompt_version>/attempt-<n>.json`
 
 The model's reply (`LlmResponse`) that `RecordedLlm` returns for the request with that
-fixture ID, prompt version and attempt:
+fixture ID, prompt version and attempt. Attempts count from 0: `attempt-0.json` is the
+first call of an analysis, and `attempt-1.json` is its repair retry.
 
 ```json
 {

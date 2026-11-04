@@ -1,0 +1,109 @@
+{
+  "pods": [
+    {
+      "name": "billing-invoices-29870100-7xk2p",
+      "namespace": "billing",
+      "node": "ip-10-0-40-201.eu-west-1.compute.internal",
+      "phase": "Running",
+      "containers": [
+        {
+          "name": "invoices",
+          "image": "123456789012.dkr.ecr.eu-west-1.amazonaws.com/billing/billing-invoices:2026.10.1",
+          "image_id": "123456789012.dkr.ecr.eu-west-1.amazonaws.com/billing/billing-invoices@sha256:8728fb53c083b931520850d8a0445f7f5a9e78d6a76bda9b6a2b8126c886ce64",
+          "restart_count": 3,
+          "state": "waiting",
+          "waiting_reason": "CrashLoopBackOff",
+          "last_terminated": {
+            "reason": "Error",
+            "exit_code": 1,
+            "signal": null
+          },
+          "ready": false
+        }
+      ],
+      "annotations": {},
+      "owner": {
+        "kind": "Job",
+        "name": "billing-invoices-29870100"
+      }
+    }
+  ],
+  "events": [
+    {
+      "reason": "Pulled",
+      "message": "Container image \"123456789012.dkr.ecr.eu-west-1.amazonaws.com/billing/billing-invoices:2026.10.1\" already present on machine",
+      "type": "Normal",
+      "count": 3,
+      "last_seen": "2026-11-02T04:09:12Z",
+      "involved_kind": "Pod",
+      "involved_name": "billing-invoices-29870100-7xk2p"
+    },
+    {
+      "reason": "Created",
+      "message": "Created container: invoices",
+      "type": "Normal",
+      "count": 4,
+      "last_seen": "2026-11-02T04:09:12Z",
+      "involved_kind": "Pod",
+      "involved_name": "billing-invoices-29870100-7xk2p"
+    },
+    {
+      "reason": "Started",
+      "message": "Started container invoices",
+      "type": "Normal",
+      "count": 4,
+      "last_seen": "2026-11-02T04:09:12Z",
+      "involved_kind": "Pod",
+      "involved_name": "billing-invoices-29870100-7xk2p"
+    },
+    {
+      "reason": "BackOff",
+      "message": "Back-off restarting failed container invoices in pod billing-invoices-29870100-7xk2p_billing(3c0babfa-11ae-5653-a1bc-96f81961b46c)",
+      "type": "Warning",
+      "count": 11,
+      "last_seen": "2026-11-02T04:09:12Z",
+      "involved_kind": "Pod",
+      "involved_name": "billing-invoices-29870100-7xk2p"
+    },
+    {
+      "reason": "SuccessfulCreate",
+      "message": "Created pod: billing-invoices-29870100-7xk2p",
+      "type": "Normal",
+      "count": 1,
+      "last_seen": "2026-11-02T04:00:00Z",
+      "involved_kind": "Job",
+      "involved_name": "billing-invoices-29870100"
+    }
+  ],
+  "logs": {
+    "billing-invoices-29870100-7xk2p/invoices/current": null,
+    "billing-invoices-29870100-7xk2p/invoices/previous": "Invoice[accountId=acc-1001, seats=12, perSeatCents=4851, totalCents=58212]\nInvoice[accountId=acc-1002, seats=3, perSeatCents=4083, totalCents=12249]\nInvoice[accountId=acc-1003, seats=48, perSeatCents=4704, totalCents=225792]\nException in thread \"main\" java.util.concurrent.ExecutionException: java.lang.ArithmeticException: / by zero\n\tat java.base/java.util.concurrent.FutureTask.report(FutureTask.java:122)\n\tat java.base/java.util.concurrent.FutureTask.get(FutureTask.java:191)\n\tat com.example.billing.Main.main(Main.java:26)\nCaused by: java.lang.ArithmeticException: / by zero\n\tat com.example.billing.InvoiceCalculator.perSeatCents(InvoiceCalculator.java:22)\n\tat com.example.billing.InvoiceCalculator.invoice(InvoiceCalculator.java:15)\n\tat com.example.billing.Main.lambda$main$0(Main.java:23)\n\tat java.base/java.util.concurrent.FutureTask.run(FutureTask.java:317)\n\tat java.base/java.util.concurrent.ThreadPoolExecutor.runWorker(ThreadPoolExecutor.java:1144)\n\tat java.base/java.util.concurrent.ThreadPoolExecutor$Worker.run(ThreadPoolExecutor.java:642)\n\tat java.base/java.lang.Thread.run(Thread.java:1583)\n"
+  },
+  "nodes": {
+    "ip-10-0-40-201.eu-west-1.compute.internal": [
+      {
+        "type": "MemoryPressure",
+        "status": "False",
+        "reason": "KubeletHasSufficientMemory"
+      },
+      {
+        "type": "DiskPressure",
+        "status": "False",
+        "reason": "KubeletHasNoDiskPressure"
+      },
+      {
+        "type": "PIDPressure",
+        "status": "False",
+        "reason": "KubeletHasSufficientPID"
+      },
+      {
+        "type": "Ready",
+        "status": "True",
+        "reason": "KubeletReady"
+      }
+    ]
+  },
+  "annotations": {
+    "batch.kubernetes.io/cronjob-scheduled-timestamp": "2026-11-02T04:00:00Z"
+  }
+}

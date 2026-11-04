@@ -1,0 +1,14 @@
+{
+  "category": "application",
+  "code": {
+    "path": "orders/service.py",
+    "start_line": 23,
+    "end_line": 25,
+    "symbol": "_flatten_customer"
+  },
+  "facts": [
+    "KeyError: 'customer'",
+    "_flatten_customer",
+    "order without a customer"
+  ]
+}

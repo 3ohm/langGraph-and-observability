@@ -1,0 +1,10 @@
+{
+  "version": 1,
+  "source": "datadog-monitor",
+  "alert_id": "dd-148224417",
+  "namespace": "shop",
+  "pod": "orders-7d9f8b6c5d-x2kqp",
+  "raw": {
+    "fixture_id": "python-keyerror"
+  }
+}
