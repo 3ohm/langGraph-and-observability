@@ -5,7 +5,8 @@ it. ``build_adapters`` picks them from the settings:
 
 - ``APP_ADAPTERS`` picks Kubernetes, Datadog and the source adapters. ``simulated``
   serves an incident fixture (``fixtures/FORMAT.md``).
-- ``APP_LLM_MODE`` picks the model. ``recorded`` replies with recorded responses.
+- ``APP_LLM_MODE`` picks the model. ``recorded`` replies with recorded responses;
+  ``bedrock`` calls Claude on Amazon Bedrock (``llm/bedrock.py``).
 - ``APP_RESULT_SINKS`` lists the sinks. ``log`` is the same in every mode.
 """
 
@@ -22,6 +23,7 @@ from langgraph_postgres_starter.agents.incident_triage.adapters.datadog.real imp
 from langgraph_postgres_starter.agents.incident_triage.adapters.k8s.fake import FakeK8s
 from langgraph_postgres_starter.agents.incident_triage.adapters.k8s.interface import K8sAdapter
 from langgraph_postgres_starter.agents.incident_triage.adapters.k8s.real import RealK8s
+from langgraph_postgres_starter.agents.incident_triage.adapters.llm.bedrock import BedrockLlm
 from langgraph_postgres_starter.agents.incident_triage.adapters.llm.interface import LlmAdapter
 from langgraph_postgres_starter.agents.incident_triage.adapters.llm.recorded import RecordedLlm
 from langgraph_postgres_starter.agents.incident_triage.adapters.sinks.interface import ResultSink
@@ -65,7 +67,6 @@ class Adapters:
 # plan (docs/plans/2026-11-02-incident-triage-v1.md) that adds it. The task that adds
 # an adapter removes its entry.
 _NOT_BUILT_YET: dict[str, int] = {
-    "llm": 31,
     "sink.sqs": 32,
 }
 
@@ -83,8 +84,8 @@ def build_adapters(
     With ``APP_ADAPTERS=real`` no fixture is loaded, and ``fixture_id`` is not used.
 
     Raises NotImplementedError when the settings select a real adapter that is not
-    built yet; the message names each such adapter and its task, as in ``llm
-    (Task 31)``. In simulated mode, raises ValueError without a ``fixture_id`` and
+    built yet; the message names each such adapter and its task, as in ``sink.sqs
+    (Task 32)``. In simulated mode, raises ValueError without a ``fixture_id`` and
     FileNotFoundError when the fixture is missing.
     """
     not_built = [name for name in _real_adapters(settings) if name in _NOT_BUILT_YET]
@@ -95,8 +96,7 @@ def build_adapters(
             "numbers are those of docs/plans/2026-11-02-incident-triage-v1.md. Use "
             'APP_ADAPTERS=simulated, APP_LLM_MODE=recorded and APP_RESULT_SINKS=["log"].'
         )
-    # The adapters that are not built yet raise above: from here the model is recorded
-    # and every sink is log.
+    # The adapters that are not built yet raise above: from here every sink is log.
     if settings.adapters == "real":
         fixture = None
     elif fixture_id is None:
@@ -113,9 +113,20 @@ def build_adapters(
         datadog=_build_datadog(settings, fixture, calls),
         locator=_build_locator(settings, fixture, calls),
         source=_build_source(settings, calls),
-        llm=RecordedLlm(settings.fixtures_dir / "recorded", calls),
+        llm=_build_llm(settings, calls),
         sinks=tuple(LogSink(calls) for _ in settings.result_sinks),
     )
+
+
+def _build_llm(settings: Settings, calls: CallLog) -> LlmAdapter:
+    """``BedrockLlm`` with ``APP_LLM_MODE=bedrock``, else the recorded model.
+
+    Building ``BedrockLlm`` touches no network: it builds its boto3 client on its first
+    call.
+    """
+    if settings.llm_mode == "bedrock":
+        return BedrockLlm(settings)
+    return RecordedLlm(settings.fixtures_dir / "recorded", calls)
 
 
 def _build_k8s(settings: Settings, fixture: Fixture | None, calls: CallLog) -> K8sAdapter:

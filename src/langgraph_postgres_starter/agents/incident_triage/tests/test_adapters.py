@@ -30,6 +30,7 @@ from langgraph_postgres_starter.agents.incident_triage.adapters.k8s.interface im
     PodInfo,
     Terminated,
 )
+from langgraph_postgres_starter.agents.incident_triage.adapters.llm.bedrock import BedrockLlm
 from langgraph_postgres_starter.agents.incident_triage.adapters.llm.interface import (
     AnalysisRequest,
     LlmResponse,
@@ -460,15 +461,28 @@ async def test_recorded_llm_malformed_reply_names_its_file(root):
 @pytest.mark.parametrize(
     ("overrides", "adapter", "task"),
     [
-        ({"llm_mode": "bedrock"}, "llm", 31),
         ({"result_sinks": ["log", "sqs"]}, "sink.sqs", 32),
     ],
-    ids=["llm", "sink.sqs"],
+    ids=["sink.sqs"],
 )
 def test_real_mode_not_ready_names_task(overrides, adapter, task):
     with pytest.raises(NotImplementedError) as exc_info:
         build_adapters(load_settings(**overrides), fixture_id=SAMPLE)
     assert f"{adapter} (Task {task})" in str(exc_info.value)
+
+
+def test_bedrock_mode_builds_the_model_without_network(monkeypatch, root):
+    def no_network(*args, **kwargs):
+        raise AssertionError("building the adapters must not touch the network")
+
+    monkeypatch.setattr(socket, "getaddrinfo", no_network)
+    monkeypatch.setattr(socket.socket, "connect", no_network)
+    # boto3 looks for credentials, which can mean a network call, when it builds a client.
+    monkeypatch.setattr(boto3.session, "Session", no_network)
+
+    adapters = build_adapters(_settings(root, llm_mode="bedrock"), fixture_id=SAMPLE)
+
+    assert isinstance(adapters.llm, BedrockLlm)
 
 
 async def test_real_mode_builds_source_adapters_without_network(monkeypatch, tmp_path):
