@@ -7,6 +7,8 @@ a Proof entry may name one test as ``path::test_name``.
 A fork that deletes the example agent (``scripts/remove_example.py``) keeps the notes,
 so a Proof path inside an agent folder that no longer exists is not checked (ruling
 R29). The README's quickstart runs the example agent, so its check is skipped then too.
+A fork that deletes the worker keeps them too: once ``worker/`` is gone, the paths that
+``docs/guides/customize.md`` says to delete with it are not checked (spec §13.9).
 """
 
 import re
@@ -31,6 +33,12 @@ MAX_LINES = 40
 needs_example_agent = pytest.mark.skipif(
     not EXAMPLE_AGENT_DIR.is_dir(), reason="the example agent was removed"
 )
+
+CUSTOMIZE = GUIDES / "customize.md"
+WORKER_DIR = PACKAGE_DIR / "worker"
+WORKER_SECTION = "Run without the queue worker"
+WORKER_LIST = "Delete these files and folders:"
+needs_worker = pytest.mark.skipif(not WORKER_DIR.is_dir(), reason="the worker was removed")
 
 
 def _sections(text: str) -> dict[str, str]:
@@ -58,6 +66,34 @@ def _in_removed_agent(path: str) -> bool:
     return False
 
 
+def _worker_removal_paths() -> list[str]:
+    """The files and folders, from the repository root, that go with the worker.
+
+    They are the bullets of the list after ``WORKER_LIST`` in customize.md's
+    ``WORKER_SECTION``, one backticked path each; a folder ends with ``/``.
+    """
+    section = _sections(CUSTOMIZE.read_text())[WORKER_SECTION]
+    _, found, rest = section.partition(WORKER_LIST)
+    assert found, f"customize.md: {WORKER_SECTION!r} has no {WORKER_LIST!r} list"
+    paths = []
+    for line in rest.strip().splitlines():
+        bullet = re.fullmatch(r"- `([^`]+)`", line.strip())
+        if bullet is None:
+            break
+        paths.append(bullet[1].replace("<package>", PACKAGE_DIR.name))
+    return paths
+
+
+def _in_removed_worker(path: str) -> bool:
+    """Whether ``path`` went with the worker (customize.md), and the worker is gone."""
+    if WORKER_DIR.is_dir():
+        return False
+    return any(
+        path == removed or (removed.endswith("/") and path.startswith(removed))
+        for removed in _worker_removal_paths()
+    )
+
+
 def _check_path(note: str, entry: str) -> None:
     """Assert that ``entry`` (``path`` or ``path::test_name``) exists."""
     path, _, test = entry.partition("::")
@@ -77,7 +113,7 @@ def test_every_practice_has_a_note(pid):
     proofs = _paths(_sections(note.read_text())["Proof"])
     assert proofs, f"{pid}: the Proof section names no test"
     for entry in proofs:
-        if not _in_removed_agent(entry):
+        if not _in_removed_agent(entry) and not _in_removed_worker(entry.partition("::")[0]):
             _check_path(pid, entry)
 
 
@@ -98,7 +134,32 @@ def test_practice_note_where_paths_exist(pid):
     where = _paths(_sections((PRACTICES / f"{pid}.md").read_text())["Where"])
     assert where, f"{pid}: the Where section names no file"
     for entry in where:
-        _check_path(pid, entry)
+        if not _in_removed_worker(entry):
+            _check_path(pid, entry)
+
+
+@needs_worker
+def test_customize_guide_lists_what_goes_with_the_worker():
+    # Spec §13.9: the guide's list is what a fork deletes with worker/. It names the
+    # worker and every test module that imports it, and each path exists.
+    removed = _worker_removal_paths()
+    assert f"src/{PACKAGE_DIR.name}/worker/" in removed
+    for path in removed:
+        assert (ROOT / path).exists(), f"customize.md lists {path}, which does not exist"
+    imports_worker = re.compile(rf"^\s*(?:from|import) {PACKAGE_DIR.name}\.worker\b", re.M)
+    test_roots = [ROOT / "tests", PACKAGE_DIR / "agents", ROOT / "conftest.py"]
+    importers = sorted(
+        path.relative_to(ROOT).as_posix()
+        for root in test_roots
+        for path in ([root] if root.is_file() else root.rglob("*.py"))
+        if imports_worker.search(path.read_text(encoding="utf-8"))
+    )
+    unlisted = [
+        path
+        for path in importers
+        if not any(path == r or (r.endswith("/") and path.startswith(r)) for r in removed)
+    ]
+    assert importers and unlisted == [], f"customize.md does not list {unlisted}"
 
 
 def _readme_links() -> list[str]:

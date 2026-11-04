@@ -126,12 +126,29 @@ dropped as a duplicate of the first. Your agent's `dedup_key` needs the same car
 
 ## Run without the queue worker
 
-A fork that only wants Studio, or another trigger, can delete `src/<package>/worker/` and the
-`worker` and `elasticmq` services of `compose.yaml`, with the worker's tests in
-`tests/integration/` and `tests/e2e/`. Three things go with it:
+A fork that only wants Studio, or another trigger, can delete the worker (spec §13.9): nothing
+else in the package imports it. Delete these files and folders:
 
-- **The `migrate` command** lives in `worker/cli.py`. Keep that file, or call the runner from
-  your own entry point:
+- `src/<package>/worker/`
+- `tests/unit/test_executor_logs.py`
+- `tests/unit/test_health.py`
+- `tests/unit/test_registry.py`
+- `tests/unit/test_worker_main.py`
+- `tests/integration/test_cli.py`
+- `tests/integration/test_executor.py`
+- `tests/integration/test_intake.py`
+- `tests/integration/test_retention.py`
+- `tests/integration/test_runs_repo.py`
+- `tests/integration/test_worker_loop.py`
+- `tests/e2e/`
+
+`make lint typecheck test` then passes: the docs tests skip the practice notes' paths that went
+with the worker, and `scripts/remove_example.py` still removes the example. What the worker
+gave, and what to change:
+
+- **The commands.** `worker`, `migrate` and `runs` live in `worker/cli.py`. Without it,
+  `python -m <package>` prints its version, and a command exits with an error. Call the
+  migration runner from your own entry point:
 
   ```python
   import asyncio
@@ -142,6 +159,15 @@ A fork that only wants Studio, or another trigger, can delete `src/<package>/wor
   asyncio.run(run_migrate(load_settings(), agent_sources=[("my_agent", MIGRATIONS_DIR)]))
   ```
 
+- **Compose and the image.** Delete the `worker` and `elasticmq` services of `compose.yaml`, and
+  point its `migrate` service, and the Dockerfile's `CMD`, at your entry point. `make up` and
+  `make migrate` use them.
+- **CI.** The `e2e` job then finds no tests: delete it from `.github/workflows/ci.yml`, with the
+  Makefile's `test-e2e` target and the `e2e` lines of
+  `tests/unit/test_ci_config.py::test_test_jobs_run_their_make_targets`. The `docker` job's
+  migration smoke test runs the image's `migrate` command: point it at your entry point.
+- **The deployment.** `deploy/k8s/` runs the worker and the `migrate` command; replace them for
+  your trigger.
 - **Retention** (`worker/retention.py`, P6): prune old checkpoints some other way, such as a
   scheduled job that calls `saver.aprune(thread_ids, strategy="delete")`.
 - **The registry** (`worker/registry.py`): `langgraph.json` names graphs directly, so Studio

@@ -8,7 +8,8 @@ It deletes the agent's package, ``src/<package>/agents/incident_triage/``, and t
 that only the example uses: ``scripts/send_incident.py`` (``make incident``) and
 ``scripts/sync_dataset.py``, their tests, the agent's end-to-end test, the Evals
 workflow and the real-mode guide, whose link it removes from ``README.md``. It removes
-the agent's entry from ``langgraph.json`` and its line from ``worker/registry.py``, and
+the agent's entry from ``langgraph.json`` and its line from ``worker/registry.py`` (in a
+fork that has deleted the worker, the registry is gone with it), and
 it resets the two settings defaults that name it (``intake_agent`` to ``""``,
 ``fixtures_dir`` to the package's ``fixtures`` folder) in ``settings.py``, in their test
 and in ``.env.example``. It also removes the example's
@@ -49,6 +50,8 @@ PROG = "remove_example.py"
 PACKAGE = "langgraph_postgres_starter"
 AGENT = "incident_triage"
 PACKAGE_DIR = f"src/{PACKAGE}"
+# A fork may delete the worker (spec 13.9); the edits of its files go with it.
+WORKER_DIR = f"{PACKAGE_DIR}/worker"
 
 # The files and folders that only the example agent uses.
 DELETE = (
@@ -256,6 +259,7 @@ def plan(root: Path) -> tuple[list[Path], dict[Path, str]]:
     make call that the removal would leave without its target.
     """
     first_run = (root / DELETE[0]).is_dir()
+    worker_gone = not (root / WORKER_DIR).is_dir()
     deletions = [root / name for name in DELETE if (root / name).exists()]
     texts: dict[Path, str] = {}
 
@@ -279,7 +283,7 @@ def plan(root: Path) -> tuple[list[Path], dict[Path, str]]:
     for edit in EDITS:
         path = root / edit.path
         if not path.is_file():
-            if first_run:
+            if first_run and not (worker_gone and edit.path.startswith(f"{WORKER_DIR}/")):
                 raise RemovalError(f"{edit.path} is missing")
             continue
         if first_run and edit.old not in current(path):

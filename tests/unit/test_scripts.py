@@ -236,6 +236,20 @@ def test_remove_example_in_temp_copy(repo_copy):
         assert dry_run.returncode == 0, f"make -n {target}: {dry_run.stderr}"
 
 
+def test_remove_example_without_the_worker(repo_copy):
+    # Spec 13.9: a fork that deleted the worker can still remove the example. The
+    # registry edits go with the worker; everything else is removed as before.
+    worker = repo_copy / "src" / PACKAGE / "worker"
+    if worker.is_dir():  # a fork without the worker runs this suite too
+        shutil.rmtree(worker)
+
+    result = _run(repo_copy, "scripts/remove_example.py")
+
+    assert result.returncode == 0, result.stderr
+    assert not (repo_copy / "src" / PACKAGE / "agents" / EXAMPLE_AGENT).exists()
+    assert _files_containing(repo_copy / "src", EXAMPLE_AGENT) == []
+
+
 def test_remove_example_is_idempotent(repo_copy):
     first = _run(repo_copy, "scripts/remove_example.py")
     assert first.returncode == 0, first.stderr

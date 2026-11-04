@@ -1,4 +1,4 @@
-"""The assembled Incident Triage graph, its registration and Studio (spec §8.5, §9.2, §10.3, §13.9).
+"""The assembled Incident Triage graph, its spec and Studio (spec §8.5, §9.2, §10.3, §13.9).
 
 The graph runs with an in-memory checkpointer, the simulated adapters and the recorded
 model, as the worker runs it: the agent spec builds the input and the context. Some
@@ -63,7 +63,6 @@ from langgraph_postgres_starter.ids import new_id
 from langgraph_postgres_starter.persistence.serde import make_serde
 from langgraph_postgres_starter.policies import default_retry_policy, step_timeout
 from langgraph_postgres_starter.settings import Settings, load_settings
-from langgraph_postgres_starter.worker.registry import builtin_agents, load_agents
 
 REPO_ROOT = Path(__file__).parents[5]
 AGENT_DIR = Path(__file__).parents[1]
@@ -456,9 +455,9 @@ async def test_context_stays_out_of_traces_and_checkpoints():
 # --- registration, the agent spec and Studio (P22) ---------------------------------------
 
 
-def test_registry_includes_incident_triage():
-    assert spec in builtin_agents()
-    assert load_agents(load_settings())["incident_triage"] is spec
+def test_spec_names_the_graph_types_and_tables():
+    # The worker's registry lists this spec (tests/unit/test_registry.py); the agent's
+    # tests import nothing from the worker, which a fork may delete (spec §13.9).
     assert spec.name == "incident_triage"
     assert spec.input_model is IncidentMessage
     assert tuple(spec.serde_types) == SERDE_TYPES

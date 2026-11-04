@@ -8,9 +8,9 @@ nothing. It is closed at the end of the test.
 import copy
 import json
 from dataclasses import dataclass
-from datetime import UTC, datetime
 from types import SimpleNamespace
 from typing import Any
+from uuid import UUID
 
 import langsmith
 import pytest
@@ -36,7 +36,6 @@ from langgraph_postgres_starter.observability.langsmith import (
 )
 from langgraph_postgres_starter.observability.metadata import run_metadata
 from langgraph_postgres_starter.settings import load_settings
-from langgraph_postgres_starter.worker.runs import RunRow, RunStatus
 
 # Nothing listens on port 1: a request that got past NoNetworkSession would fail too.
 NO_NETWORK = "http://127.0.0.1:1"
@@ -539,22 +538,18 @@ def test_log_eval_results_without_the_experiment_returns_no_link(
 # --- run metadata --------------------------------------------------------------------
 
 
-def _run(run_input: dict[str, object]) -> RunRow:
-    return RunRow(
-        run_id=new_id(),
-        agent="incident_triage",
-        dedup_key="d" * 64,
-        status=RunStatus.RUNNING,
-        input=run_input,
-        attempt=0,
-        lease_owner="pod-a",
-        lease_expires_at=None,
-        created_at=datetime.now(UTC),
-        started_at=None,
-        ended_at=None,
-        error=None,
-        checkpoints_pruned_at=None,
-    )
+@dataclass(frozen=True)
+class TracedRun:
+    """A run as run_metadata reads it; the worker passes its RunRow."""
+
+    run_id: UUID
+    dedup_key: str
+    agent: str
+    input: dict[str, object]
+
+
+def _run(run_input: dict[str, object]) -> TracedRun:
+    return TracedRun(run_id=new_id(), dedup_key="d" * 64, agent="incident_triage", input=run_input)
 
 
 def test_metadata_has_no_secrets():

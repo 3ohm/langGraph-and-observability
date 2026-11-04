@@ -60,19 +60,27 @@ def sqs_endpoint() -> Iterator[str]:
 
 @pytest.fixture
 def sqs(sqs_endpoint: str, monkeypatch: pytest.MonkeyPatch) -> Any:
-    """A boto3 SQS client for sqs_endpoint, built by ``make_sqs_client``.
+    """A boto3 SQS client for sqs_endpoint, configured as ``worker.intake.make_sqs_client``.
 
-    ElasticMQ accepts any credentials. The fixture sets dummy ones and removes the
-    developer's session token and profile, so a test never sends real credentials.
+    It is built here, not by that function, so this conftest imports nothing from the
+    worker, which a fork may delete (spec 13.9). ElasticMQ accepts any credentials. The
+    fixture sets dummy ones and removes the developer's session token and profile, so a
+    test never sends real credentials.
     """
     # Imported here: loading this conftest does not import boto3.
-    from langgraph_postgres_starter.worker.intake import make_sqs_client
+    import boto3
+    from botocore.config import Config
 
     monkeypatch.setenv("AWS_ACCESS_KEY_ID", "test")
     monkeypatch.setenv("AWS_SECRET_ACCESS_KEY", "test")
     for name in _AWS_IDENTITY_VARS:
         monkeypatch.delenv(name, raising=False)
-    return make_sqs_client(load_settings(sqs_endpoint_url=sqs_endpoint))
+    return boto3.session.Session().client(
+        "sqs",
+        region_name=load_settings().aws_region,
+        endpoint_url=sqs_endpoint,
+        config=Config(retries={"mode": "standard", "max_attempts": 3}),
+    )
 
 
 @pytest.fixture

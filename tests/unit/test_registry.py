@@ -1,6 +1,7 @@
 """The agent registry: built-in agents, then included specs, then APP_EXTRA_AGENTS (spec 13.9)."""
 
 import dataclasses
+import importlib.util
 
 import pytest
 
@@ -9,6 +10,20 @@ from langgraph_postgres_starter.worker.registry import builtin_agents, load_agen
 from tests.graphs.steps import STEPS_SPEC
 
 STEPS_ENTRY = "tests.graphs.steps:STEPS_SPEC"
+# The example agent's spec module; scripts/remove_example.py deletes it.
+EXAMPLE_SPEC = "langgraph_postgres_starter.agents.incident_triage.spec"
+
+
+@pytest.mark.skipif(
+    importlib.util.find_spec(EXAMPLE_SPEC.rpartition(".")[0]) is None,
+    reason="the example agent was removed",
+)
+def test_registry_includes_the_example_agent():
+    # Imported by name: the module is gone, and mypy cannot see it, after the removal.
+    example = importlib.import_module(EXAMPLE_SPEC).spec
+
+    assert example in builtin_agents()
+    assert load_agents(load_settings())["incident_triage"] is example
 
 
 def test_load_agents_reads_extra_agents(monkeypatch):
