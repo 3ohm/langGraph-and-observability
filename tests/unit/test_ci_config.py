@@ -28,10 +28,35 @@ def test_canary_does_not_block():
 def test_dependabot_weekly_grouped_with_cooldown():
     d = yaml.safe_load((ROOT / ".github/dependabot.yml").read_text())
     eco = {u["package-ecosystem"]: u for u in d["updates"]}
-    assert {"uv", "github-actions"} <= set(eco)
-    assert eco["uv"]["schedule"]["interval"] == "weekly"
-    assert eco["uv"]["cooldown"]["default-days"] == 7
+    # Python packages, actions, the Dockerfile's images and the Compose images.
+    assert set(eco) == {"uv", "github-actions", "docker", "docker-compose"}
+    for name, update in eco.items():
+        assert update["directory"] == "/", name
+        assert update["schedule"]["interval"] == "weekly", name
+        assert update["cooldown"]["default-days"] == 7, name
     assert "langgraph*" in eco["uv"]["groups"]["langchain"]["patterns"]
+
+
+def test_ci_services_use_the_compose_images():
+    # Dependabot updates compose.yaml's images, not a workflow's service containers, so
+    # these must match by hand: a Dependabot pull request for compose.yaml fails here.
+    compose = yaml.safe_load((ROOT / "compose.yaml").read_text())["services"]
+    for job in ("integration", "e2e"):
+        services = WF["jobs"][job]["services"]
+        for name in ("postgres", "elasticmq"):
+            assert services[name]["image"] == compose[name]["image"], (job, name)
+
+
+def _runs(workflow) -> list[str]:
+    """The ``run`` of every step of a workflow (no typing import: the removal deletes it)."""
+    return [s["run"] for j in workflow["jobs"].values() for s in j["steps"] if "run" in s]
+
+
+def test_uv_commands_need_an_up_to_date_lock():
+    # UV_LOCKED: every uv command in CI, also the `uv run` inside make targets, fails when
+    # uv.lock does not match pyproject.toml. uv refuses --frozen alongside it.
+    assert WF["env"] == {"UV_LOCKED": "1"}
+    assert [run for run in _runs(WF) if "--frozen" in run] == []
 
 
 def test_test_jobs_run_their_make_targets():
@@ -46,7 +71,7 @@ def test_test_jobs_fetch_grammars_after_sync():
     # Ruling R51: tests never download a grammar, so each job that runs tests fetches them first.
     for name in ("unit", "integration", "e2e", "canary-3-15"):
         runs = [s.get("run") for s in WF["jobs"][name]["steps"]]
-        sync = runs.index("uv sync --all-groups --frozen")
+        sync = runs.index("uv sync --all-groups")
         assert runs[sync + 1] == "make grammars", name
 
 
@@ -93,7 +118,7 @@ def test_removal_job_removes_the_example_from_a_copy_then_checks_the_rest():
     assert all(s["working-directory"] == REMOVAL_COPY for s in after)
     commands = [line.strip() for s in after for line in s["run"].splitlines() if line.strip()]
     assert commands == [
-        "uv sync --all-groups --frozen",
+        "uv sync --all-groups",
         "uv run scripts/remove_example.py",
         "! grep -r incident_triage src",
         'uv run pytest -m "not integration and not e2e"',
@@ -146,6 +171,11 @@ def test_evals_triggers():
     assert set(triggers) == {"pull_request", "workflow_dispatch"}
 
 
+def test_evals_uv_commands_need_an_up_to_date_lock():
+    assert EVALS["env"] == {"UV_LOCKED": "1"}
+    assert [run for run in _runs(EVALS) if "--frozen" in run] == []
+
+
 def test_evals_minimal_permissions():
     assert EVALS["permissions"] == {"contents": "read"}
     # OIDC: the job asks GitHub for an ID token, which AWS exchanges for credentials.
@@ -166,7 +196,7 @@ def test_evals_install_like_the_test_jobs():
     [checkout] = [s for s in EVALS_STEPS if s.get("uses", "").startswith("actions/checkout@")]
     assert checkout["with"]["persist-credentials"] is False
     runs = [s.get("run") for s in EVALS_STEPS]
-    sync = runs.index("uv sync --all-groups --frozen")
+    sync = runs.index("uv sync --all-groups")
     assert runs[sync + 1] == "make grammars"
     assert runs.index(RIPGREP) < EVALS_STEPS.index(_eval_step())
 

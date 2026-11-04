@@ -1,5 +1,7 @@
-# Dependabot (spec 13.4): weekly updates for Python packages (uv) and GitHub Actions.
-# The cooldown waits 7 days after a release before Dependabot proposes it.
+# Dependabot (spec 13.4): weekly updates for Python packages (uv), GitHub Actions, the
+# Dockerfile's images (docker) and the Compose images (docker-compose). The cooldown waits
+# 7 days after a release before Dependabot proposes it. The images of CI's service
+# containers are not covered: they follow compose.yaml by hand (.github/workflows/ci.yml).
 version: 2
 updates:
   - package-ecosystem: uv
@@ -31,3 +33,21 @@ updates:
           - "*"
     commit-message:
       prefix: ci
+
+  - package-ecosystem: docker
+    directory: /
+    schedule:
+      interval: weekly
+    cooldown:
+      default-days: 7
+    commit-message:
+      prefix: build
+
+  - package-ecosystem: docker-compose
+    directory: /
+    schedule:
+      interval: weekly
+    cooldown:
+      default-days: 7
+    commit-message:
+      prefix: build

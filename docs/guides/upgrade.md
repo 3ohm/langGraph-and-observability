@@ -7,13 +7,15 @@ its own schedule.
 
 ## Dependencies
 
-- **Dependabot** opens weekly pull requests for Python packages and GitHub Actions, with the
-  LangChain-family packages (`langgraph*`, `langchain*`, `langsmith`) in one group and a 7-day
-  cooldown, so a broken release has time to be pulled. Actions stay pinned to full commit SHAs;
-  Dependabot updates the SHA and its tag comment.
+- **Dependabot** opens weekly pull requests for Python packages, GitHub Actions, the
+  Dockerfile's images and the Compose images, with the LangChain-family packages
+  (`langgraph*`, `langchain*`, `langsmith`) in one group and a 7-day cooldown, so a broken
+  release has time to be pulled. Actions stay pinned to full commit SHAs; Dependabot updates the
+  SHA and its tag comment. CI's service containers use the Compose images, but Dependabot does
+  not update them: change them in `.github/workflows/ci.yml` in the same pull request.
 - **By hand:** `uv lock --upgrade-package <name>` (or `uv lock --upgrade` for all), then
   `uv sync --all-groups` and commit `uv.lock`. The pre-commit hook `uv lock --check` fails when
-  `uv.lock` does not match `pyproject.toml`; CI installs from `uv.lock` as it is (`--frozen`).
+  `uv.lock` does not match `pyproject.toml`, and so does every uv command in CI (`UV_LOCKED`).
 - Run the whole suite after an upgrade: `make lint typecheck test`, then `make test-int` and
   `make test-e2e` (Docker). The evals run in `make test` with the recorded model; run the Evals
   workflow for a prompt or model change.

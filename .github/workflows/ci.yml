@@ -1,5 +1,7 @@
 # CI (spec 13.3). Every Python job uses the same steps: check out the code, install uv and
 # Python, install all dependency groups from uv.lock, then run one make target.
+# UV_LOCKED makes every uv command, also the `uv run` inside make targets, fail when uv.lock
+# does not match pyproject.toml. (uv refuses --frozen alongside it.)
 # A job that runs tests first fetches the tree-sitter grammars (make grammars): tests never
 # download one.
 # A job that runs tests also installs ripgrep from apt: the agent's code step runs rg, which
@@ -8,13 +10,18 @@
 # The docker job builds the image, then runs its migrations against a Compose Postgres.
 # The removal job deletes the example agent from a copy of the repository, then checks
 # that the rest still passes.
-# Actions are pinned to full commit SHAs. Dependabot updates the SHAs and the tag comments.
+# Actions are pinned to full commit SHAs; Dependabot updates the SHAs and their tag comments.
+# Dependabot does not update the images of the service containers below: keep them the same
+# as compose.yaml's, whose images it does update (tests/unit/test_ci_config.py checks this).
 name: CI
 
 on: [push, pull_request]
 
 permissions:
   contents: read
+
+env:
+  UV_LOCKED: "1"
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
@@ -31,7 +38,7 @@ jobs:
         with:
           python-version: "3.14"
           enable-cache: true
-      - run: uv sync --all-groups --frozen
+      - run: uv sync --all-groups
       - run: make lint typecheck
 
   unit:
@@ -44,7 +51,7 @@ jobs:
         with:
           python-version: "3.14"
           enable-cache: true
-      - run: uv sync --all-groups --frozen
+      - run: uv sync --all-groups
       - run: make grammars
       - run: sudo apt-get update && sudo apt-get install -y --no-install-recommends ripgrep
       - run: make test
@@ -88,7 +95,7 @@ jobs:
         with:
           python-version: "3.14"
           enable-cache: true
-      - run: uv sync --all-groups --frozen
+      - run: uv sync --all-groups
       - run: make grammars
       - run: sudo apt-get update && sudo apt-get install -y --no-install-recommends ripgrep
       - run: make test-int
@@ -135,7 +142,7 @@ jobs:
         with:
           python-version: "3.14"
           enable-cache: true
-      - run: uv sync --all-groups --frozen
+      - run: uv sync --all-groups
       - run: make grammars
       - run: sudo apt-get update && sudo apt-get install -y --no-install-recommends ripgrep
       - run: make test-e2e
@@ -170,7 +177,7 @@ jobs:
         with:
           python-version: "3.14"
           enable-cache: true
-      - run: uv sync --all-groups --frozen
+      - run: uv sync --all-groups
       - name: Copy the commit to a temporary folder
         run: |
           mkdir "$RUNNER_TEMP/removal"
@@ -178,7 +185,7 @@ jobs:
       - name: Remove the example agent from the copy
         working-directory: ${{ runner.temp }}/removal
         run: |
-          uv sync --all-groups --frozen
+          uv sync --all-groups
           uv run scripts/remove_example.py
       - name: No file under src/ names the example agent
         working-directory: ${{ runner.temp }}/removal
@@ -202,7 +209,7 @@ jobs:
         with:
           python-version: "3.15"
           enable-cache: true
-      - run: uv sync --all-groups --frozen
+      - run: uv sync --all-groups
       - run: make grammars
       - run: sudo apt-get update && sudo apt-get install -y --no-install-recommends ripgrep
       - run: make test

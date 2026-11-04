@@ -24,6 +24,10 @@ on:
 permissions:
   contents: read
 
+# Every uv command fails when uv.lock does not match pyproject.toml, as in ci.yml.
+env:
+  UV_LOCKED: "1"
+
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
@@ -48,7 +52,7 @@ jobs:
         with:
           python-version: "3.14"
           enable-cache: true
-      - run: uv sync --all-groups --frozen
+      - run: uv sync --all-groups
       - run: make grammars
       - run: sudo apt-get update && sudo apt-get install -y --no-install-recommends ripgrep
       # Last before the evals, so that only they get the credentials.
