@@ -12,10 +12,14 @@ check out the same commit at once, the first rename wins and the second run uses
 entry. A failed checkout deletes its temporary folder.
 
 Eviction: after each new checkout, while the cache is over ``max_cache_mb``, the entry
-with the oldest modification time is deleted, never the one just checked out. A
-checkout that is reused gets a new modification time, so the order is least recently
-used. Only folders with the names above count: other files in ``cache_dir`` are left
-alone.
+with the oldest modification time is deleted. A checkout that is reused gets a new
+modification time, so the order is least recently used. An entry used less than
+``min_age_s`` ago (``build_adapters`` passes the run deadline) is never deleted, nor
+is the one just checked out: a run may still be reading it. When only such entries are
+left, the cache stays over budget for that pass, and ``source.cache_over_budget`` logs
+the sizes. An entry that another run deletes between the check and the touch is a
+cache miss: the commit is fetched again. Only folders with the names above count:
+other files in ``cache_dir`` are left alone.
 
 Untrusted input (ruling R59): a ref's URL and commit come from the cluster
 (annotations, image labels, the source map), and anyone who can edit a workload's
@@ -67,6 +71,8 @@ _log = get_logger(__name__)
 
 # The longest that one git call may run, in seconds.
 DEFAULT_GIT_TIMEOUT_S = 120.0
+# An entry used less than this long ago is never evicted: the default run deadline.
+DEFAULT_MIN_AGE_S = 900.0
 # The most characters of git's error output that a GitError message keeps.
 _MAX_ERROR_CHARS = 1000
 _MAX_URL_CHARS = 2048
@@ -172,9 +178,11 @@ class GitSourceProvider(SourceProvider):
     ``token`` (``APP_GIT_TOKEN``) is sent as a Bearer header to the repository's host,
     when set. ``allowed_hosts`` (``APP_GIT_ALLOWED_HOSTS``) are the only hosts it
     fetches from. ``max_cache_mb`` (``APP_SOURCE_CACHE_MAX_MB``) bounds the cache.
-    ``timeout_s`` caps each git call. ``allow_file_urls`` also accepts ``file://`` URLs;
-    it is for tests, and ``build_adapters`` never sets it. Building the provider starts
-    no process and touches no file.
+    ``min_age_s`` is how long after its last use an entry is safe from eviction; it must
+    cover the longest run (``APP_RUN_DEADLINE_SECONDS``). ``timeout_s`` caps each git
+    call. ``allow_file_urls`` also accepts ``file://`` URLs; it is for tests, and
+    ``build_adapters`` never sets it. Building the provider starts no process and
+    touches no file.
     """
 
     def __init__(
@@ -184,6 +192,7 @@ class GitSourceProvider(SourceProvider):
         max_cache_mb: int,
         *,
         allowed_hosts: Collection[str],
+        min_age_s: float = DEFAULT_MIN_AGE_S,
         timeout_s: float = DEFAULT_GIT_TIMEOUT_S,
         allow_file_urls: bool = False,
     ) -> None:
@@ -191,6 +200,7 @@ class GitSourceProvider(SourceProvider):
         self._token = token
         self._allowed_hosts = tuple(allowed_hosts)
         self._max_cache_bytes = max_cache_mb * 1024 * 1024
+        self._min_age_s = min_age_s
         self._timeout_s = timeout_s
         self._allow_file_urls = allow_file_urls
 
@@ -207,26 +217,35 @@ class GitSourceProvider(SourceProvider):
         commit = check_commit(ref.commit)
         repo_dir = self._cache_dir / hashlib.sha256(url.encode()).hexdigest()[:16]
         if _FULL_SHA.fullmatch(commit):
-            entry = repo_dir / commit
-            if entry.is_dir():
-                return self._reuse(entry, url)
+            cached = self._reuse(repo_dir / commit, url)
+            if cached is not None:
+                return cached
         env = self._env(urlsplit(url).hostname)
         temp = _make_temp_dir(repo_dir)
         placed = False
         try:
             entry = await self._fetch(temp, repo_dir, url, commit, env)
-            if not entry.is_dir():
-                await self._git(env, temp, "checkout", "-q", "--detach", "FETCH_HEAD")
-                placed = _place(temp, entry)
+            # An earlier checkout of the same SHA (a ref that is not a full SHA is always
+            # fetched), or one that another run made while this one fetched.
+            cached = self._reuse(entry, url)
+            if cached is not None:
+                return cached
+            await self._git(env, temp, "checkout", "-q", "--detach", "FETCH_HEAD")
+            placed = _place(temp, entry)
         finally:
             if not placed:
                 await asyncio.to_thread(shutil.rmtree, temp, ignore_errors=True)
         if not placed:
-            # The entry exists: an earlier checkout of the same SHA (a ref that is not a
-            # full SHA is always fetched), or another run that renamed its checkout first.
-            return self._reuse(entry, url)
+            # Another run renamed its checkout into place first. It was just made, so no
+            # eviction deletes it within min_age_s.
+            cached = self._reuse(entry, url)
+            if cached is None:
+                raise GitError(f"the checkout of {entry.name} was deleted as it was made")
+            return cached
         _log.info("source.checkout.fetched", repo_url=url, ref=commit, commit=entry.name)
-        await asyncio.to_thread(_evict, self._cache_dir, entry, self._max_cache_bytes)
+        await asyncio.to_thread(
+            _evict, self._cache_dir, entry, self._max_cache_bytes, self._min_age_s
+        )
         return entry
 
     async def _fetch(
@@ -245,9 +264,19 @@ class GitSourceProvider(SourceProvider):
             raise GitError(f"git fetched {sha!r}, not the commit that was asked for")
         return repo_dir / sha
 
-    def _reuse(self, entry: Path, url: str) -> Path:
-        """Mark ``entry`` as just used, for the least-recently-used eviction."""
-        os.utime(entry)
+    def _reuse(self, entry: Path, url: str) -> Path | None:
+        """Mark ``entry`` as just used and return it; None if it does not exist (a miss).
+
+        The touch both orders the least-recently-used eviction and keeps ``entry`` safe
+        from it for ``min_age_s``.
+        """
+        if not entry.is_dir():
+            return None
+        try:
+            os.utime(entry)
+        except FileNotFoundError:
+            # Another run's eviction deleted it between the check and the touch.
+            return None
         _log.info("source.checkout.cached", repo_url=url, commit=entry.name)
         return entry
 
@@ -365,20 +394,23 @@ def _size(folder: Path) -> int:
     return total
 
 
-def _evict(cache_dir: Path, keep: Path, max_bytes: int) -> None:
-    """Delete the least recently used entries, never ``keep``, until within ``max_bytes``.
+def _evict(cache_dir: Path, keep: Path, max_bytes: int, min_age_s: float) -> None:
+    """Delete the least recently used entries until the cache is within ``max_bytes``.
 
-    A repository folder that is left empty is deleted too.
+    It never deletes ``keep`` or an entry used less than ``min_age_s`` ago. If only
+    those are left over budget, it logs ``source.cache_over_budget`` once, with sizes
+    only. A repository folder that is left empty is deleted too.
     """
     entries = _entries(cache_dir)
     sizes = {entry: _size(entry) for entry in entries}
     total = sum(sizes.values())
     if total <= max_bytes:
         return
+    now = time.time()
     for entry in sorted(entries, key=_mtime):
         if total <= max_bytes:
             break
-        if entry == keep:
+        if entry == keep or now - _mtime(entry) < min_age_s:
             continue
         shutil.rmtree(entry, ignore_errors=True)
         total -= sizes[entry]
@@ -387,9 +419,14 @@ def _evict(cache_dir: Path, keep: Path, max_bytes: int) -> None:
             entry.parent.rmdir()
         except OSError:
             pass  # not empty
+    if total > max_bytes:
+        _log.warning(
+            "source.cache_over_budget", bytes=total, max_bytes=max_bytes, min_age_s=min_age_s
+        )
 
 
 def _mtime(path: Path) -> float:
+    """``path``'s modification time; now if it is gone, so it counts as just used."""
     try:
         return path.stat().st_mtime
     except OSError:

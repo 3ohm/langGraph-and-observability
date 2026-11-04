@@ -486,12 +486,15 @@ async def test_real_mode_builds_source_adapters_without_network(monkeypatch, tmp
         source_map_file=tmp_path / "source-map.yaml",
         git_token="token-for-tests",  # noqa: S106 - a fake token
         git_allowed_hosts=["git.example.com"],
+        run_deadline_seconds=600,
     )
 
     adapters = build_adapters(settings, fixture_id=None)
 
     assert isinstance(adapters.locator, ChainLocator)
     assert isinstance(adapters.source, GitSourceProvider)
+    # A checkout is never evicted while a run, at most the run deadline long, may read it.
+    assert adapters.source._min_age_s == 600
     # Nothing is read or written before the first call either.
     assert not (tmp_path / "cache").exists()
     # The real provider takes only https:// URLs on APP_GIT_ALLOWED_HOSTS (ruling R59),

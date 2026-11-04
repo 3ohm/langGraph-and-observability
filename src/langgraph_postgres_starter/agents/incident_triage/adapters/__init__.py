@@ -177,6 +177,8 @@ def _build_source(settings: Settings, calls: CallLog) -> SourceProvider:
             settings.git_token,
             settings.source_cache_max_mb,
             allowed_hosts=settings.git_allowed_hosts,
+            # A run lasts at most the run deadline, so it never loses its checkout.
+            min_age_s=settings.run_deadline_seconds,
         )
     return LocalSourceProvider(settings.fixtures_dir / "apps", calls)
 

@@ -11,6 +11,7 @@ fail at once, and the tests read the argv and environment it was given.
 import asyncio
 import hashlib
 import os
+import shutil
 import subprocess
 import sys
 import time
@@ -285,17 +286,28 @@ async def test_concurrent_checkouts_never_see_a_partial_tree(tmp_path, remote):
     assert [p.name for p in _repo_dir(cache, remote).iterdir()] == [remote.first]
 
 
+def _fake_entry(repo_dir: Path, name: str, age_s: float, kib: int = 600) -> Path:
+    """A checkout of ``kib`` KiB in ``repo_dir``, last used ``age_s`` seconds ago."""
+    entry = repo_dir / name
+    entry.mkdir(parents=True)
+    (entry / "blob.bin").write_bytes(b"x" * kib * 1024)
+    _age(entry, age_s)
+    return entry
+
+
+def _age(entry: Path, age_s: float) -> None:
+    then = time.time() - age_s
+    os.utime(entry, (then, then))
+
+
 async def test_cache_eviction_respects_budget(tmp_path, remote):
     cache = tmp_path / "cache"
-    now = time.time()
-    # Two older checkouts of another repository, 600 KiB each, and a folder that is not
-    # a checkout. The budget is 1 MiB.
+    # Two checkouts of another repository, 600 KiB each, last used well over the
+    # default minimum age (900 s) ago, and a folder that is not a checkout. The budget
+    # is 1 MiB.
     other = cache / ("0" * 16)
-    for name, age in (("1" * 40, 300), ("2" * 40, 100)):
-        entry = other / name
-        entry.mkdir(parents=True)
-        (entry / "blob.bin").write_bytes(b"x" * 600 * 1024)
-        os.utime(entry, (now - age, now - age))
+    oldest = _fake_entry(other, "1" * 40, age_s=3000)
+    _fake_entry(other, "2" * 40, age_s=2000)
     unrelated = cache / "notes"
     unrelated.mkdir()
     (unrelated / "big.bin").write_bytes(b"x" * 2 * 1024 * 1024)
@@ -308,16 +320,68 @@ async def test_cache_eviction_respects_budget(tmp_path, remote):
     assert path.is_dir()
     assert (unrelated / "big.bin").exists()
     evicted = [log for log in logs if log["event"] == "source.cache.evicted"]
-    assert [log["path"] for log in evicted] == [str(other / ("1" * 40))]
+    assert [log["path"] for log in evicted] == [str(oldest)]
+    assert [log["event"] for log in logs if "over_budget" in log["event"]] == []
 
-    # With no budget, every other checkout goes, but never the one just checked out, and
-    # a repository folder that is left empty goes too.
+    # With no budget, every other checkout old enough goes, but never the one just
+    # checked out, and a repository folder that is left empty goes too.
+    _age(path, 1000)
     second = await _provider(cache, max_cache_mb=0).checkout(_ref(remote, remote.second))
 
     assert not other.exists()
     assert [p.name for p in _repo_dir(cache, remote).iterdir()] == [remote.second]
     assert (second / "app.txt").read_text() == "second\n"
     assert (unrelated / "big.bin").exists()
+
+
+async def test_eviction_spares_entries_a_run_may_still_read(tmp_path, remote):
+    cache = tmp_path / "cache"
+    other = cache / ("0" * 16)
+    old = _fake_entry(other, "1" * 40, age_s=3000)
+    # Used by runs 60 s and 800 s ago: within the minimum age, so a run may still read them.
+    recent = [_fake_entry(other, "2" * 40, age_s=60), _fake_entry(other, "3" * 40, age_s=800)]
+
+    with capture_logs() as logs:
+        await _provider(cache, max_cache_mb=1).checkout(_ref(remote, remote.first))
+
+    assert not old.exists()
+    assert all(entry.is_dir() for entry in recent)
+    # Still over budget: one line with the sizes, and no path of another repository.
+    [over] = [log for log in logs if log["event"] == "source.cache_over_budget"]
+    assert over["max_bytes"] == 1024 * 1024
+    assert over["bytes"] > 2 * 600 * 1024
+    assert "0" * 16 not in repr(over)
+
+    # A shorter minimum age lets the eviction take them, oldest first.
+    with capture_logs() as logs:
+        await _provider(cache, max_cache_mb=1, min_age_s=30).checkout(_ref(remote, remote.second))
+
+    assert [entry.is_dir() for entry in recent] == [True, False]
+    assert [log["event"] for log in logs if "over_budget" in log["event"]] == []
+
+
+async def test_reuse_of_an_entry_that_vanishes_fetches_again(tmp_path, remote, spawns, monkeypatch):
+    cache = tmp_path / "cache"
+    path = await _provider(cache).checkout(_ref(remote, remote.first))
+    spawns.clear()
+    real_utime = os.utime
+    vanished: list[Path] = []
+
+    def utime_after_eviction(target, *args, **kwargs):
+        # Another run's eviction deletes the entry between the check and the touch.
+        if Path(target) == path and not vanished:
+            vanished.append(path)
+            shutil.rmtree(path)
+        return real_utime(target, *args, **kwargs)
+
+    monkeypatch.setattr(os, "utime", utime_after_eviction)
+
+    again = await _provider(cache).checkout(_ref(remote, remote.first))
+
+    assert vanished == [path]
+    assert again == path
+    assert (again / "app.txt").read_text() == "first\n"
+    assert [s.argv[1] for s in spawns] == ["init", "remote", "fetch", "rev-parse", "checkout"]
 
 
 async def test_failed_fetch_removes_its_temp_dir(tmp_path, remote):
