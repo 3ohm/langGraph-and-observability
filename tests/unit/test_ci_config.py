@@ -113,13 +113,14 @@ def test_evals_minimal_permissions():
     assert EVALS_JOB["permissions"] == {"contents": "read", "id-token": "write"}
 
 
-def test_evals_skip_pull_requests_from_forks():
-    condition = " ".join(EVALS_JOB["if"].split())
-    fork_guard = (
+def test_evals_run_only_when_configured_and_never_for_forks_or_dependabot():
+    # The role variable gates the job; fork and Dependabot pull requests get no secrets.
+    assert " ".join(EVALS_JOB["if"].split()) == (
+        "vars.AWS_EVALS_ROLE_ARN != '' && "
+        "github.actor != 'dependabot[bot]' && "
         "(github.event_name == 'workflow_dispatch' || "
         "github.event.pull_request.head.repo.full_name == github.repository)"
     )
-    assert fork_guard in condition
 
 
 def test_evals_install_like_the_test_jobs():
@@ -146,6 +147,8 @@ def test_evals_run_against_bedrock_with_simulated_adapters():
     assert step["env"]["APP_LLM_MODE"] == "bedrock"
     assert step["env"]["APP_ADAPTERS"] == "simulated"
     assert step["env"]["LANGSMITH_API_KEY"] == "${{ secrets.LANGSMITH_API_KEY }}"
+    # langsmith's pytest plugin posts the tracked test run only with tracing on.
+    assert step["env"]["LANGSMITH_TRACING"] == "true"
     # The test appends its scorecard to the job summary.
     assert 'APP_EVAL_SCORECARD="$GITHUB_STEP_SUMMARY"' in step["run"]
     assert "uv run pytest" in step["run"]

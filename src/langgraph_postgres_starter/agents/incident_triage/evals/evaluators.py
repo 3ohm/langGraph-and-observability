@@ -2,9 +2,10 @@
 
 Each evaluator is a plain function that returns an ``EvalResult``: ``{"key", "score",
 "comment"}``. ``score`` is 1.0 for a pass and 0.0 for a fail. It is None when the case
-is not scored: the code location of a case with no expected code (not an application
-case), the judge outside bedrock mode (skipped), and a judge reply with no verdict. The
-comment says why.
+is not scored, and the comment says why. Two of these are by design: the code location
+of a case with no expected code (``NOT_APPLICATION``) and the judge outside bedrock mode
+(``JUDGE_SKIPPED``). Any other unscored result, such as a judge reply with no verdict or
+a judge call that failed, is a problem that the scorecard lists under "Not scored".
 
 - ``outputs`` is a run's analysis as JSON (``outputs_of``): the fields of
   ``TriageAnalysis``, or ``{}`` for a run that returned none, as after a refusal.
@@ -53,6 +54,11 @@ THRESHOLDS: dict[str, float] = {CATEGORY: 0.9, CODE_LOCATION: 0.8, CITATIONS: 1.
 
 # The judge's prompt version, which a change to its prompt or schema changes.
 JUDGE_PROMPT_VERSION = "judge-v1"
+
+# The comments of the results that are not scored by design.
+NOT_APPLICATION = "no expected code location: not an application case"
+JUDGE_SKIPPED = "skipped: the judge runs only with APP_LLM_MODE=bedrock"
+_BY_DESIGN = frozenset({NOT_APPLICATION, JUDGE_SKIPPED})
 # The longest comment in the scorecard, in characters.
 _MAX_COMMENT_CHARS = 300
 
@@ -132,7 +138,7 @@ def code_location_hit(outputs: Mapping[str, Any], reference: Mapping[str, Any]) 
     """
     code = reference.get("code")
     if code is None:
-        return _result(CODE_LOCATION, None, "no expected code location: not an application case")
+        return _result(CODE_LOCATION, None, NOT_APPLICATION)
     expected = _location(code)
     cited: list[Mapping[str, Any]] = outputs.get("suspected_code", [])
     for index, location in enumerate(cited):
@@ -192,7 +198,7 @@ async def judge_root_cause(
     named ``bedrock.judge`` (``trace_llm``).
     """
     if llm is None:
-        return _result(JUDGE, None, "skipped: the judge runs only with APP_LLM_MODE=bedrock")
+        return _result(JUDGE, None, JUDGE_SKIPPED)
     if not outputs:
         return _result(JUDGE, 0.0, "the run has no analysis, so no root cause")
     req = AnalysisRequest(
@@ -211,6 +217,22 @@ async def judge_root_cause(
     except pydantic.ValidationError:
         return _result(JUDGE, None, "no verdict: the judge's reply is not a valid verdict")
     return _result(JUDGE, float(verdict.score), verdict.reason)
+
+
+def run_failed(reference: Mapping[str, Any], comment: str, *, judged: bool) -> list[EvalResult]:
+    """The results of a case whose run raised: 0.0 on every evaluator that applies to it.
+
+    ``comment`` says how the run failed. The code location of a case with no expected
+    code stays not applicable, and without a judge (``judged`` false) the judge stays
+    skipped, as for a run that succeeded.
+    """
+    code = 0.0 if reference.get("code") is not None else None
+    return [
+        _result(CATEGORY, 0.0, comment),
+        _result(CODE_LOCATION, code, comment if code is not None else NOT_APPLICATION),
+        _result(CITATIONS, 0.0, comment),
+        _result(JUDGE, 0.0, comment) if judged else _result(JUDGE, None, JUDGE_SKIPPED),
+    ]
 
 
 def aggregate(results: Iterable[EvalResult]) -> float | None:
@@ -241,9 +263,10 @@ def render_scorecard(
     ``case_results`` maps a case's fixture ID to its results. The first table gives each
     evaluator's mean, the number of passes over the cases scored, its threshold and
     whether it passed. The link to the LangSmith experiment follows, when there is one.
-    The second table gives each case's scores (``–``: not scored), and a list explains
-    each result that scored below 1: one line per case and comment, which names the
-    keys that share the comment.
+    The second table gives each case's scores (``–``: not scored). Two lists follow, with
+    one line per case and comment, which names the keys that share the comment: each
+    result that scored below 1, and each result that is not scored for a reason other
+    than by design (``NOT_APPLICATION``, ``JUDGE_SKIPPED``), such as a judge error.
     """
     scores = scores_by_key(case_results)
     missed = missed_thresholds(scores)
@@ -271,18 +294,14 @@ def render_scorecard(
         cells = [_cell(by_key.get(key)) for key in KEYS]
         lines.append(f"| {fixture_id} | " + " | ".join(cells) + " |")
     below: list[str] = []
+    unscored: list[str] = []
     for fixture_id, results in case_results.items():
-        # The keys below 1 by comment: a failed run gives every key the same comment.
-        keys_by_comment: dict[str, list[str]] = {}
-        for result in results:
-            if result["score"] is not None and result["score"] < 1:
-                keys_by_comment.setdefault(_comment(result["comment"]), []).append(result["key"])
-        below += [
-            f"- {', '.join([fixture_id, *keys])}: {comment}"
-            for comment, keys in keys_by_comment.items()
-        ]
+        below += _notes(fixture_id, [r for r in results if _below_one(r)])
+        unscored += _notes(fixture_id, [r for r in results if _not_scored(r)])
     if below:
         lines += ["", "### Results below 1", "", *below]
+    if unscored:
+        lines += ["", "### Not scored", "", *unscored]
     return "\n".join(lines) + "\n"
 
 
@@ -320,12 +339,41 @@ def _of_key(case_results: Mapping[str, Sequence[EvalResult]], key: str) -> list[
     ]
 
 
+def _below_one(result: EvalResult) -> bool:
+    return result["score"] is not None and result["score"] < 1
+
+
+def _not_scored(result: EvalResult) -> bool:
+    """Whether ``result`` is not scored for a reason other than by design."""
+    return result["score"] is None and result["comment"] not in _BY_DESIGN
+
+
+def _notes(fixture_id: str, results: Sequence[EvalResult]) -> list[str]:
+    """One line per comment: the case, the keys with that comment, then the comment.
+
+    A failed run gives every key the same comment, so it takes one line.
+    """
+    keys_by_comment: dict[str, list[str]] = {}
+    for result in results:
+        keys_by_comment.setdefault(_comment(result["comment"]), []).append(result["key"])
+    return [
+        f"- {', '.join([fixture_id, *keys])}: {comment}"
+        for comment, keys in keys_by_comment.items()
+    ]
+
+
 def _summary(results: Sequence[EvalResult]) -> str:
-    """``<mean> (<passes>/<scored>)``, or ``skipped`` when no case was scored."""
+    """``<mean> (<passes>/<scored>)``, with how many are not scored when some are not.
+
+    With no score: ``not scored (<n>/<results>)`` when results are not scored for a
+    reason other than by design, as when every judge call failed, else ``skipped``.
+    """
     scores = [result["score"] for result in results if result["score"] is not None]
+    unscored = sum(1 for result in results if _not_scored(result))
     if not scores:
-        return "skipped"
-    return f"{sum(scores) / len(scores):.2f} ({sum(scores):g}/{len(scores)})"
+        return f"not scored ({unscored}/{len(results)})" if unscored else "skipped"
+    summary = f"{sum(scores) / len(scores):.2f} ({sum(scores):g}/{len(scores)})"
+    return f"{summary}, {unscored} not scored" if unscored else summary
 
 
 def _cell(result: EvalResult | None) -> str:

@@ -10,8 +10,10 @@
 #   does not run in that region (for example us.anthropic.claude-opus-5-5). JUDGE_MODEL_ID is
 #   the judge's model; it defaults to BEDROCK_MODEL_ID;
 # - optionally the secret LANGSMITH_API_KEY (and the variable LANGSMITH_ENDPOINT outside the
-#   US region): the run is then a LangSmith experiment, linked from the scorecard.
-# Pull requests from forks get no OIDC token and no secrets, so the job skips them.
+#   US region): the run is then a LangSmith experiment, linked from the scorecard. The eval
+#   step turns LangSmith tracing on, which langsmith's pytest plugin needs to post the run.
+# Pull requests from forks get no OIDC token and no secrets, and Dependabot's pull requests
+# get no Actions secrets, so the job skips them.
 # Actions are pinned to full commit SHAs, the same ones as in ci.yml.
 name: Evals
 
@@ -30,6 +32,7 @@ jobs:
   evals:
     if: >-
       vars.AWS_EVALS_ROLE_ARN != '' &&
+      github.actor != 'dependabot[bot]' &&
       (github.event_name == 'workflow_dispatch' ||
       github.event.pull_request.head.repo.full_name == github.repository)
     runs-on: ubuntu-latest
@@ -63,6 +66,8 @@ jobs:
           APP_JUDGE_MODEL_ID: ${{ vars.JUDGE_MODEL_ID }}
           LANGSMITH_API_KEY: ${{ secrets.LANGSMITH_API_KEY }}
           LANGSMITH_ENDPOINT: ${{ vars.LANGSMITH_ENDPOINT }}
+          # The test turns tracing on itself when it is tracked; this says so here too.
+          LANGSMITH_TRACING: "true"
         # The test appends its scorecard to APP_EVAL_SCORECARD, here the job summary, before it
         # checks the thresholds.
         run: APP_EVAL_SCORECARD="$GITHUB_STEP_SUMMARY" uv run pytest src/langgraph_postgres_starter/agents/incident_triage/evals -q

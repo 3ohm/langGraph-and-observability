@@ -27,7 +27,9 @@ from langgraph_postgres_starter.agents.incident_triage.evals.evaluators import (
     CODE_LOCATION,
     JUDGE,
     JUDGE_SCHEMA,
+    JUDGE_SKIPPED,
     JUDGE_SYSTEM_PROMPT,
+    NOT_APPLICATION,
     THRESHOLDS,
     EvalResult,
     aggregate,
@@ -38,6 +40,7 @@ from langgraph_postgres_starter.agents.incident_triage.evals.evaluators import (
     judge_root_cause,
     missed_thresholds,
     render_scorecard,
+    run_failed,
     scores_by_key,
 )
 from langgraph_postgres_starter.agents.incident_triage.fixtures.loader import list_fixtures
@@ -177,7 +180,7 @@ def test_code_location_excludes_cases_without_expected_code():
 
     assert result["key"] == CODE_LOCATION
     assert result["score"] is None
-    assert "not an application case" in result["comment"]
+    assert result["comment"] == NOT_APPLICATION
 
 
 def test_citations_valid_rejects_unknown_id():
@@ -218,7 +221,7 @@ async def test_judge_skipped_in_recorded_mode(monkeypatch):
     assert llm is None
     assert result["key"] == JUDGE
     assert result["score"] is None
-    assert result["comment"].startswith("skipped")
+    assert result["comment"] == JUDGE_SKIPPED
 
 
 def test_judge_model_in_bedrock_mode():
@@ -345,13 +348,13 @@ def test_scorecard_lists_scores_thresholds_and_cases():
             {"key": CATEGORY, "score": 1.0, "comment": "expected application, got application"},
             {"key": CODE_LOCATION, "score": 0.0, "comment": "no suspected code location"},
             {"key": CITATIONS, "score": 1.0, "comment": "every cited ID was collected"},
-            {"key": JUDGE, "score": None, "comment": "skipped: recorded mode"},
+            {"key": JUDGE, "score": None, "comment": JUDGE_SKIPPED},
         ],
         "infra-oomkilled": [
             {"key": CATEGORY, "score": 1.0, "comment": "expected infrastructure"},
-            {"key": CODE_LOCATION, "score": None, "comment": "not an application case"},
+            {"key": CODE_LOCATION, "score": None, "comment": NOT_APPLICATION},
             {"key": CITATIONS, "score": 1.0, "comment": "every cited ID was collected"},
-            {"key": JUDGE, "score": None, "comment": "skipped: recorded mode"},
+            {"key": JUDGE, "score": None, "comment": JUDGE_SKIPPED},
         ],
     }
     scores = scores_by_key(cases)
@@ -370,6 +373,66 @@ def test_scorecard_lists_scores_thresholds_and_cases():
     assert "| python-keyerror | 1 | 0 | 1 | – |" in lines
     assert "| infra-oomkilled | 1 | – | 1 | – |" in lines
     assert "- python-keyerror, code_location_hit: no suspected code location" in lines
+    # The results that are not scored by design are not listed.
+    assert "### Not scored" not in lines
+
+
+def test_scorecard_surfaces_judge_errors():
+    # A misconfigured judge (a wrong APP_JUDGE_MODEL_ID, AccessDenied) fails on every case.
+    error = "no verdict: ClientError: An error occurred (AccessDeniedException)"
+    cases: dict[str, list[EvalResult]] = {
+        fixture_id: [
+            {"key": CATEGORY, "score": 1.0, "comment": "expected application, got application"},
+            {"key": JUDGE, "score": None, "comment": error},
+        ]
+        for fixture_id in ("go-nil-map", "python-keyerror")
+    }
+
+    lines = render_scorecard(cases, mode="bedrock", experiment_url=None).splitlines()
+
+    assert f"| {JUDGE} | not scored (2/2) | none | report only |" in lines
+    assert lines[lines.index("### Not scored") + 2 :] == [
+        f"- go-nil-map, {JUDGE}: {error}",
+        f"- python-keyerror, {JUDGE}: {error}",
+    ]
+
+
+def test_scorecard_counts_the_cases_that_are_not_scored():
+    cases: dict[str, list[EvalResult]] = {
+        "go-nil-map": [{"key": JUDGE, "score": 1.0, "comment": "It names the nil map."}],
+        "ruby-nomethod": [
+            {"key": JUDGE, "score": None, "comment": "no verdict: the judge stopped with refusal"}
+        ],
+    }
+
+    card = render_scorecard(cases, mode="bedrock", experiment_url=None)
+
+    assert f"| {JUDGE} | 1.00 (1/1), 1 not scored | none | report only |" in card.splitlines()
+    assert f"- ruby-nomethod, {JUDGE}: no verdict: the judge stopped with refusal" in card
+
+
+@pytest.mark.parametrize("judged", [True, False])
+def test_run_failed_scores_zero_where_an_evaluator_applies(judged):
+    failed = "the run failed: FileNotFoundError: no recorded reply"
+
+    application = run_failed(REFERENCE, failed, judged=judged)
+    infra = run_failed(INFRA_REFERENCE, failed, judged=judged)
+
+    judge = (
+        {"key": JUDGE, "score": 0.0, "comment": failed}
+        if judged
+        else {"key": JUDGE, "score": None, "comment": JUDGE_SKIPPED}
+    )
+    assert application == [
+        {"key": CATEGORY, "score": 0.0, "comment": failed},
+        {"key": CODE_LOCATION, "score": 0.0, "comment": failed},
+        {"key": CITATIONS, "score": 0.0, "comment": failed},
+        judge,
+    ]
+    assert infra[1] == {"key": CODE_LOCATION, "score": None, "comment": NOT_APPLICATION}
+    # Not applicable and skipped are by design: only the failure is listed.
+    card = render_scorecard({"infra-oomkilled": infra}, mode="recorded", experiment_url=None)
+    assert "### Not scored" not in card
 
 
 def test_scorecard_gives_a_comment_shared_by_several_results_once():
