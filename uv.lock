@@ -1275,7 +1275,9 @@ name = "langgraph-postgres-starter"
 version = "0.1.0.dev0"
 source = { editable = "." }
 dependencies = [
+    { name = "aiohttp" },
     { name = "boto3" },
+    { name = "botocore" },
     { name = "datadog-api-client" },
     { name = "fastapi" },
     { name = "kubernetes-asyncio" },
@@ -1321,7 +1323,9 @@ test = [
 
 [package.metadata]
 requires-dist = [
+    { name = "aiohttp", specifier = ">=3.14.5" },
     { name = "boto3", specifier = ">=1.43.123" },
+    { name = "botocore", specifier = ">=1.43.123" },
     { name = "datadog-api-client", specifier = ">=2.62.0" },
     { name = "fastapi", specifier = ">=0.162.0" },
     { name = "kubernetes-asyncio", specifier = ">=36.1.0" },
