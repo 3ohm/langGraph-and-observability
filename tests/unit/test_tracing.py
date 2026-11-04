@@ -7,10 +7,9 @@ nothing. It is closed at the end of the test.
 
 import copy
 import json
-import os
 from dataclasses import dataclass
 from datetime import UTC, datetime
-from typing import Any, cast
+from typing import Any
 
 import langsmith
 import pytest
@@ -50,31 +49,20 @@ class NoNetworkSession(requests.Session):
         raise AssertionError("a unit test tried to reach the network")
 
 
-def clear_env_cache() -> None:
-    """Make langsmith read its variables afresh. It caches them (get_env_var, lru_cache)."""
-    cast(Any, ls_utils.get_env_var).cache_clear()
-
-
 def offline(**kwargs) -> dict[str, Any]:
     """``kwargs`` plus the arguments that keep a real client offline."""
     return {**kwargs, "session": NoNetworkSession(), "auto_batch_tracing": False}
 
 
 @pytest.fixture(autouse=True)
-def _isolate_langsmith(monkeypatch):
-    """Hide the developer's LangSmith variables; reset langsmith's global defaults after.
+def _reset_langsmith():
+    """Reset the defaults that configure_tracing sets in langsmith.
 
-    The prefixes cover the four names that turn tracing on (LANGSMITH_TRACING,
-    LANGCHAIN_TRACING_V2, LANGSMITH_API_KEY, LANGCHAIN_API_KEY), and the project,
-    endpoint and hide variables.
+    tests/conftest.py hides the developer's LANGSMITH_* and LANGCHAIN_* variables and
+    clears langsmith's cache of them around each test.
     """
-    for name in list(os.environ):
-        if name.upper().startswith(("LANGSMITH_", "LANGCHAIN_")):
-            monkeypatch.delenv(name)
-    clear_env_cache()
     yield
-    RESET(client=None, project_name=None)
-    clear_env_cache()
+    RESET(client=None, project_name=None, enabled=None)
 
 
 @pytest.fixture
@@ -124,14 +112,19 @@ def offline_client():
     "env",
     [
         {},
-        {"LANGSMITH_TRACING": "true"},
-        {"LANGCHAIN_TRACING_V2": "true"},
         {"LANGSMITH_API_KEY": "test-key"},
         {"LANGCHAIN_API_KEY": "test-key"},
         {"LANGSMITH_TRACING": "false", "LANGSMITH_API_KEY": "test-key"},
-        {"LANGSMITH_TRACING": "true", "LANGSMITH_API_KEY": ""},
+        # langsmith compares with "true" exactly.
+        {"LANGSMITH_TRACING": "True", "LANGSMITH_API_KEY": "test-key"},
+        # langsmith reads TRACING_V2 before TRACING.
+        {
+            "LANGSMITH_TRACING_V2": "false",
+            "LANGSMITH_TRACING": "true",
+            "LANGSMITH_API_KEY": "test-key",
+        },
     ],
-    ids=["unset", "no-key", "legacy-no-key", "key-only", "legacy-key-only", "off", "empty-key"],
+    ids=["unset", "key-only", "legacy-key-only", "off", "capital-True", "v2-false-wins"],
 )
 def test_tracing_off_by_default(monkeypatch, env):
     for name, value in env.items():
@@ -146,7 +139,42 @@ def test_tracing_off_by_default(monkeypatch, env):
     assert configure_tracing(load_settings()) is None
 
 
-@pytest.mark.parametrize("flag", ["LANGSMITH_TRACING", "LANGCHAIN_TRACING_V2"])
+@pytest.mark.parametrize(
+    "env",
+    [
+        {"LANGSMITH_TRACING": "true"},
+        {"LANGSMITH_TRACING_V2": "true"},
+        {"LANGCHAIN_TRACING_V2": "true"},
+        {"LANGSMITH_TRACING": "true", "LANGSMITH_API_KEY": " "},
+    ],
+    ids=["LANGSMITH_TRACING", "LANGSMITH_TRACING_V2", "LANGCHAIN_TRACING_V2", "blank-key"],
+)
+def test_tracing_flag_without_key_disables_tracing(monkeypatch, capsys, env):
+    configure_logging(load_settings())
+    for name, value in env.items():
+        monkeypatch.setenv(name, value)
+
+    def no_client(*args, **kwargs):
+        raise AssertionError("configure_tracing built a client without a key")
+
+    monkeypatch.setattr(langsmith, "Client", no_client)
+    assert ls_utils.tracing_is_enabled() is True
+
+    assert configure_tracing(load_settings()) is None
+
+    # langsmith no longer traces, so its default client, which has no anonymizer, is
+    # never used: langchain-core adds no tracer to a graph invocation.
+    assert ls_utils.tracing_is_enabled() is False
+    tracers = [h for h in CallbackManager.configure().handlers if isinstance(h, LangChainTracer)]
+    assert tracers == []
+    out = capsys.readouterr().out
+    [line] = [json.loads(text) for text in out.splitlines() if '"tracing.disabled_no_key"' in text]
+    assert line["level"] == "warning"
+
+
+@pytest.mark.parametrize(
+    "flag", ["LANGSMITH_TRACING", "LANGSMITH_TRACING_V2", "LANGCHAIN_TRACING_V2"]
+)
 @pytest.mark.parametrize("key", ["LANGSMITH_API_KEY", "LANGCHAIN_API_KEY"])
 def test_tracing_on_makes_one_default_client(monkeypatch, clients, flag, key):
     monkeypatch.setenv(flag, "true")

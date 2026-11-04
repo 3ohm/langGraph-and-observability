@@ -3,9 +3,10 @@
 import os
 import uuid
 from collections.abc import AsyncIterator, Iterator
-from typing import Any
+from typing import Any, cast
 
 import pytest
+from langsmith import utils as ls_utils
 from psycopg import AsyncConnection, sql
 from psycopg.conninfo import make_conninfo
 from psycopg.rows import DictRow
@@ -32,6 +33,10 @@ _AWS_IDENTITY_VARS = (
     "AWS_DEFAULT_PROFILE",
 )
 
+# LangSmith's variables. With LANGSMITH_TRACING=true and a key in the developer's shell, a
+# test that starts a Worker would build a real client and upload the test's runs.
+_LANGSMITH_PREFIXES = ("LANGSMITH_", "LANGCHAIN_")
+
 # The variables that Settings reads by their vendor name (validation_alias), for example
 # LANGGRAPH_AES_KEY, which has neither the APP_ nor the DD_ prefix.
 _SETTINGS_ALIASES = frozenset(
@@ -41,21 +46,30 @@ _SETTINGS_ALIASES = frozenset(
 )
 
 
+def _clear_langsmith_env_cache() -> None:
+    """Make langsmith read its variables afresh: it caches them with lru_cache."""
+    cast(Any, ls_utils.get_env_var).cache_clear()
+    ls_utils.get_tracer_project.cache_clear()
+
+
 @pytest.fixture(autouse=True)
 def _isolate_settings(monkeypatch: pytest.MonkeyPatch) -> Iterator[None]:
-    """Hide the developer's settings variables and reset the cached settings.
+    """Hide the developer's settings and LangSmith variables; reset the cached values.
 
-    It hides every APP_* and DD_* variable and every other name that Settings reads
-    (``_SETTINGS_ALIASES``). Settings matches names case-insensitively, so the check
-    does too.
+    It hides every APP_*, DD_*, LANGSMITH_* and LANGCHAIN_* variable and every other
+    name that Settings reads (``_SETTINGS_ALIASES``). Settings matches names
+    case-insensitively, so the check does too. It clears the cached settings and
+    langsmith's cache of its variables, before and after each test.
     """
     for name in list(os.environ):
         upper = name.upper()
-        if upper.startswith(("APP_", "DD_")) or upper in _SETTINGS_ALIASES:
+        if upper.startswith(("APP_", "DD_", *_LANGSMITH_PREFIXES)) or upper in _SETTINGS_ALIASES:
             monkeypatch.delenv(name)
     get_settings.cache_clear()
+    _clear_langsmith_env_cache()
     yield
     get_settings.cache_clear()
+    _clear_langsmith_env_cache()
 
 
 @pytest.fixture(params=[False, True], ids=["permissive-msgpack", "strict-msgpack"])

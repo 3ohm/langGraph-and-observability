@@ -1,11 +1,14 @@
 """LangSmith tracing: one redacting client, content modes and LLM runs (spec §9.7, §12.1; P15).
 
-Tracing is off unless it is turned on (``LANGSMITH_TRACING=true``, or the legacy
-``LANGCHAIN_TRACING_V2=true``) and an API key is set (``LANGSMITH_API_KEY``, or the
-legacy ``LANGCHAIN_API_KEY``). Then ``configure_tracing`` builds one ``langsmith.Client``
-and makes it the default client of every trace with ``langsmith.configure``.
-``traceable`` runs and LangGraph's tracer (langchain-core's ``LangChainTracer``) both
-take their client from there.
+Tracing is off unless langsmith's own switch is on and an API key is set. The switch is
+``LANGSMITH_TRACING=true`` (or ``LANGSMITH_TRACING_V2``, ``LANGCHAIN_TRACING_V2``,
+``LANGCHAIN_TRACING``), read as ``langsmith.utils.tracing_is_enabled`` reads it. The key
+is ``LANGSMITH_API_KEY`` or ``LANGCHAIN_API_KEY``. Then ``configure_tracing`` builds one
+``langsmith.Client`` and makes it the default client of every trace with
+``langsmith.configure``. ``traceable`` runs and LangGraph's tracer (langchain-core's
+``LangChainTracer``) both take their client from there. With the switch on and no key,
+``configure_tracing`` turns tracing off, so that langsmith never traces through its
+default client, which does not redact.
 
 ``APP_TRACE_CONTENT`` sets what the client sends:
 
@@ -26,6 +29,7 @@ from collections.abc import Callable
 from typing import Any, Literal, cast
 
 import langsmith
+from langsmith import utils as ls_utils
 from langsmith.run_helpers import get_current_run_tree
 from langsmith.schemas import ExtractedUsageMetadata
 
@@ -43,8 +47,7 @@ PROJECT_PREFIX = "langgraph-postgres-starter"
 # How long close_tracing waits for pending traces at shutdown.
 FLUSH_TIMEOUT_S = 5.0
 
-# Either name of each pair turns tracing on, as it does for langsmith itself.
-_TRACING_FLAGS = ("LANGSMITH_TRACING", "LANGCHAIN_TRACING_V2")
+# The variables that langsmith's Client reads its API key from.
 _API_KEYS = ("LANGSMITH_API_KEY", "LANGCHAIN_API_KEY")
 _PROJECTS = ("LANGSMITH_PROJECT", "LANGCHAIN_PROJECT")
 # The token counts of an LlmResponse's usage.
@@ -58,13 +61,23 @@ _log = get_logger(__name__)
 def configure_tracing(settings: Settings) -> TracingClient | None:
     """Build the process's LangSmith client and make it the default of every trace.
 
-    Returns None, and changes nothing, unless tracing is on and an API key is set (see
-    the module docstring). The client sends what ``settings.trace_content`` allows,
-    samples at ``settings.trace_sampling_rate`` and logs its errors, redacted. When no
-    project variable is set, the project is ``langgraph-postgres-starter-<env>``. Call
-    it once, at startup; ``close_tracing`` flushes and stops the client.
+    Returns None, and changes nothing, when langsmith's tracing switch is off. With the
+    switch on and no API key, it turns tracing off (``langsmith.configure(enabled=False)``),
+    logs ``tracing.disabled_no_key`` and returns None. Otherwise the client sends what
+    ``settings.trace_content`` allows, samples at ``settings.trace_sampling_rate`` and
+    logs its errors, redacted. When no project variable is set, the project is
+    ``langgraph-postgres-starter-<env>``. Call it once, at startup; ``close_tracing``
+    flushes and stops the client.
     """
-    if not (_any_true(_TRACING_FLAGS) and _first_set(_API_KEYS) is not None):
+    if ls_utils.tracing_is_enabled() is not True:
+        return None
+    if _first_set(_API_KEYS) is None:
+        # langsmith would still trace, through its default client: no anonymizer.
+        langsmith.configure(enabled=False)
+        _log.warning(
+            "tracing.disabled_no_key",
+            hint="tracing is on but LANGSMITH_API_KEY is not set; tracing is now off",
+        )
         return None
     client = langsmith.Client(
         tracing_sampling_rate=settings.trace_sampling_rate,
@@ -247,10 +260,6 @@ def _log_tracing_error(error: Exception) -> None:
     payload is never logged.
     """
     _log.warning("tracing.error", error=_error(error))
-
-
-def _any_true(names: tuple[str, ...]) -> bool:
-    return any(os.environ.get(name, "").strip().lower() == "true" for name in names)
 
 
 def _first_set(names: tuple[str, ...]) -> str | None:

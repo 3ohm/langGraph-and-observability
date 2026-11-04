@@ -76,6 +76,8 @@ def test_main_exits_when_the_database_is_unreachable(monkeypatch, capsys):
     assert failure["level"] == "error"
     assert "could not connect to Postgres" in str(failure["error"])
     assert "hunter2-secret" not in out
+    # Tests hide the developer's LangSmith variables, so the worker builds no client.
+    assert '"tracing.' not in out
 
 
 def test_main_exits_when_prod_secrets_are_missing(monkeypatch, capsys):
