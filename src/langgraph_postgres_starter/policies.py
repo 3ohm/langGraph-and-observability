@@ -1,0 +1,82 @@
+"""Retry and timeout policies for graph nodes (spec §6.5 and §8.5).
+
+LangGraph's ``default_retry_on`` does not suit this agent. It never retries
+``TimeoutError`` (an ``OSError``), and it retries provider-SDK errors that it does not
+recognise, 400s included. External calls get one retry layer: the client library's
+own (botocore's standard mode, the Datadog and Kubernetes clients' retries). The
+graph's ``RetryPolicy`` retries only what ``is_transient`` accepts: transient
+infrastructure errors, and never a 4xx except a Kubernetes 429.
+
+From the vendor SDKs, this module imports exception types only, and only the ones
+that ``is_transient`` accepts. botocore's errors and the Datadog client's
+``ApiException`` are not transient here, because those clients have already retried
+them.
+"""
+
+import aiohttp
+import psycopg
+from kubernetes_asyncio.client.exceptions import ApiException as KubernetesApiException
+from langgraph.errors import NodeTimeoutError
+from langgraph.types import RetryPolicy, TimeoutPolicy
+from psycopg import errors as pg_errors
+
+# Transient by type; subclasses count too. OSError is not on the list: botocore's
+# connect, read, SSL and proxy errors subclass OSError (through botocore's vendored
+# requests), and botocore has already retried them. None of them subclasses
+# ConnectionError or TimeoutError.
+_TRANSIENT_TYPES: tuple[type[BaseException], ...] = (
+    ConnectionError,
+    TimeoutError,
+    # Raised by a node TimeoutPolicy. It does not subclass TimeoutError.
+    NodeTimeoutError,
+    # SerializationFailure and DeadlockDetected subclass OperationalError. They are
+    # named because §6.5 names them.
+    pg_errors.SerializationFailure,
+    pg_errors.DeadlockDetected,
+    psycopg.OperationalError,
+    aiohttp.ClientConnectionError,
+)
+
+
+def is_transient(exc: BaseException) -> bool:
+    """Return True if a node that raised ``exc`` may run again.
+
+    True for connection errors, timeouts (``TimeoutError`` and LangGraph's
+    ``NodeTimeoutError``), Postgres serialization failures, deadlocks and operational
+    errors, aiohttp connection errors, and a Kubernetes ``ApiException`` with status
+    429 or 5xx. False for everything else, which includes all botocore and Datadog
+    errors and LangGraph's ``GraphDrained``.
+    """
+    if isinstance(exc, _TRANSIENT_TYPES):
+        return True
+    if isinstance(exc, KubernetesApiException):
+        # The stub types status as int, but it is None when the exception has no status.
+        status = exc.status
+        return isinstance(status, int) and (status == 429 or status >= 500)
+    return False
+
+
+def default_retry_policy() -> RetryPolicy:
+    """The graph-wide retry policy: at most 3 attempts, only for transient errors."""
+    return RetryPolicy(
+        max_attempts=3,
+        initial_interval=0.5,
+        backoff_factor=2.0,
+        jitter=True,
+        retry_on=is_transient,
+    )
+
+
+def step_timeout(run_s: float) -> TimeoutPolicy:
+    """A node timeout that caps one attempt of the node at ``run_s`` seconds.
+
+    It sets ``TimeoutPolicy.run_timeout``, the hard wall-clock cap for a single node
+    attempt. Progress signals and ``runtime.heartbeat()`` never refresh it, so a node
+    that keeps streaming still stops at ``run_s``. ``idle_timeout`` stays unset: a step
+    is bounded by its total time, not by its gaps between progress signals.
+
+    The cap applies to each attempt. When it fires, LangGraph raises
+    ``NodeTimeoutError``, which ``is_transient`` accepts, so the retry policy can run
+    the node again.
+    """
+    return TimeoutPolicy(run_timeout=run_s)
