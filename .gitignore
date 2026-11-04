@@ -1,0 +1,36 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+build/
+dist/
+
+# Virtual environment (uv)
+.venv/
+
+# Tool caches
+.mypy_cache/
+.pytest_cache/
+.ruff_cache/
+
+# Coverage
+.coverage
+.coverage.*
+htmlcov/
+coverage.xml
+
+# Local settings and secrets (.env.example stays tracked)
+.env
+.env.*
+!.env.example
+
+# LangGraph CLI (`langgraph dev`)
+.langgraph_api/
+
+# Editors and OS
+.idea/
+.vscode/
+.DS_Store
+
+# Claude Code per-user settings (.claude/agents/ stays tracked)
+.claude/settings.local.json
