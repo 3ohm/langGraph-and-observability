@@ -33,6 +33,26 @@ def _isolate_settings(monkeypatch: pytest.MonkeyPatch) -> Iterator[None]:
     get_settings.cache_clear()
 
 
+@pytest.fixture(params=[False, True], ids=["permissive-msgpack", "strict-msgpack"])
+def strict_msgpack(request: pytest.FixtureRequest, monkeypatch: pytest.MonkeyPatch) -> bool:
+    """Run the test with LANGGRAPH_STRICT_MSGPACK off, then on (the image turns it on).
+
+    LangGraph reads the variable once, at import, into two module constants: the
+    serializer's default allowlist reads one, and StateGraph.compile() the other. The
+    fixture sets the variable and patches both constants.
+    """
+    # Imported here: both modules are private. If an upgrade moves one, only the tests
+    # that use this fixture fail.
+    import langgraph._internal._serde
+    import langgraph.checkpoint.serde._msgpack
+
+    strict: bool = request.param
+    monkeypatch.setenv("LANGGRAPH_STRICT_MSGPACK", str(strict).lower())
+    monkeypatch.setattr(langgraph.checkpoint.serde._msgpack, "STRICT_MSGPACK_ENABLED", strict)
+    monkeypatch.setattr(langgraph._internal._serde, "STRICT_MSGPACK_ENABLED", strict)
+    return strict
+
+
 @pytest.fixture(scope="session")
 def pg_dsn() -> Iterator[str]:
     """A Postgres server for the session: APP_TEST_DATABASE_URL, or a new container.

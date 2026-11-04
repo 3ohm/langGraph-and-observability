@@ -1313,6 +1313,7 @@ evals = [
 ]
 test = [
     { name = "httpx" },
+    { name = "pycryptodome" },
     { name = "pytest" },
     { name = "pytest-asyncio" },
     { name = "pytest-cov" },
@@ -1356,6 +1357,7 @@ dev = [
 evals = [{ name = "openevals", specifier = ">=0.2.2" }]
 test = [
     { name = "httpx", specifier = ">=0.28.1" },
+    { name = "pycryptodome", specifier = ">=4.3.0" },
     { name = "pytest", specifier = ">=9.2.0" },
     { name = "pytest-asyncio", specifier = ">=1.4.1" },
     { name = "pytest-cov", specifier = ">=7.1.0" },
