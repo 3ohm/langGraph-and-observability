@@ -9,6 +9,9 @@ ends the attempt in ``runs``:
 - the graph completes: ``mark_success``;
 - the graph drains (``GraphDrained``, after ``request_drain_all``): ``release``, so that
   another pod's periodic check resumes the run (§8.4);
+- the graph stops at an interrupt: a failed attempt (``mark_error``). The worker gives no
+  resume value, so it raises ``InterruptNotSupportedError``. A retry runs the
+  interrupted node again;
 - any other exception, including the run deadline: ``mark_error``, which returns the
   run to pending or, after ``max_attempts``, fails it.
 
@@ -23,7 +26,7 @@ the executor's, a node's and an adapter's, and a library's through ``logging``.
 """
 
 import asyncio
-from collections.abc import Callable, Mapping
+from collections.abc import Callable, Mapping, Sequence
 from typing import Any
 from uuid import UUID
 
@@ -48,6 +51,26 @@ _MAX_ERROR_MESSAGE = 2000
 
 # The statuses that mark_error sets. Any other status means the pod lost the lease.
 _MARK_ERROR_STATUSES = frozenset({RunStatus.PENDING, RunStatus.FAILED})
+
+# The key of ainvoke's result that holds a graph's interrupts. LangGraph 1.x made its
+# INTERRUPT constant private; tests/unit/test_upstream_shape.py pins this key.
+_INTERRUPT_KEY = "__interrupt__"
+
+
+class InterruptNotSupportedError(RuntimeError):
+    """The graph stopped at an interrupt, and this worker has no resume value for it.
+
+    The message names the nodes that wait, never an interrupt's value, which can hold
+    data from the state.
+    """
+
+    def __init__(self, nodes: Sequence[str]) -> None:
+        super().__init__(
+            "the graph stopped at an interrupt; this worker gives no resume value, so the "
+            "attempt fails and the run gets a retry up to APP_MAX_ATTEMPTS; an interactive "
+            "graph runs on langgraph dev or the LangGraph Agent Server; the nodes that wait: "
+            + ", ".join(nodes)
+        )
 
 
 class RunExecutor:  # pylint: disable=too-many-instance-attributes  # collaborators, caches
@@ -153,7 +176,7 @@ class RunExecutor:  # pylint: disable=too-many-instance-attributes  # collaborat
         deadline = asyncio.timeout(deadline_s)
         try:
             async with deadline:
-                await self._graphs[run.agent].ainvoke(
+                result = await self._graphs[run.agent].ainvoke(
                     graph_input,
                     config,
                     context=spec.make_context(info, model, self._settings),
@@ -164,6 +187,11 @@ class RunExecutor:  # pylint: disable=too-many-instance-attributes  # collaborat
             if deadline.expired():
                 raise TimeoutError(f"the run deadline of {deadline_s} s was exceeded") from exc
             raise
+        if isinstance(result, Mapping) and _INTERRUPT_KEY in result:
+            # An Interrupt holds no node name; the checkpoint names the nodes that wait.
+            raise InterruptNotSupportedError(
+                (await self._graphs[run.agent].aget_state(config)).next
+            )
 
     async def _mark_error(
         self, run: RunRow, error: dict[str, str], log: structlog.stdlib.BoundLogger

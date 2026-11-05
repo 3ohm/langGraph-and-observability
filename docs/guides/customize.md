@@ -58,6 +58,14 @@ Then:
 An agent is a plain LangGraph `StateGraph` plus an `AgentSpec` (`agent_spec.py`): the functions
 that the worker calls around the graph.
 
+The worker is a batch host: it invokes the graph one time per attempt, with no resume value and
+no streaming to a client. When the graph stops at an interrupt, the attempt fails and the run gets
+a retry, up to `APP_MAX_ATTEMPTS`, as for any other error. A retry runs the interrupted node again;
+the steps that completed do not run again. So a node can use an interrupt to wait for a condition,
+such as an approval in another system: when the condition has cleared, a later attempt completes.
+A node that interrupts every time uses all the attempts, and then the run fails. An interactive
+graph, which waits for a person's answer, runs on `langgraph dev` or the LangGraph Agent Server.
+
 1. Make a package `src/<package>/agents/<name>/` with:
    - `graph.py`: `build_graph()` returns the `StateGraph`, not compiled; the worker compiles it
      with its checkpointer. Every node is `async`. Give each node

@@ -4,6 +4,13 @@ An agent is a plain LangGraph ``StateGraph`` plus the few functions that the wor
 calls around it: to validate a queue message, to compute its dedup key, and to build
 the run's context and first state. The worker reads agents from the registry
 (``worker/registry.py``); this module imports nothing from the worker or the agents.
+
+The worker is a batch host: it invokes the graph one time per attempt, with no resume
+value and no streaming to a client. When the graph stops at an interrupt, the attempt
+fails and the run gets a retry, up to ``APP_MAX_ATTEMPTS``. A retry runs the interrupted
+node again, so a node can use an interrupt to wait for a condition, such as an approval
+in another system. An interactive graph runs on ``langgraph dev`` or the LangGraph Agent
+Server.
 """
 
 from collections.abc import Callable, Sequence

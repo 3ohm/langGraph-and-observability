@@ -3,19 +3,24 @@
 import asyncio
 import time
 from collections import Counter
+from dataclasses import replace
 from uuid import UUID
 
 import pytest
 import structlog
+from langgraph.graph import START, StateGraph
 from langgraph.graph.state import CompiledStateGraph
+from langgraph.types import interrupt
 
+from langgraph_and_observability.agent_spec import AgentSpec
 from langgraph_and_observability.persistence.checkpointer import make_checkpointer
 from langgraph_and_observability.persistence.serde import make_serde
+from langgraph_and_observability.policies import default_retry_policy, step_timeout
 from langgraph_and_observability.settings import load_settings
 from langgraph_and_observability.worker.executor import RunExecutor
 from langgraph_and_observability.worker.runs import RunRepo, RunRow, RunStatus
 from tests.graphs import steps
-from tests.graphs.steps import STEPS_SPEC, Fault
+from tests.graphs.steps import STEPS_SPEC, Fault, StepsContext, StepsState
 
 pytestmark = pytest.mark.integration
 
@@ -36,12 +41,15 @@ async def saver(steps_pool):
 
 @pytest.fixture
 def make_executor(saver, repo):
-    """Build a RunExecutor for the steps agent; keyword arguments override settings."""
+    """Build a RunExecutor for one agent, by default the steps agent.
 
-    def make(metadata=None, **settings):
+    Keyword arguments other than ``metadata`` and ``spec`` override settings.
+    """
+
+    def make(metadata=None, spec: AgentSpec = STEPS_SPEC, **settings):
         return RunExecutor(
             saver=saver,
-            agents={STEPS_SPEC.name: STEPS_SPEC},
+            agents={spec.name: spec},
             repo=repo,
             settings=load_settings(**settings),
             owner=OWNER,
@@ -53,8 +61,18 @@ def make_executor(saver, repo):
 
 async def _claimed(repo: RunRepo, key: str, lease_s: float = LEASE_S) -> RunRow:
     """Create a steps run for ``key`` and claim it for OWNER, with a lease of ``lease_s``."""
-    run_id, created = await repo.create(STEPS_SPEC.name, f"test_steps:{key}", {"key": key})
+    return await _claim(repo, await _create(repo, STEPS_SPEC.name, key), lease_s)
+
+
+async def _create(repo: RunRepo, agent: str, key: str) -> UUID:
+    """Create a pending run of ``agent``, which takes the steps input, for ``key``."""
+    run_id, created = await repo.create(agent, f"{agent}:{key}", {"key": key})
     assert created
+    return run_id
+
+
+async def _claim(repo: RunRepo, run_id: UUID, lease_s: float = LEASE_S) -> RunRow:
+    """Claim the pending run for OWNER, as the recovery loop does."""
     run = await repo.claim(run_id, OWNER, lease_s)
     assert run is not None
     return run
@@ -271,3 +289,70 @@ async def test_lost_lease_changes_nothing(make_executor, repo, steps_pool, outco
         RunStatus.RUNNING,
     )
     assert executor.active_run_ids() == []
+
+
+def _graph(*nodes) -> StateGraph[StepsState, StepsContext, StepsState, StepsState]:
+    """A steps-state graph that runs ``nodes`` in order, with the policies of real agents."""
+    builder = StateGraph(StepsState, context_schema=StepsContext)
+    builder.set_node_defaults(retry_policy=default_retry_policy(), timeout=step_timeout(30))
+    previous = START
+    for node in nodes:
+        builder.add_node(node)
+        builder.add_edge(previous, node.__name__)
+        previous = node.__name__
+    return builder
+
+
+async def wait_for_approval(state: StepsState) -> dict[str, list[str]]:
+    # The value can hold data from the state, so the run's error never names it.
+    interrupt("approve ticket OPS-4242")
+    return {"log": ["approved"]}
+
+
+async def test_interrupt_is_a_failed_attempt_with_a_retry(make_executor, repo):
+    spec = replace(STEPS_SPEC, name="test_interrupt", build_graph=lambda: _graph(wait_for_approval))
+    executor = make_executor(spec=spec, max_attempts=3)
+    run_id = await _create(repo, spec.name, "always")
+
+    statuses = []
+    for _ in range(3):
+        statuses.append(await executor.execute(await _claim(repo, run_id)))
+        assert (await _get(repo, run_id)).status != RunStatus.SUCCESS
+
+    # An interrupt is an error like any other: a retry, then the last attempt fails the run.
+    assert statuses == [RunStatus.PENDING, RunStatus.PENDING, RunStatus.FAILED]
+    row = await _get(repo, run_id)
+    assert (row.status, row.attempt) == (RunStatus.FAILED, 3)
+    assert row.error is not None
+    assert row.error["type"] == "InterruptNotSupportedError"
+    assert "langgraph dev" in row.error["message"]
+    assert "wait_for_approval" in row.error["message"]
+    assert "OPS-4242" not in row.error["message"]
+
+
+async def test_retry_after_an_interrupt_completes_when_the_condition_clears(make_executor, repo):
+    calls: Counter[str] = Counter()
+    approved = False
+
+    async def first(state: StepsState) -> dict[str, list[str]]:
+        calls["first"] += 1
+        return {"log": ["first"]}
+
+    async def gate(state: StepsState) -> dict[str, list[str]]:
+        calls["gate"] += 1
+        if not approved:
+            interrupt("not approved yet")
+        return {"log": ["gate"]}
+
+    spec = replace(STEPS_SPEC, name="test_gate", build_graph=lambda: _graph(first, gate))
+    executor = make_executor(spec=spec)
+    run_id = await _create(repo, spec.name, "gate")
+
+    assert await executor.execute(await _claim(repo, run_id)) == RunStatus.PENDING
+    approved = True
+    assert await executor.execute(await _claim(repo, run_id)) == RunStatus.SUCCESS
+
+    # The retry runs only the interrupted node again; first completed and does not run again.
+    assert calls == Counter({"first": 1, "gate": 2})
+    row = await _get(repo, run_id)
+    assert (row.status, row.attempt) == (RunStatus.SUCCESS, 1)
