@@ -1,6 +1,6 @@
 """Durability of a run across worker processes (spec §8.3, §8.4; P10, P11).
 
-Each test starts ``python -m langgraph_postgres_starter worker`` subprocesses
+Each test starts ``python -m langgraph_and_observability worker`` subprocesses
 (``helpers.start_worker``) on a fresh database and a new ElasticMQ queue, with the
 test-only ``test_steps`` graph: ``step_a``, then ``step_b``, then ``step_c``. A message
 on the queue becomes a run. Worker A stops while step b runs:
@@ -31,9 +31,9 @@ import psycopg
 import pytest
 from psycopg.rows import dict_row
 
-from langgraph_postgres_starter.persistence.migrate import run_migrate
-from langgraph_postgres_starter.persistence.pool import create_pool, open_pool
-from langgraph_postgres_starter.settings import load_settings
+from langgraph_and_observability.persistence.migrate import run_migrate
+from langgraph_and_observability.persistence.pool import create_pool, open_pool
+from langgraph_and_observability.settings import load_settings
 from tests.e2e.helpers import free_port, marks, start_worker, wait_for
 from tests.graphs import steps
 from tests.graphs.steps import STEPS_SPEC, Fault, StepsInput

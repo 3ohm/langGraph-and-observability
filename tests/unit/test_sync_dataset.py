@@ -16,7 +16,7 @@ import pytest
 
 sync_dataset = pytest.importorskip("scripts.sync_dataset")
 load_cases = pytest.importorskip(
-    "langgraph_postgres_starter.agents.incident_triage.evals.dataset"
+    "langgraph_and_observability.agents.incident_triage.evals.dataset"
 ).load_cases
 
 

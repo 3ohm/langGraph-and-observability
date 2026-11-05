@@ -18,12 +18,12 @@ from pathlib import Path
 
 import pytest
 
-import langgraph_postgres_starter
-from langgraph_postgres_starter.settings import Settings
+import langgraph_and_observability
+from langgraph_and_observability.settings import Settings
 
 ROOT = Path(__file__).resolve().parents[2]
 GUIDE = ROOT / "docs" / "guides" / "real-mode.md"
-AGENT_DIR = Path(langgraph_postgres_starter.__file__).parent / "agents" / "incident_triage"
+AGENT_DIR = Path(langgraph_and_observability.__file__).parent / "agents" / "incident_triage"
 BUILDERS = AGENT_DIR / "adapters" / "__init__.py"
 
 # The setting values that select a real adapter: APP_ADAPTERS=real, APP_LLM_MODE=bedrock

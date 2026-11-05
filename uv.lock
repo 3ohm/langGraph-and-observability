@@ -1354,7 +1354,7 @@ inmem = [
 ]
 
 [[package]]
-name = "langgraph-postgres-starter"
+name = "langgraph-and-observability"
 version = "0.1.0.dev0"
 source = { editable = "." }
 dependencies = [

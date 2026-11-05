@@ -15,11 +15,11 @@ from langgraph.checkpoint.memory import InMemorySaver
 from langgraph.graph import START, StateGraph
 from langgraph.runtime import Runtime
 
-from langgraph_postgres_starter.ids import new_id
-from langgraph_postgres_starter.logging import configure_logging, get_logger
-from langgraph_postgres_starter.settings import load_settings
-from langgraph_postgres_starter.worker.executor import RunExecutor
-from langgraph_postgres_starter.worker.runs import RunRepo, RunRow, RunStatus
+from langgraph_and_observability.ids import new_id
+from langgraph_and_observability.logging import configure_logging, get_logger
+from langgraph_and_observability.settings import load_settings
+from langgraph_and_observability.worker.executor import RunExecutor
+from langgraph_and_observability.worker.runs import RunRepo, RunRow, RunStatus
 from tests.graphs.steps import STEPS_SPEC, StepsContext, StepsState
 
 OWNER = "pod-a"

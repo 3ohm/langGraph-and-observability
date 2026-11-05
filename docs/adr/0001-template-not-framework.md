@@ -2,7 +2,7 @@
 
 - **Status:** Accepted
 - **Date:** 2026-11-03
-- **Source:** design spec, `docs/design/2026-11-01-langgraph-postgres-starter-design.md`: §3 goal 1,
+- **Source:** design spec, `docs/design/2026-11-01-langgraph-and-observability-design.md`: §3 goal 1,
   §4 (non-goals) and §5 (anti-goals)
 
 ## Context

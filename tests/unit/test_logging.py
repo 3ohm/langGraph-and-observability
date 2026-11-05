@@ -6,8 +6,8 @@ import uuid
 
 import structlog
 
-from langgraph_postgres_starter.logging import configure_logging, get_logger
-from langgraph_postgres_starter.settings import load_settings
+from langgraph_and_observability.logging import configure_logging, get_logger
+from langgraph_and_observability.settings import load_settings
 
 
 def _last_line(capsys) -> dict[str, object]:

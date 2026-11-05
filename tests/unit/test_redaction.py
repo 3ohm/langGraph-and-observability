@@ -1,6 +1,6 @@
 import pytest
 
-from langgraph_postgres_starter.redaction import REDACTED, redact, redact_obj
+from langgraph_and_observability.redaction import REDACTED, redact, redact_obj
 
 # The table from the plan (Task 5). Outputs must match character for character.
 TABLE = [

@@ -11,10 +11,10 @@ import pytest
 import structlog
 from pydantic import BaseModel
 
-from langgraph_postgres_starter.persistence.migrate import run_migrate
-from langgraph_postgres_starter.settings import load_settings
-from langgraph_postgres_starter.worker.intake import SqsIntake
-from langgraph_postgres_starter.worker.runs import RunRepo, RunStatus
+from langgraph_and_observability.persistence.migrate import run_migrate
+from langgraph_and_observability.settings import load_settings
+from langgraph_and_observability.worker.intake import SqsIntake
+from langgraph_and_observability.worker.runs import RunRepo, RunStatus
 from tests.graphs.steps import STEPS_SPEC
 
 pytestmark = pytest.mark.integration

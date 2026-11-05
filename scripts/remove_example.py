@@ -51,7 +51,7 @@ from dataclasses import dataclass
 from pathlib import Path
 
 PROG = "remove_example.py"
-PACKAGE = "langgraph_postgres_starter"
+PACKAGE = "langgraph_and_observability"
 AGENT = "incident_triage"
 PACKAGE_DIR = f"src/{PACKAGE}"
 # A fork may delete the worker (spec 13.9); the edits of its files go with it.

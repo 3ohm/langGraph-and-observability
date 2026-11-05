@@ -30,10 +30,10 @@ from psycopg.rows import DictRow
 from psycopg_pool import AsyncConnectionPool
 from pydantic import BaseModel
 
-from langgraph_postgres_starter.agent_spec import AgentSpec, RunInfo
-from langgraph_postgres_starter.persistence.resources import current_pool
-from langgraph_postgres_starter.policies import default_retry_policy, step_timeout
-from langgraph_postgres_starter.settings import Settings
+from langgraph_and_observability.agent_spec import AgentSpec, RunInfo
+from langgraph_and_observability.persistence.resources import current_pool
+from langgraph_and_observability.policies import default_retry_policy, step_timeout
+from langgraph_and_observability.settings import Settings
 
 type _Pool = AsyncConnectionPool[AsyncConnection[DictRow]]
 

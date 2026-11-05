@@ -6,7 +6,7 @@
 # The image of migrate and worker (Dockerfile). Both services share one tag.
 x-app: &app
   build: .
-  image: langgraph-postgres-starter:local
+  image: langgraph-and-observability:local
 
 services:
   postgres:

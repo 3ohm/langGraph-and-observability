@@ -8,9 +8,9 @@ from typing import Any, cast
 
 import pytest
 
-from langgraph_postgres_starter.persistence import migrate
-from langgraph_postgres_starter.persistence.migrate import Migration, discover, run_migrate
-from langgraph_postgres_starter.settings import load_settings
+from langgraph_and_observability.persistence import migrate
+from langgraph_and_observability.persistence.migrate import Migration, discover, run_migrate
+from langgraph_and_observability.settings import load_settings
 
 # Port 1 refuses connections: a test that reaches the database fails loudly.
 UNREACHABLE = "postgresql://u@127.0.0.1:1/x"

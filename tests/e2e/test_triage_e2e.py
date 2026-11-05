@@ -1,6 +1,6 @@
 """The Incident Triage agent end to end, in simulated mode (spec §10.2, §15; P11, P13).
 
-Each test starts ``python -m langgraph_postgres_starter worker`` subprocesses
+Each test starts ``python -m langgraph_and_observability worker`` subprocesses
 (``helpers.start_worker``) on a fresh, migrated database and a new ElasticMQ queue,
 with the simulated adapters and the recorded model, as ``docker compose up`` runs the
 worker. The tests send incidents with ``scripts/send_incident.py``, as ``make incident``
@@ -35,13 +35,13 @@ import psycopg
 import pytest
 from psycopg.rows import dict_row
 
-from langgraph_postgres_starter.persistence.migrate import run_migrate
-from langgraph_postgres_starter.settings import load_settings
+from langgraph_and_observability.persistence.migrate import run_migrate
+from langgraph_and_observability.settings import load_settings
 from tests.e2e.helpers import REPO_ROOT, free_port, start_worker, wait_for
 
-triage = pytest.importorskip("langgraph_postgres_starter.agents.incident_triage.spec")
-loader = pytest.importorskip("langgraph_postgres_starter.agents.incident_triage.fixtures.loader")
-schemas = pytest.importorskip("langgraph_postgres_starter.agents.incident_triage.schemas")
+triage = pytest.importorskip("langgraph_and_observability.agents.incident_triage.spec")
+loader = pytest.importorskip("langgraph_and_observability.agents.incident_triage.fixtures.loader")
+schemas = pytest.importorskip("langgraph_and_observability.agents.incident_triage.schemas")
 
 pytestmark = pytest.mark.e2e
 

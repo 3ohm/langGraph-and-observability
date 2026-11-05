@@ -1,4 +1,4 @@
-from langgraph_postgres_starter.ids import new_id
+from langgraph_and_observability.ids import new_id
 
 
 def test_uuid7_time_ordered():

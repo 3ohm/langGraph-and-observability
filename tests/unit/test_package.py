@@ -6,17 +6,17 @@ from pathlib import Path
 
 import pytest
 
-import langgraph_postgres_starter as pkg
-from langgraph_postgres_starter import __main__
+import langgraph_and_observability as pkg
+from langgraph_and_observability import __main__
 
 
 def test_version_matches_metadata():
-    assert pkg.__version__ == version("langgraph-postgres-starter") == "0.1.0.dev0"
+    assert pkg.__version__ == version("langgraph-and-observability") == "0.1.0.dev0"
 
 
 def test_cli_prints_version():
     out = subprocess.run(
-        [sys.executable, "-m", "langgraph_postgres_starter", "--version"],
+        [sys.executable, "-m", "langgraph_and_observability", "--version"],
         capture_output=True,
         text=True,
         check=True,

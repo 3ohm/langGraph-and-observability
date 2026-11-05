@@ -29,13 +29,13 @@ import langsmith
 from langsmith.schemas import Example
 from langsmith.utils import LangSmithError
 
-from langgraph_postgres_starter.agents.incident_triage.evals.dataset import EvalCase, load_cases
-from langgraph_postgres_starter.agents.incident_triage.fixtures.loader import load_fixture
+from langgraph_and_observability.agents.incident_triage.evals.dataset import EvalCase, load_cases
+from langgraph_and_observability.agents.incident_triage.fixtures.loader import load_fixture
 
 DEFAULT_DATASET = "incident-triage-v1"
 DESCRIPTION = (
     "Incident Triage eval cases: one incident fixture each, with its expected category, "
-    "code location and key facts (langgraph-postgres-starter, scripts/sync_dataset.py)."
+    "code location and key facts (langgraph-and-observability, scripts/sync_dataset.py)."
 )
 # The variables that langsmith's client reads its API key from.
 _API_KEYS = ("LANGSMITH_API_KEY", "LANGCHAIN_API_KEY")

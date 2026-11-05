@@ -1,6 +1,6 @@
 """The operator CLI against a real Postgres (spec 7.3, 8.6).
 
-The tests call the entry point of ``python -m langgraph_postgres_starter`` in this
+The tests call the entry point of ``python -m langgraph_and_observability`` in this
 process. The CLI runs its own event loop, so the tests are synchronous and set up
 their data with ``asyncio.run``.
 """
@@ -14,12 +14,12 @@ from typing import Any
 
 import pytest
 
-from langgraph_postgres_starter.__main__ import main
-from langgraph_postgres_starter.persistence.migrate import run_migrate
-from langgraph_postgres_starter.persistence.pool import create_pool, open_pool
-from langgraph_postgres_starter.settings import load_settings
-from langgraph_postgres_starter.worker import registry
-from langgraph_postgres_starter.worker.runs import RunRepo, RunStatus
+from langgraph_and_observability.__main__ import main
+from langgraph_and_observability.persistence.migrate import run_migrate
+from langgraph_and_observability.persistence.pool import create_pool, open_pool
+from langgraph_and_observability.settings import load_settings
+from langgraph_and_observability.worker import registry
+from langgraph_and_observability.worker.runs import RunRepo, RunStatus
 from tests.graphs.steps import STEPS_SPEC
 
 pytestmark = pytest.mark.integration

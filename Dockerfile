@@ -34,7 +34,7 @@ RUN --mount=type=cache,target=/root/.cache/uv \
 # (ruling R51). The download's bundle archive is not needed afterwards. Everyone may read
 # the grammars, and no one may change them.
 RUN APP_GRAMMAR_DIR=/app/grammars /app/.venv/bin/python \
-        -m langgraph_postgres_starter.agents.incident_triage.codeintel.languages --download \
+        -m langgraph_and_observability.agents.incident_triage.codeintel.languages --download \
     && rm -rf /app/grammars/tree-sitter-language-pack/*/bundles \
     && chmod -R a=rX /app/grammars
 # example-agent:end
@@ -70,5 +70,5 @@ USER 10001:10001
 
 STOPSIGNAL SIGTERM
 
-ENTRYPOINT ["python", "-m", "langgraph_postgres_starter"]
+ENTRYPOINT ["python", "-m", "langgraph_and_observability"]
 CMD ["worker"]

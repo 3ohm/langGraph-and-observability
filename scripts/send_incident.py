@@ -6,7 +6,7 @@ Usage::
     uv run scripts/send_incident.py --message-file incident.json --queue-url URL
 
 The message is an incident fixture's ``incident.json`` (``--fixture <id>``, a folder in
-``src/langgraph_postgres_starter/agents/incident_triage/fixtures/incidents/``) or a JSON
+``src/langgraph_and_observability/agents/incident_triage/fixtures/incidents/``) or a JSON
 ``IncidentMessage`` in a file (``--message-file <path>``). A message without
 ``fired_at`` gets the current time, in UTC. The script validates the message as an
 ``IncidentMessage``, sends it to ``--queue-url`` and prints the SQS message ID. An
@@ -34,8 +34,8 @@ import boto3
 from botocore.config import Config
 from botocore.exceptions import BotoCoreError, ClientError
 
-from langgraph_postgres_starter.agents.incident_triage.fixtures.loader import load_fixture
-from langgraph_postgres_starter.agents.incident_triage.schemas import IncidentMessage
+from langgraph_and_observability.agents.incident_triage.fixtures.loader import load_fixture
+from langgraph_and_observability.agents.incident_triage.schemas import IncidentMessage
 
 if TYPE_CHECKING:
     from mypy_boto3_sqs import SQSClient

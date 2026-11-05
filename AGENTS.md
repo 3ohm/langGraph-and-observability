@@ -11,8 +11,8 @@ own agent. The design is in `docs/design/`; the implementation plans are in `doc
 ## Project map
 
 ```
-src/langgraph_postgres_starter/
-  __main__.py               CLI: python -m langgraph_postgres_starter (worker, migrate, runs)
+src/langgraph_and_observability/
+  __main__.py               CLI: python -m langgraph_and_observability (worker, migrate, runs)
   settings.py logging.py ids.py redaction.py policies.py agent_spec.py
   persistence/              connection pool, migrations, serializer, checkpointer, action ledger
   worker/                   queue worker: intake, runs, executor, health, CLI, registry, retention
@@ -83,7 +83,7 @@ uv run scripts/remove_example.py                          # remove the example a
 
 ## How to add an agent
 
-1. Make `src/langgraph_postgres_starter/agents/<name>/` with `graph.py` (`build_graph()` returns
+1. Make `src/langgraph_and_observability/agents/<name>/` with `graph.py` (`build_graph()` returns
    the uncompiled `StateGraph`; every node is `async`, with `default_retry_policy()` and
    `step_timeout(...)` from `policies.py`), its state, context and schemas, and `spec.py` with
    one `AgentSpec`: name, graph, input model, dedup key, context, initial state, `serde_types`,

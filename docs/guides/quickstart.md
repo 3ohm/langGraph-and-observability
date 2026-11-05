@@ -38,7 +38,7 @@ recorded model, and publishes a typed `TriageResult` to the log and to Postgres.
 `make incident LANG=<language>` sends the incident of that language's sample app:
 `javascript`, `typescript`, `python`, `java`, `go`, `php`, `ruby`, `kotlin`, `scala`, `c` and
 `cpp`. `make incident FIXTURE=<id>` sends any fixture by its folder name in
-`src/langgraph_postgres_starter/agents/incident_triage/fixtures/incidents/`, and wins over
+`src/langgraph_and_observability/agents/incident_triage/fixtures/incidents/`, and wins over
 `LANG`.
 
 - `make incident LANG=java` sends `java-spring-npe`. The plain-Java sample is
@@ -54,8 +54,8 @@ same dedup key, so the worker logs `intake.duplicate` and keeps the first run (P
 ## Look at the results
 
 ```bash
-docker compose exec worker python -m langgraph_postgres_starter runs list
-docker compose exec worker python -m langgraph_postgres_starter runs show <run_id>
+docker compose exec worker python -m langgraph_and_observability runs list
+docker compose exec worker python -m langgraph_and_observability runs show <run_id>
 docker compose exec postgres psql -U postgres -c "select run_id, category from triage_results"
 ```
 

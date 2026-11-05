@@ -8,13 +8,13 @@ import psycopg
 import pytest
 from psycopg.conninfo import make_conninfo
 
-from langgraph_postgres_starter.persistence.migrate import (
+from langgraph_and_observability.persistence.migrate import (
     CORE_MIGRATIONS_DIR,
     apply,
     discover,
     run_migrate,
 )
-from langgraph_postgres_starter.settings import load_settings
+from langgraph_and_observability.settings import load_settings
 
 pytestmark = pytest.mark.integration
 

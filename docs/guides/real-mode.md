@@ -49,14 +49,14 @@ Settings not listed here keep their defaults; `.env.example` lists every setting
 | Result sink `sqs` | `sinks/sqs.py` | `APP_RESULT_SINKS` (default `["log"]`; the ConfigMap sets `["log", "sqs"]`), `APP_RESULT_QUEUE_URL`, `APP_AWS_REGION`, `APP_SQS_ENDPOINT_URL` | `sqs:SendMessage` |
 | Intake (the worker) | `worker/intake.py` | `APP_SQS_QUEUE_URL`, `APP_AWS_REGION`, `APP_SQS_ENDPOINT_URL` | the SQS receive statement |
 
-The code paths are under `src/langgraph_postgres_starter/agents/incident_triage/adapters/`, except
+The code paths are under `src/langgraph_and_observability/agents/incident_triage/adapters/`, except
 the intake's. `APP_RUN_DEADLINE_SECONDS` matters to the Git source because a checkout used less
 than one run deadline ago is never evicted from the cache.
 
 ## 1. Set up the IAM role with Pod Identity or IRSA
 
-The worker's ServiceAccount, `langgraph-postgres-starter` in the namespace
-`langgraph-postgres-starter`, gets one IAM role. Its permissions policy is
+The worker's ServiceAccount, `langgraph-and-observability` in the namespace
+`langgraph-and-observability`, gets one IAM role. Its permissions policy is
 `deploy/iam/policy.json` with the placeholders filled in; the commands below call that copy
 `policy.json`. The migrate Job gets no role.
 
@@ -80,10 +80,10 @@ as `pod-identity-trust.json`:
 aws eks create-addon --cluster-name <CLUSTER_NAME> --addon-name eks-pod-identity-agent
 aws iam create-role --role-name <ROLE_NAME> \
   --assume-role-policy-document file://pod-identity-trust.json
-aws iam put-role-policy --role-name <ROLE_NAME> --policy-name langgraph-postgres-starter \
+aws iam put-role-policy --role-name <ROLE_NAME> --policy-name langgraph-and-observability \
   --policy-document file://policy.json
 aws eks create-pod-identity-association --cluster-name <CLUSTER_NAME> \
-  --namespace langgraph-postgres-starter --service-account langgraph-postgres-starter \
+  --namespace langgraph-and-observability --service-account langgraph-and-observability \
   --role-arn arn:aws:iam::<ACCOUNT_ID>:role/<ROLE_NAME>
 ```
 
@@ -109,7 +109,7 @@ the ServiceAccount's `eks.amazonaws.com/role-arn` annotation:
       "Action": "sts:AssumeRoleWithWebIdentity",
       "Condition": {
         "StringEquals": {
-          "<OIDC_PROVIDER>:sub": "system:serviceaccount:langgraph-postgres-starter:langgraph-postgres-starter",
+          "<OIDC_PROVIDER>:sub": "system:serviceaccount:langgraph-and-observability:langgraph-and-observability",
           "<OIDC_PROVIDER>:aud": "sts.amazonaws.com"
         }
       }
@@ -200,11 +200,11 @@ can be in any namespace. There is no `watch`, no Secrets, no `exec` and no write
 Step 5 applies it with the rest. To apply the ServiceAccount and RBAC now, and check them:
 
 ```bash
-kubectl create namespace langgraph-postgres-starter
-kubectl apply -n langgraph-postgres-starter \
+kubectl create namespace langgraph-and-observability
+kubectl apply -n langgraph-and-observability \
   -f deploy/k8s/serviceaccount.yaml -f deploy/k8s/rbac.yaml
 
-SA=system:serviceaccount:langgraph-postgres-starter:langgraph-postgres-starter
+SA=system:serviceaccount:langgraph-and-observability:langgraph-and-observability
 kubectl auth can-i list pods --all-namespaces --as="$SA"                 # yes
 kubectl auth can-i get pods --subresource=log -n <APP_NAMESPACE> --as="$SA"  # yes
 kubectl auth can-i list nodes --as="$SA"                                 # yes
@@ -217,19 +217,19 @@ kubectl auth can-i delete pods -n <APP_NAMESPACE> --as="$SA"             # no
 The manifests read secrets from two Secrets that are not shipped (the comments at the top of
 `deployment.yaml` and `migrate-job.yaml` list their keys):
 
-- `langgraph-postgres-starter-secrets`, for the worker: `APP_DATABASE_URL` (as `lps_app`),
+- `langgraph-and-observability-secrets`, for the worker: `APP_DATABASE_URL` (as `lps_app`),
   `DD_API_KEY`, `DD_APP_KEY` and `APP_GIT_TOKEN`, and optionally `LANGGRAPH_AES_KEY` and
   `LANGSMITH_API_KEY`;
-- `langgraph-postgres-starter-migration`, for the migrate Job: `APP_MIGRATION_DATABASE_URL` (as
+- `langgraph-and-observability-migration`, for the migrate Job: `APP_MIGRATION_DATABASE_URL` (as
   `lps_migrator`).
 
 Write each as an env file, one `KEY=value` line per key, with an editor rather than `echo` (which
 keeps the values in your shell history), outside the repository. Then:
 
 ```bash
-kubectl -n langgraph-postgres-starter create secret generic langgraph-postgres-starter-secrets \
+kubectl -n langgraph-and-observability create secret generic langgraph-and-observability-secrets \
   --from-env-file=worker.env
-kubectl -n langgraph-postgres-starter create secret generic langgraph-postgres-starter-migration \
+kubectl -n langgraph-and-observability create secret generic langgraph-and-observability-migration \
   --from-env-file=migration.env
 rm worker.env migration.env
 ```
@@ -319,9 +319,9 @@ for the Job, and read its log:
 
 ```bash
 kubectl apply -k deploy/k8s -l 'app.kubernetes.io/component!=worker'
-kubectl -n langgraph-postgres-starter wait --for=condition=complete \
-  job/langgraph-postgres-starter-migrate --timeout=10m
-kubectl -n langgraph-postgres-starter logs job/langgraph-postgres-starter-migrate
+kubectl -n langgraph-and-observability wait --for=condition=complete \
+  job/langgraph-and-observability-migrate --timeout=10m
+kubectl -n langgraph-and-observability logs job/langgraph-and-observability-migrate
 ```
 
 The log has one JSON line per migration it applied, such as
@@ -335,8 +335,8 @@ in "Before you start". For a new image, delete the finished Job first
 
 ```bash
 kubectl apply -k deploy/k8s
-kubectl -n langgraph-postgres-starter rollout status deploy/langgraph-postgres-starter-worker
-kubectl -n langgraph-postgres-starter logs deploy/langgraph-postgres-starter-worker | head -20
+kubectl -n langgraph-and-observability rollout status deploy/langgraph-and-observability-worker
+kubectl -n langgraph-and-observability logs deploy/langgraph-and-observability-worker | head -20
 ```
 
 Check that:
@@ -348,7 +348,7 @@ Check that:
 - the pod runs as the IAM role from step 1:
 
   ```bash
-  kubectl -n langgraph-postgres-starter exec deploy/langgraph-postgres-starter-worker -- \
+  kubectl -n langgraph-and-observability exec deploy/langgraph-and-observability-worker -- \
     python -c "import boto3; print(boto3.client('sts', region_name='<REGION>').get_caller_identity()['Arn'])"
   ```
 
@@ -402,11 +402,11 @@ script validates the message first, then prints the SQS message ID.
 Follow the run in the worker's log, then read its result:
 
 ```bash
-kubectl -n langgraph-postgres-starter logs -f deploy/langgraph-postgres-starter-worker \
+kubectl -n langgraph-and-observability logs -f deploy/langgraph-and-observability-worker \
   | grep -E '"(intake|source|analyze|publish|triage)\.'
-kubectl -n langgraph-postgres-starter exec deploy/langgraph-postgres-starter-worker -- \
-  python -m langgraph_postgres_starter runs list --limit 5
-kubectl -n langgraph-postgres-starter logs deploy/langgraph-postgres-starter-worker \
+kubectl -n langgraph-and-observability exec deploy/langgraph-and-observability-worker -- \
+  python -m langgraph_and_observability runs list --limit 5
+kubectl -n langgraph-and-observability logs deploy/langgraph-and-observability-worker \
   | grep '"triage.published"' | jq '.result'
 ```
 

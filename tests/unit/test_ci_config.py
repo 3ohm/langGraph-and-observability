@@ -140,7 +140,7 @@ EVALS_PATH = ROOT / ".github/workflows/evals.yml"
 EVALS = yaml.safe_load(EVALS_PATH.read_text())
 EVALS_JOB = EVALS["jobs"]["evals"]
 EVALS_STEPS = EVALS_JOB["steps"]
-EVALS_TEST = "src/langgraph_postgres_starter/agents/incident_triage/evals"
+EVALS_TEST = "src/langgraph_and_observability/agents/incident_triage/evals"
 AWS_ACTION = "aws-actions/configure-aws-credentials"
 RIPGREP = "sudo apt-get update && sudo apt-get install -y --no-install-recommends ripgrep"
 

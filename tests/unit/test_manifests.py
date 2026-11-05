@@ -16,7 +16,7 @@ from typing import Any, get_args
 import yaml
 from pydantic import SecretStr
 
-from langgraph_postgres_starter.settings import Settings
+from langgraph_and_observability.settings import Settings
 
 ROOT = Path(__file__).resolve().parents[2]
 K8S = ROOT / "deploy" / "k8s"

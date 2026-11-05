@@ -16,13 +16,13 @@ from uuid import UUID
 import pytest
 from psycopg import errors as pg_errors
 
-from langgraph_postgres_starter.agent_spec import RunInfo
-from langgraph_postgres_starter.persistence.checkpointer import PoolAwarePostgresSaver
-from langgraph_postgres_starter.persistence.serde import make_serde
-from langgraph_postgres_starter.settings import load_settings
-from langgraph_postgres_starter.worker.main import Worker
-from langgraph_postgres_starter.worker.retention import _SELECT_BATCH, PruneReport, prune_once
-from langgraph_postgres_starter.worker.runs import RunRepo, RunStatus
+from langgraph_and_observability.agent_spec import RunInfo
+from langgraph_and_observability.persistence.checkpointer import PoolAwarePostgresSaver
+from langgraph_and_observability.persistence.serde import make_serde
+from langgraph_and_observability.settings import load_settings
+from langgraph_and_observability.worker.main import Worker
+from langgraph_and_observability.worker.retention import _SELECT_BATCH, PruneReport, prune_once
+from langgraph_and_observability.worker.runs import RunRepo, RunStatus
 from tests.graphs.steps import STEPS_SPEC, StepsInput
 
 pytestmark = pytest.mark.integration

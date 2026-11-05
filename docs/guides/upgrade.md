@@ -71,8 +71,8 @@ read its entries, then apply the template's diff between two tags with your name
 git remote add template https://github.com/3ohm/langGraph-and-observability.git
 git fetch template --tags
 git diff v0.1.0 v0.2.0 \
-  | sed -e 's/langgraph[_]postgres[_]starter/langgraph_postgres_starter/g' \
-        -e 's/langgraph[-]postgres[-]starter/langgraph-postgres-starter/g' \
+  | sed -e 's/langgraph[_]and[_]observability/langgraph_and_observability/g' \
+        -e 's/langgraph[-]and[-]observability/langgraph-and-observability/g' \
   | git apply --reject
 ```
 

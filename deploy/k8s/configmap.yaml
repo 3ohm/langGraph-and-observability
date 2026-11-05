@@ -7,9 +7,9 @@
 apiVersion: v1
 kind: ConfigMap
 metadata:
-  name: langgraph-postgres-starter-config
+  name: langgraph-and-observability-config
   labels:
-    app.kubernetes.io/name: langgraph-postgres-starter
+    app.kubernetes.io/name: langgraph-and-observability
 data:
   # prod: a missing secret stops the start.
   APP_ENV: prod

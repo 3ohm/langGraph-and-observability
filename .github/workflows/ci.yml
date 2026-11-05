@@ -101,7 +101,7 @@ jobs:
       - run: make test-int
 
   # End-to-end tests (spec 13.3; P10, P11, P13): the tests start worker subprocesses
-  # (python -m langgraph_postgres_starter worker), then SIGKILL or SIGTERM them while a
+  # (python -m langgraph_and_observability worker), then SIGKILL or SIGTERM them while a
   # run is in progress, against the same service containers as the integration job.
   # make test-e2e (pytest -m e2e) also runs tests/e2e/test_triage_e2e.py: the
   # incident_triage agent in simulated mode, with every fixture incident and a kill -9
@@ -157,7 +157,7 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
-      - run: docker build -t langgraph-postgres-starter:local .
+      - run: docker build -t langgraph-and-observability:local .
       - name: Migration smoke test
         run: |
           docker compose up --detach --wait postgres

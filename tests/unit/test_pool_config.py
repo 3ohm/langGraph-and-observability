@@ -5,9 +5,9 @@ from psycopg.conninfo import conninfo_to_dict
 from psycopg.rows import dict_row
 from psycopg_pool import AsyncConnectionPool
 
-from langgraph_postgres_starter.persistence import resources
-from langgraph_postgres_starter.persistence.pool import build_conninfo, create_pool
-from langgraph_postgres_starter.settings import load_settings
+from langgraph_and_observability.persistence import resources
+from langgraph_and_observability.persistence.pool import build_conninfo, create_pool
+from langgraph_and_observability.settings import load_settings
 
 DEFAULTS = {
     "keepalives": "1",

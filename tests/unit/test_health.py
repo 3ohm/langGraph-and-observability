@@ -13,10 +13,10 @@ import httpx
 import pytest
 from psycopg_pool import AsyncConnectionPool
 
-from langgraph_postgres_starter.persistence.pool import create_pool
-from langgraph_postgres_starter.settings import load_settings
-from langgraph_postgres_starter.worker import health
-from langgraph_postgres_starter.worker.health import ReadinessProbe, create_health_app
+from langgraph_and_observability.persistence.pool import create_pool
+from langgraph_and_observability.settings import load_settings
+from langgraph_and_observability.worker import health
+from langgraph_and_observability.worker.health import ReadinessProbe, create_health_app
 
 # Nothing listens on port 1, so every connection attempt is refused at once.
 DEAD_DSN = "postgresql://lps:not-a-real-password@127.0.0.1:1/lps"

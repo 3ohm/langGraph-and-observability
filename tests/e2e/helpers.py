@@ -1,6 +1,6 @@
 """Helpers for the end-to-end tests: worker subprocesses and the steps graph's marks.
 
-A worker is ``python -m langgraph_postgres_starter worker`` in its own process, started
+A worker is ``python -m langgraph_and_observability worker`` in its own process, started
 from the repository root (``start_worker``). The tests signal or kill it, and wait for
 what it does (``wait_for``). ``marks`` reads what the test-only ``test_steps`` graph
 recorded in ``test_step_calls`` (``tests/graphs/steps.py``).
@@ -34,7 +34,7 @@ def free_port() -> int:
 
 
 def start_worker(env: Mapping[str, str], *, log_path: Path) -> subprocess.Popen[bytes]:
-    """Start ``python -m langgraph_postgres_starter worker``; return its process.
+    """Start ``python -m langgraph_and_observability worker``; return its process.
 
     The worker gets the test process's environment without the variables in
     ``_NOT_INHERITED``, then ``env``. It runs with this interpreter, from the repository
@@ -55,7 +55,7 @@ def start_worker(env: Mapping[str, str], *, log_path: Path) -> subprocess.Popen[
     with log_path.open("ab") as log:
         # The command is fixed: this interpreter and the package's own entry point.
         return subprocess.Popen(  # noqa: S603
-            [sys.executable, "-m", "langgraph_postgres_starter", "worker"],
+            [sys.executable, "-m", "langgraph_and_observability", "worker"],
             cwd=REPO_ROOT,
             env=child_env,
             stdin=subprocess.DEVNULL,

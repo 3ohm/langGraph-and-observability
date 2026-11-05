@@ -9,12 +9,12 @@ from typing import Any, cast
 
 import pytest
 
-from langgraph_postgres_starter import __main__
-from langgraph_postgres_starter.persistence.pool import DatabaseUnavailable
-from langgraph_postgres_starter.persistence.resources import current_pool, set_pool
-from langgraph_postgres_starter.settings import load_settings
-from langgraph_postgres_starter.worker import main as worker_main
-from langgraph_postgres_starter.worker.main import EXIT_STARTUP_FAILED, Worker
+from langgraph_and_observability import __main__
+from langgraph_and_observability.persistence.pool import DatabaseUnavailable
+from langgraph_and_observability.persistence.resources import current_pool, set_pool
+from langgraph_and_observability.settings import load_settings
+from langgraph_and_observability.worker import main as worker_main
+from langgraph_and_observability.worker.main import EXIT_STARTUP_FAILED, Worker
 from tests.graphs.steps import STEPS_SPEC
 
 # Nothing listens on port 1, so every connection attempt is refused at once.

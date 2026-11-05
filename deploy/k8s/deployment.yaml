@@ -2,7 +2,7 @@
 #
 # The worker reads its secrets from a Secret that is not shipped here. Create it in the
 # namespace from a file with one KEY=value line per key below (keep the file out of git):
-#   kubectl -n langgraph-postgres-starter create secret generic langgraph-postgres-starter-secrets \
+#   kubectl -n langgraph-and-observability create secret generic langgraph-and-observability-secrets \
 #     --from-env-file=<FILE>
 # Its keys:
 #   APP_DATABASE_URL   required; connects as the app role lps_app (deploy/sql/roles.sql)
@@ -15,23 +15,23 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: langgraph-postgres-starter-worker
+  name: langgraph-and-observability-worker
   labels:
-    app.kubernetes.io/name: langgraph-postgres-starter
+    app.kubernetes.io/name: langgraph-and-observability
     app.kubernetes.io/component: worker
 spec:
   replicas: 2
   selector:
     matchLabels:
-      app.kubernetes.io/name: langgraph-postgres-starter
+      app.kubernetes.io/name: langgraph-and-observability
       app.kubernetes.io/component: worker
   template:
     metadata:
       labels:
-        app.kubernetes.io/name: langgraph-postgres-starter
+        app.kubernetes.io/name: langgraph-and-observability
         app.kubernetes.io/component: worker
     spec:
-      serviceAccountName: langgraph-postgres-starter
+      serviceAccountName: langgraph-and-observability
       # SIGTERM starts the drain (spec 8.4), which waits at most APP_DRAIN_TIMEOUT_SECONDS
       # (below). Kubernetes sends SIGKILL when these 60 seconds end.
       terminationGracePeriodSeconds: 60
@@ -44,14 +44,14 @@ spec:
           type: RuntimeDefault
       containers:
         - name: worker
-          image: langgraph-postgres-starter
+          image: langgraph-and-observability
           args: ["worker"]
           ports:
             - name: health
               containerPort: 8080
           envFrom:
             - configMapRef:
-                name: langgraph-postgres-starter-config
+                name: langgraph-and-observability-config
           env:
             # The lease owner (spec 8.2).
             - name: POD_NAME
@@ -75,34 +75,34 @@ spec:
             - name: APP_DATABASE_URL
               valueFrom:
                 secretKeyRef:
-                  name: langgraph-postgres-starter-secrets
+                  name: langgraph-and-observability-secrets
                   key: APP_DATABASE_URL
             - name: DD_API_KEY
               valueFrom:
                 secretKeyRef:
-                  name: langgraph-postgres-starter-secrets
+                  name: langgraph-and-observability-secrets
                   key: DD_API_KEY
             - name: DD_APP_KEY
               valueFrom:
                 secretKeyRef:
-                  name: langgraph-postgres-starter-secrets
+                  name: langgraph-and-observability-secrets
                   key: DD_APP_KEY
             - name: APP_GIT_TOKEN
               valueFrom:
                 secretKeyRef:
-                  name: langgraph-postgres-starter-secrets
+                  name: langgraph-and-observability-secrets
                   key: APP_GIT_TOKEN
                   optional: true
             - name: LANGGRAPH_AES_KEY
               valueFrom:
                 secretKeyRef:
-                  name: langgraph-postgres-starter-secrets
+                  name: langgraph-and-observability-secrets
                   key: LANGGRAPH_AES_KEY
                   optional: true
             - name: LANGSMITH_API_KEY
               valueFrom:
                 secretKeyRef:
-                  name: langgraph-postgres-starter-secrets
+                  name: langgraph-and-observability-secrets
                   key: LANGSMITH_API_KEY
                   optional: true
           # Liveness: the event loop answers. Readiness: Postgres, the pool and the intake

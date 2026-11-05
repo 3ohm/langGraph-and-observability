@@ -12,8 +12,8 @@ for a typed triage that cites its evidence. It only reads. Fork the repository, 
 the example, and build your own agent on the same base.
 
 > **Status:** `0.1.0.dev0`, before the first release. The Python package is
-> `langgraph_postgres_starter`; the distribution, the image and the Kubernetes names use
-> `langgraph-postgres-starter`.
+> `langgraph_and_observability`; the distribution, the image and the Kubernetes names use
+> `langgraph-and-observability`.
 
 ## What's inside
 
@@ -112,7 +112,7 @@ make test-int   # integration tests against Postgres and ElasticMQ (needs Docker
 make test-e2e   # worker subprocesses, kill -9 and SIGTERM (needs Docker)
 ```
 
-The design is in [docs/design/](docs/design/2026-11-01-langgraph-postgres-starter-design.md).
+The design is in [docs/design/](docs/design/2026-11-01-langgraph-and-observability-design.md).
 See [CONTRIBUTING.md](CONTRIBUTING.md) to contribute and [SECURITY.md](SECURITY.md) to report a
 security problem.
 

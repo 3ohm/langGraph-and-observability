@@ -15,8 +15,8 @@ from psycopg.conninfo import make_conninfo
 from psycopg.rows import DictRow
 from psycopg_pool import AsyncConnectionPool
 
-from langgraph_postgres_starter.persistence.pool import create_pool, open_pool
-from langgraph_postgres_starter.settings import load_settings
+from langgraph_and_observability.persistence.pool import create_pool, open_pool
+from langgraph_and_observability.settings import load_settings
 
 PG_IMAGE = "pgvector/pgvector:0.8.4-pg18"
 

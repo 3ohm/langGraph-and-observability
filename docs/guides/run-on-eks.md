@@ -7,7 +7,7 @@ first real triage, are in [real-mode.md](real-mode.md); this guide is about the 
 
 ## What you need
 
-- An EKS cluster, and a namespace for the worker (the examples use `langgraph-postgres-starter`).
+- An EKS cluster, and a namespace for the worker (the examples use `langgraph-and-observability`).
 - Postgres, reachable from the pods: RDS, Aurora or your own (Compose and CI use Postgres 18).
 - An SQS input queue with a dead-letter queue (a redrive policy with `maxReceiveCount`), and a
   result queue if you use the `sqs` sink.
@@ -18,8 +18,8 @@ first real triage, are in [real-mode.md](real-mode.md); this guide is about the 
 ## 1. Build and push the image
 
 ```bash
-docker build -t <ACCOUNT_ID>.dkr.ecr.<REGION>.amazonaws.com/langgraph-postgres-starter:<TAG> .
-docker push <ACCOUNT_ID>.dkr.ecr.<REGION>.amazonaws.com/langgraph-postgres-starter:<TAG>
+docker build -t <ACCOUNT_ID>.dkr.ecr.<REGION>.amazonaws.com/langgraph-and-observability:<TAG> .
+docker push <ACCOUNT_ID>.dkr.ecr.<REGION>.amazonaws.com/langgraph-and-observability:<TAG>
 ```
 
 Set the image in `deploy/k8s/kustomization.yaml`; prefer a digest to a tag.
@@ -51,9 +51,9 @@ The manifests read secrets only from two Secrets that are not shipped; create ea
 file that you keep out of git (the comments in `deployment.yaml` and `migrate-job.yaml` list the
 keys):
 
-- `langgraph-postgres-starter-secrets`: `APP_DATABASE_URL` (as `lps_app`), `DD_API_KEY`,
+- `langgraph-and-observability-secrets`: `APP_DATABASE_URL` (as `lps_app`), `DD_API_KEY`,
   `DD_APP_KEY`, and optionally `APP_GIT_TOKEN`, `LANGGRAPH_AES_KEY`, `LANGSMITH_API_KEY`;
-- `langgraph-postgres-starter-migration`: `APP_MIGRATION_DATABASE_URL` (as `lps_migrator`).
+- `langgraph-and-observability-migration`: `APP_MIGRATION_DATABASE_URL` (as `lps_migrator`).
 
 Fill in the placeholders of `deploy/k8s/configmap.yaml`: cluster name, Region and queue URLs.
 With `APP_ENV=prod`, a missing secret stops the worker at start.
@@ -82,10 +82,10 @@ The worker needs the migrated schema, and the migrate Job needs the ConfigMap. A
 except the worker, wait for the Job, then apply the rest:
 
 ```bash
-kubectl create namespace langgraph-postgres-starter
+kubectl create namespace langgraph-and-observability
 kubectl apply -k deploy/k8s -l 'app.kubernetes.io/component!=worker'
-kubectl -n langgraph-postgres-starter wait --for=condition=complete \
-  job/langgraph-postgres-starter-migrate --timeout=10m
+kubectl -n langgraph-and-observability wait --for=condition=complete \
+  job/langgraph-and-observability-migrate --timeout=10m
 kubectl apply -k deploy/k8s
 ```
 
@@ -155,10 +155,10 @@ no `alert_id`, repeated alerts for one workload in one 15-minute window map to o
 ## Operate
 
 ```bash
-kubectl -n langgraph-postgres-starter exec deploy/langgraph-postgres-starter-worker -- \
-  python -m langgraph_postgres_starter runs list --status failed
-kubectl -n langgraph-postgres-starter exec deploy/langgraph-postgres-starter-worker -- \
-  python -m langgraph_postgres_starter runs retry <run_id>
+kubectl -n langgraph-and-observability exec deploy/langgraph-and-observability-worker -- \
+  python -m langgraph_and_observability runs list --status failed
+kubectl -n langgraph-and-observability exec deploy/langgraph-and-observability-worker -- \
+  python -m langgraph_and_observability runs retry <run_id>
 ```
 
 `runs show <run_id>` prints one run, with its error. Logs are structlog JSON lines with run IDs.
@@ -170,7 +170,7 @@ pod claimed it again after the lease expired. After `APP_MAX_ATTEMPTS` (3) attem
 pod, so check the pod's memory limit and the run's input before `runs retry`. A drained run
 (SIGTERM) counts no attempt.
 With `LANGSMITH_TRACING=true` and `LANGSMITH_API_KEY`, each run is traced to the project
-`langgraph-postgres-starter-<env>`, redacted (P15).
+`langgraph-and-observability-<env>`, redacted (P15).
 
 ## Debug a stuck run
 
@@ -188,7 +188,7 @@ run that waits in the same coroutine across several calls is the one to look at;
 leads to `runs show` and to its trace.
 
 ```bash
-kubectl -n langgraph-postgres-starter exec <pod> -c worker -- python -m asyncio ps 1
+kubectl -n langgraph-and-observability exec <pod> -c worker -- python -m asyncio ps 1
 ```
 
 The tool reads the target's memory, so the node must allow it. If `exec` fails with a permission
@@ -196,7 +196,7 @@ error, use an ephemeral debug container that shares the worker's processes and h
 `SYS_PTRACE` capability, with the same Python minor version as the image:
 
 ```bash
-kubectl -n langgraph-postgres-starter debug -it <pod> --target=worker --profile=general \
+kubectl -n langgraph-and-observability debug -it <pod> --target=worker --profile=general \
   --image=python:3.14-slim -- python -m asyncio ps 1
 ```
 

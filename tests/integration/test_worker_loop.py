@@ -17,16 +17,16 @@ import pytest
 import structlog
 from langgraph.graph.state import CompiledStateGraph
 
-from langgraph_postgres_starter import __version__
-from langgraph_postgres_starter.agent_spec import RunInfo
-from langgraph_postgres_starter.persistence.checkpointer import make_checkpointer
-from langgraph_postgres_starter.persistence.serde import make_serde
-from langgraph_postgres_starter.settings import load_settings
-from langgraph_postgres_starter.worker.executor import RunExecutor
-from langgraph_postgres_starter.worker.intake import SqsIntake
-from langgraph_postgres_starter.worker.main import Worker
-from langgraph_postgres_starter.worker.registry import load_agents
-from langgraph_postgres_starter.worker.runs import RunRepo, RunRow, RunStatus
+from langgraph_and_observability import __version__
+from langgraph_and_observability.agent_spec import RunInfo
+from langgraph_and_observability.persistence.checkpointer import make_checkpointer
+from langgraph_and_observability.persistence.serde import make_serde
+from langgraph_and_observability.settings import load_settings
+from langgraph_and_observability.worker.executor import RunExecutor
+from langgraph_and_observability.worker.intake import SqsIntake
+from langgraph_and_observability.worker.main import Worker
+from langgraph_and_observability.worker.registry import load_agents
+from langgraph_and_observability.worker.runs import RunRepo, RunRow, RunStatus
 from tests.graphs import steps
 from tests.graphs.steps import STEPS_SPEC, Fault, StepsInput
 

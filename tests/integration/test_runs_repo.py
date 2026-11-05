@@ -7,9 +7,9 @@ from datetime import timedelta
 import pytest
 import structlog
 
-from langgraph_postgres_starter.persistence.migrate import run_migrate
-from langgraph_postgres_starter.settings import load_settings
-from langgraph_postgres_starter.worker.runs import RunRepo, RunRow, RunStatus
+from langgraph_and_observability.persistence.migrate import run_migrate
+from langgraph_and_observability.settings import load_settings
+from langgraph_and_observability.worker.runs import RunRepo, RunRow, RunStatus
 
 pytestmark = pytest.mark.integration
 

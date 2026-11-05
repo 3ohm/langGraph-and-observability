@@ -11,7 +11,7 @@ setup: ## Install the project and every dependency group into .venv, then fetch 
 # example-agent:begin (scripts/remove_example.py deletes this block)
 .PHONY: grammars
 grammars: ## Fetch the tree-sitter grammars into APP_GRAMMAR_DIR (default: the user cache)
-	uv run python -m langgraph_postgres_starter.agents.incident_triage.codeintel.languages --download
+	uv run python -m langgraph_and_observability.agents.incident_triage.codeintel.languages --download
 # example-agent:end
 
 up: ## Build the image; start postgres, elasticmq, migrate and worker (compose.yaml)
@@ -58,7 +58,7 @@ typecheck: ## Type-check src, tests, scripts and the root conftest.py (mypy, str
 	uv run mypy src tests scripts conftest.py
 
 test: ## Unit tests with coverage (no Docker, no network)
-	uv run pytest -m "not integration and not e2e" --cov=langgraph_postgres_starter --cov-report=term-missing
+	uv run pytest -m "not integration and not e2e" --cov=langgraph_and_observability --cov-report=term-missing
 
 test-int: ## Integration tests against Postgres and ElasticMQ (needs Docker)
 	uv run pytest -m integration

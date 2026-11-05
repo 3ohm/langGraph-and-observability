@@ -17,10 +17,10 @@ from pathlib import Path
 import pytest
 import yaml
 
-import langgraph_postgres_starter
+import langgraph_and_observability
 
 ROOT = Path(__file__).resolve().parents[2]
-PACKAGE_DIR = Path(langgraph_postgres_starter.__file__).parent
+PACKAGE_DIR = Path(langgraph_and_observability.__file__).parent
 EXAMPLE_AGENT_DIR = PACKAGE_DIR / "agents" / "incident_triage"
 PRACTICES = ROOT / "docs" / "practices"
 GUIDES = ROOT / "docs" / "guides"

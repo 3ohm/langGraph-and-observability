@@ -5,13 +5,13 @@ import importlib.util
 
 import pytest
 
-from langgraph_postgres_starter.settings import load_settings
-from langgraph_postgres_starter.worker.registry import builtin_agents, load_agents
+from langgraph_and_observability.settings import load_settings
+from langgraph_and_observability.worker.registry import builtin_agents, load_agents
 from tests.graphs.steps import STEPS_SPEC
 
 STEPS_ENTRY = "tests.graphs.steps:STEPS_SPEC"
 # The example agent's spec module; scripts/remove_example.py deletes it.
-EXAMPLE_SPEC = "langgraph_postgres_starter.agents.incident_triage.spec"
+EXAMPLE_SPEC = "langgraph_and_observability.agents.incident_triage.spec"
 
 
 @pytest.mark.skipif(

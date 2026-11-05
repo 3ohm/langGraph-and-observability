@@ -1,1 +1,1 @@
-{"python_version": "3.14", "dependencies": ["."], "graphs": {"incident_triage": "./src/langgraph_postgres_starter/agents/incident_triage/graph.py:graph"}, "env": ".env"}
+{"python_version": "3.14", "dependencies": ["."], "graphs": {"incident_triage": "./src/langgraph_and_observability/agents/incident_triage/graph.py:graph"}, "env": ".env"}

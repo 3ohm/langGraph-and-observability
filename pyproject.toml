@@ -1,5 +1,5 @@
 [project]
-name = "langgraph-postgres-starter"
+name = "langgraph-and-observability"
 version = "0.1.0.dev0"
 description = "Template for durable LangGraph agents on Postgres, with LangSmith tracing and an incident-triage example agent."
 readme = "README.md"
@@ -59,7 +59,7 @@ requires = ["hatchling>=1.27"]
 build-backend = "hatchling.build"
 
 [tool.hatch.build.targets.wheel]
-packages = ["src/langgraph_postgres_starter"]
+packages = ["src/langgraph_and_observability"]
 
 [tool.ruff]
 line-length = 100
@@ -75,8 +75,8 @@ select = ["E", "F", "I", "B", "UP", "ASYNC", "S"]
 [tool.ruff.lint.per-file-ignores]
 # pytest checks results with plain `assert`.
 "tests/**" = ["S101"]
-"src/langgraph_postgres_starter/agents/**/tests/**" = ["S101"]
-"src/langgraph_postgres_starter/agents/**/evals/test_*.py" = ["S101"]
+"src/langgraph_and_observability/agents/**/tests/**" = ["S101"]
+"src/langgraph_and_observability/agents/**/evals/test_*.py" = ["S101"]
 
 [tool.mypy]
 python_version = "3.14"
@@ -92,22 +92,22 @@ explicit_package_bases = true
 # A mypy pattern matches whole module names only, so list each eval test module by name.
 module = [
     "tests.*",
-    "langgraph_postgres_starter.agents.*.tests.*",
-    "langgraph_postgres_starter.agents.*.evals.test_evals",
-    "langgraph_postgres_starter.agents.*.evals.test_evaluators",
+    "langgraph_and_observability.agents.*.tests.*",
+    "langgraph_and_observability.agents.*.evals.test_evals",
+    "langgraph_and_observability.agents.*.evals.test_evaluators",
 ]
 disallow_untyped_defs = false
 disallow_incomplete_defs = false
 check_untyped_defs = true
 
 [tool.coverage.run]
-# Also measure code that tests start in a subprocess, such as `python -m langgraph_postgres_starter`.
+# Also measure code that tests start in a subprocess, such as `python -m langgraph_and_observability`.
 patch = ["subprocess"]
 
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
 asyncio_default_fixture_loop_scope = "function"
-testpaths = ["tests", "src/langgraph_postgres_starter/agents"]
+testpaths = ["tests", "src/langgraph_and_observability/agents"]
 # The repo root, so tests can import the test-only graphs as tests.graphs.
 pythonpath = ["."]
 markers = [

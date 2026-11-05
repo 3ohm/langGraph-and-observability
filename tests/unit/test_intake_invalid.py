@@ -10,8 +10,8 @@ from typing import Any, cast
 
 import structlog
 
-from langgraph_postgres_starter.worker.intake import SqsIntake
-from langgraph_postgres_starter.worker.runs import RunRepo
+from langgraph_and_observability.worker.intake import SqsIntake
+from langgraph_and_observability.worker.runs import RunRepo
 from tests.graphs.steps import STEPS_SPEC
 
 MESSAGE = {

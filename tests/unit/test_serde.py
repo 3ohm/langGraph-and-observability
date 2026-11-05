@@ -9,7 +9,7 @@ import dataclasses
 import pydantic
 import pytest
 
-from langgraph_postgres_starter.persistence.serde import make_serde
+from langgraph_and_observability.persistence.serde import make_serde
 
 # 32 ASCII characters, so 32 bytes: AES-256. A test value, not a secret.
 AES_KEY = "test-key-0123456789abcdef-012345"

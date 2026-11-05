@@ -19,7 +19,7 @@ The new name is a lowercase Python identifier (letters and digits in words joine
 underscores), not a keyword or a standard-library module, and not taken: neither a package in
 `uv.lock` (such as `langgraph` or `psycopg_pool`) nor a module that Python can import already
 (such as `yaml`). The script replaces
-`langgraph_postgres_starter` with it, and `langgraph-postgres-starter` (the distribution, the
+`langgraph_and_observability` with it, and `langgraph-and-observability` (the distribution, the
 image and the Kubernetes names) with its hyphenated form, in every text file, and renames the
 paths that hold either name. It skips `.git/`, `.venv/`, `.superpowers/`, caches, binary files
 and `LICENSE`, whose copyright notice MIT asks every copy to keep. `uv.lock` stays valid. A

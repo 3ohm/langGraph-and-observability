@@ -17,13 +17,13 @@ from langgraph.graph.state import CompiledStateGraph
 from psycopg import AsyncConnection, pq
 from psycopg.rows import DictRow
 
-from langgraph_postgres_starter.persistence.checkpointer import (
+from langgraph_and_observability.persistence.checkpointer import (
     PoolAwarePostgresSaver,
     make_checkpointer,
 )
-from langgraph_postgres_starter.persistence.migrate import LANGGRAPH, run_migrate
-from langgraph_postgres_starter.persistence.serde import make_serde
-from langgraph_postgres_starter.settings import load_settings
+from langgraph_and_observability.persistence.migrate import LANGGRAPH, run_migrate
+from langgraph_and_observability.persistence.serde import make_serde
+from langgraph_and_observability.settings import load_settings
 
 pytestmark = pytest.mark.integration
 

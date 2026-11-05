@@ -14,9 +14,9 @@ from psycopg import AsyncConnection
 from psycopg.rows import DictRow
 from psycopg_pool import AsyncConnectionPool
 
-from langgraph_postgres_starter.persistence.migrate import run_migrate
-from langgraph_postgres_starter.persistence.resources import set_pool
-from langgraph_postgres_starter.settings import load_settings
+from langgraph_and_observability.persistence.migrate import run_migrate
+from langgraph_and_observability.persistence.resources import set_pool
+from langgraph_and_observability.settings import load_settings
 
 ELASTICMQ_IMAGE = "softwaremill/elasticmq-native:1.7.1"
 ELASTICMQ_PORT = 9324

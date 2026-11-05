@@ -20,21 +20,22 @@ from pathlib import Path
 import pytest
 import yaml
 
-import langgraph_postgres_starter
+import langgraph_and_observability
 
 ROOT = Path(__file__).resolve().parents[2]
-PACKAGE = langgraph_postgres_starter.__name__
+PACKAGE = langgraph_and_observability.__name__
 DIST = PACKAGE.replace("_", "-")
 NEW_NAME = "acme_triage_kit"
 # The template's own names, built from parts so that rename.py does not rewrite them here:
-# the template's diffs hold these names, whatever a fork renamed its package to.
-TEMPLATE_PACKAGE = "_".join(("langgraph", "postgres", "starter"))
+# the template's diffs hold these names, whatever a fork renamed its package to. When the
+# template itself is renamed, change these parts and the brackets in docs/guides/upgrade.md.
+TEMPLATE_PACKAGE = "_".join(("langgraph", "and", "observability"))
 TEMPLATE_DIST = TEMPLATE_PACKAGE.replace("_", "-")
 UPGRADE_GUIDE = Path("docs", "guides", "upgrade.md")
 EXAMPLE_AGENT = "incident_triage"
 # A first removal needs the example agent; the removal job runs this suite without it.
 needs_example_agent = pytest.mark.skipif(
-    not (Path(langgraph_postgres_starter.__file__).parent / "agents" / EXAMPLE_AGENT).is_dir(),
+    not (Path(langgraph_and_observability.__file__).parent / "agents" / EXAMPLE_AGENT).is_dir(),
     reason="the example agent was removed",
 )
 

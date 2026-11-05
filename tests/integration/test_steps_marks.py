@@ -5,11 +5,11 @@ from datetime import UTC, datetime, timedelta
 import pytest
 from langgraph.checkpoint.memory import InMemorySaver
 
-from langgraph_postgres_starter.agent_spec import RunInfo
-from langgraph_postgres_starter.ids import new_id
-from langgraph_postgres_starter.persistence.resources import set_pool
-from langgraph_postgres_starter.persistence.serde import make_serde
-from langgraph_postgres_starter.settings import load_settings
+from langgraph_and_observability.agent_spec import RunInfo
+from langgraph_and_observability.ids import new_id
+from langgraph_and_observability.persistence.resources import set_pool
+from langgraph_and_observability.persistence.serde import make_serde
+from langgraph_and_observability.settings import load_settings
 from tests.graphs import steps
 from tests.graphs.steps import STEPS_SPEC, Fault
 

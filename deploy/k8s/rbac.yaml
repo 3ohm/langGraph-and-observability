@@ -3,9 +3,9 @@
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRole
 metadata:
-  name: langgraph-postgres-starter-read-only
+  name: langgraph-and-observability-read-only
   labels:
-    app.kubernetes.io/name: langgraph-postgres-starter
+    app.kubernetes.io/name: langgraph-and-observability
 rules:
   - apiGroups: [""]
     resources: ["pods", "pods/log", "events", "nodes"]
@@ -21,14 +21,14 @@ rules:
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRoleBinding
 metadata:
-  name: langgraph-postgres-starter-read-only
+  name: langgraph-and-observability-read-only
   labels:
-    app.kubernetes.io/name: langgraph-postgres-starter
+    app.kubernetes.io/name: langgraph-and-observability
 roleRef:
   apiGroup: rbac.authorization.k8s.io
   kind: ClusterRole
-  name: langgraph-postgres-starter-read-only
+  name: langgraph-and-observability-read-only
 subjects:
   - kind: ServiceAccount
-    name: langgraph-postgres-starter
-    namespace: langgraph-postgres-starter
+    name: langgraph-and-observability
+    namespace: langgraph-and-observability

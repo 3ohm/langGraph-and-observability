@@ -14,7 +14,7 @@ from langgraph.errors import GraphBubbleUp, GraphDrained, NodeTimeoutError
 from langgraph.types import RetryPolicy, TimeoutPolicy
 from psycopg import errors as pg_errors
 
-from langgraph_postgres_starter.policies import default_retry_policy, is_transient, step_timeout
+from langgraph_and_observability.policies import default_retry_policy, is_transient, step_timeout
 
 
 def _validation_error() -> pydantic.ValidationError:

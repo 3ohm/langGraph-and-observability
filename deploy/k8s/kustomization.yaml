@@ -3,18 +3,18 @@
 # first, and create the two Secrets that deployment.yaml and migrate-job.yaml name. No
 # Secret is shipped here. There is no HPA or KEDA object: you set the replicas.
 #
-# The namespace must exist: kubectl create namespace langgraph-postgres-starter
+# The namespace must exist: kubectl create namespace langgraph-and-observability
 #
 # Order: the migrate Job needs the ConfigMap, and the worker needs the migrated schema.
 # The first command applies everything except the worker:
 #   kubectl apply -k deploy/k8s -l 'app.kubernetes.io/component!=worker'
-#   kubectl -n langgraph-postgres-starter wait --for=condition=complete \
-#     job/langgraph-postgres-starter-migrate --timeout=10m
+#   kubectl -n langgraph-and-observability wait --for=condition=complete \
+#     job/langgraph-and-observability-migrate --timeout=10m
 #   kubectl apply -k deploy/k8s
 apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
 
-namespace: langgraph-postgres-starter
+namespace: langgraph-and-observability
 
 resources:
   - serviceaccount.yaml
@@ -26,6 +26,6 @@ resources:
 # The worker and the migrate Job run the same image (Dockerfile). Prefer a digest to a
 # tag: replace newTag with `digest: sha256:<DIGEST>`.
 images:
-  - name: langgraph-postgres-starter
-    newName: <ACCOUNT_ID>.dkr.ecr.<REGION>.amazonaws.com/langgraph-postgres-starter
+  - name: langgraph-and-observability
+    newName: <ACCOUNT_ID>.dkr.ecr.<REGION>.amazonaws.com/langgraph-and-observability
     newTag: <TAG>

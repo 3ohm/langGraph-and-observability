@@ -11,13 +11,13 @@ be taken: neither a package in ``uv.lock`` (in its hyphenated or underscored for
 module that this Python can already import. A taken name would give ``uv.lock`` two
 packages of one name, which uv refuses to read, and would shadow the other package.
 
-The script replaces each ``langgraph_postgres_starter`` with the new name, and each
-``langgraph-postgres-starter`` (the distribution, the image, the Kubernetes names) with
+The script replaces each ``langgraph_and_observability`` with the new name, and each
+``langgraph-and-observability`` (the distribution, the image, the Kubernetes names) with
 the new name in hyphens (``acme-agents``), in every text file of the repository: src/,
 tests/, scripts/, docs/, deploy/, .github/, pyproject.toml, uv.lock, langgraph.json, the
 Makefile, the Dockerfile, compose.yaml, AGENTS.md, README.md and conftest.py among them.
 Then it renames each folder and file whose name holds either name, such as
-``src/langgraph_postgres_starter/``. It skips ``.git/``, ``.venv/``, ``.superpowers/``,
+``src/langgraph_and_observability/``. It skips ``.git/``, ``.venv/``, ``.superpowers/``,
 caches, symbolic links and binary files, and ``LICENSE``, whose copyright notice the MIT
 License asks every copy to keep.
 
@@ -40,8 +40,8 @@ from collections.abc import Iterator, Sequence
 from pathlib import Path
 
 PROG = "rename.py"
-OLD_PACKAGE = "langgraph_postgres_starter"
-OLD_DIST = "langgraph-postgres-starter"
+OLD_PACKAGE = "langgraph_and_observability"
+OLD_DIST = "langgraph-and-observability"
 
 # Lowercase words of letters and digits, joined by single underscores: also a valid
 # distribution name once the underscores become hyphens.

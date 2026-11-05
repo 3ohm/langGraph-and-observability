@@ -4,8 +4,8 @@ from typing import get_args
 import pytest
 from pydantic import SecretStr, ValidationError
 
-import langgraph_postgres_starter
-from langgraph_postgres_starter.settings import (
+import langgraph_and_observability
+from langgraph_and_observability.settings import (
     MissingSecretsError,
     Settings,
     get_settings,
@@ -13,7 +13,7 @@ from langgraph_postgres_starter.settings import (
 )
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
-PACKAGE_DIR = Path(langgraph_postgres_starter.__file__).parent
+PACKAGE_DIR = Path(langgraph_and_observability.__file__).parent
 
 # The field list from the plan (Task 2), with every default.
 EXPECTED_DEFAULTS = {

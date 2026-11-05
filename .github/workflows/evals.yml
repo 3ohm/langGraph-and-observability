@@ -1,7 +1,7 @@
 # Evals against Claude on Bedrock (spec 12.3; P21). Normal CI (ci.yml) runs the same eval test
 # with the recorded replies. This job runs it with the real model and the LLM judge, on the
 # simulated adapters, writes the scorecard to the job summary, and fails when a score misses
-# its threshold (src/langgraph_postgres_starter/agents/incident_triage/evals/).
+# its threshold (src/langgraph_and_observability/agents/incident_triage/evals/).
 #
 # AWS credentials come from GitHub's OIDC provider, so no AWS key is stored. Configure:
 # - the repository variable AWS_EVALS_ROLE_ARN: an IAM role that trusts this repository's
@@ -74,4 +74,4 @@ jobs:
           LANGSMITH_TRACING: "true"
         # The test appends its scorecard to APP_EVAL_SCORECARD, here the job summary, before it
         # checks the thresholds.
-        run: APP_EVAL_SCORECARD="$GITHUB_STEP_SUMMARY" uv run pytest src/langgraph_postgres_starter/agents/incident_triage/evals -q
+        run: APP_EVAL_SCORECARD="$GITHUB_STEP_SUMMARY" uv run pytest src/langgraph_and_observability/agents/incident_triage/evals -q

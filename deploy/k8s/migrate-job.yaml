@@ -3,7 +3,7 @@
 #
 # It reads the migration role's URL from a Secret that is not shipped here. Create it
 # from a file with the line APP_MIGRATION_DATABASE_URL=... (keep the file out of git):
-#   kubectl -n langgraph-postgres-starter create secret generic langgraph-postgres-starter-migration \
+#   kubectl -n langgraph-and-observability create secret generic langgraph-and-observability-migration \
 #     --from-env-file=<FILE>
 # Its key:
 #   APP_MIGRATION_DATABASE_URL  required; connects as lps_migrator (deploy/sql/roles.sql)
@@ -15,9 +15,9 @@
 apiVersion: batch/v1
 kind: Job
 metadata:
-  name: langgraph-postgres-starter-migrate
+  name: langgraph-and-observability-migrate
   labels:
-    app.kubernetes.io/name: langgraph-postgres-starter
+    app.kubernetes.io/name: langgraph-and-observability
     app.kubernetes.io/component: migrate
 spec:
   backoffLimit: 2
@@ -25,7 +25,7 @@ spec:
   template:
     metadata:
       labels:
-        app.kubernetes.io/name: langgraph-postgres-starter
+        app.kubernetes.io/name: langgraph-and-observability
         app.kubernetes.io/component: migrate
     spec:
       restartPolicy: Never
@@ -40,18 +40,18 @@ spec:
           type: RuntimeDefault
       containers:
         - name: migrate
-          image: langgraph-postgres-starter
+          image: langgraph-and-observability
           args: ["migrate"]
           # The settings of the ConfigMap. migrate also runs the migrations of each agent that
           # the registry loads: the built-in agents and any in APP_EXTRA_AGENTS.
           envFrom:
             - configMapRef:
-                name: langgraph-postgres-starter-config
+                name: langgraph-and-observability-config
           env:
             - name: APP_MIGRATION_DATABASE_URL
               valueFrom:
                 secretKeyRef:
-                  name: langgraph-postgres-starter-migration
+                  name: langgraph-and-observability-migration
                   key: APP_MIGRATION_DATABASE_URL
           # Placeholders.
           resources:

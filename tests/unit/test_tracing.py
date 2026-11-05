@@ -23,10 +23,10 @@ from langsmith import utils as ls_utils
 from langsmith.run_helpers import get_current_run_tree, get_tracing_context, tracing_context
 from langsmith.run_trees import get_cached_client
 
-from langgraph_postgres_starter import __version__
-from langgraph_postgres_starter.ids import new_id
-from langgraph_postgres_starter.logging import configure_logging
-from langgraph_postgres_starter.observability.langsmith import (
+from langgraph_and_observability import __version__
+from langgraph_and_observability.ids import new_id
+from langgraph_and_observability.logging import configure_logging
+from langgraph_and_observability.observability.langsmith import (
     FLUSH_TIMEOUT_S,
     close_tracing,
     configure_tracing,
@@ -34,8 +34,8 @@ from langgraph_postgres_starter.observability.langsmith import (
     log_eval_results,
     trace_llm,
 )
-from langgraph_postgres_starter.observability.metadata import run_metadata
-from langgraph_postgres_starter.settings import load_settings
+from langgraph_and_observability.observability.metadata import run_metadata
+from langgraph_and_observability.settings import load_settings
 
 # Nothing listens on port 1: a request that got past NoNetworkSession would fail too.
 NO_NETWORK = "http://127.0.0.1:1"
@@ -200,7 +200,7 @@ def test_langgraph_tracer_uses_the_client_and_project(tracing_env, clients):
 
     [tracer] = [h for h in manager.handlers if isinstance(h, LangChainTracer)]
     assert tracer.client is client
-    assert tracer.project_name == "langgraph-postgres-starter-test"
+    assert tracer.project_name == "langgraph-and-observability-test"
 
 
 def test_client_takes_the_sampling_rate(tracing_env, clients):
@@ -213,7 +213,7 @@ def test_client_takes_the_sampling_rate(tracing_env, clients):
 def test_project_defaults_to_one_per_env(tracing_env, clients):
     configure_tracing(load_settings(env="test"))
 
-    assert get_tracing_context()["project_name"] == "langgraph-postgres-starter-test"
+    assert get_tracing_context()["project_name"] == "langgraph-and-observability-test"
 
 
 @pytest.mark.parametrize("name", ["LANGSMITH_PROJECT", "LANGCHAIN_PROJECT"])
