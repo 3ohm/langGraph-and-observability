@@ -12,13 +12,19 @@ workflow and the real-mode guide, whose links it removes from ``README.md``,
 ``docs/release-checklist.md``. It removes
 the agent's entry from ``langgraph.json`` and its line from ``worker/registry.py`` (in a
 fork that has deleted the worker, the registry is gone with it), and
-it resets the two settings defaults that name it (``intake_agent`` to ``""``,
-``fixtures_dir`` to the package's ``fixtures`` folder) in ``settings.py``, in their test
-and in ``.env.example``. It also removes the example's
-parts of the build: the ``grammars`` and ``incident`` make targets, the Dockerfile's
-tree-sitter grammars and the CI steps that fetch them. A file marks such a part with a
+it resets the settings default that names it (``intake_agent`` to ``""``) in
+``settings.py``, in its test and in ``.env.example``. It also removes the example's
+parts of the build and of the settings: the ``grammars`` and ``incident`` make targets,
+the Dockerfile's tree-sitter grammars, the CI steps that fetch them, and the example's
+settings fields with their ``.env.example`` lines, their test defaults and their keys,
+secrets and source cache in ``deploy/k8s/``. A file marks such a part with a
 ``# example-agent:begin`` line and a ``# example-agent:end`` line; the part goes with
 the lines between them, and the blank lines after it.
+
+The example's dependencies (``EXAMPLE_DEPENDENCIES``) stay in ``pyproject.toml`` and
+``uv.lock``: the script prints the ``uv remove`` command for them as the next step. JSON
+has no comments, so ``deploy/iam/policy.json`` keeps the example's Bedrock and ECR
+statements.
 
 The script works out every change before it makes one, then prints each change as it
 makes it. It refuses, and changes nothing:
@@ -72,7 +78,26 @@ DELETE = (
 # The lines that open and close a part of a file that only the example agent uses.
 BEGIN = "# example-agent:begin"
 END = "# example-agent:end"
-MARKED_FILES = ("Makefile", "Dockerfile", "tests/unit/test_ci_config.py")
+MARKED_FILES = (
+    "Makefile",
+    "Dockerfile",
+    "tests/unit/test_ci_config.py",
+    f"{PACKAGE_DIR}/settings.py",
+    ".env.example",
+    "tests/unit/test_settings.py",
+    "deploy/k8s/configmap.yaml",
+    "deploy/k8s/deployment.yaml",
+    "tests/unit/test_manifests.py",
+)
+# The project dependencies that only the example agent uses. The script leaves
+# pyproject.toml and uv.lock as they are, and prints the uv remove command for these.
+EXAMPLE_DEPENDENCIES = (
+    "kubernetes-asyncio",
+    "datadog-api-client",
+    "tree-sitter",
+    "tree-sitter-language-pack",
+    "aiohttp",
+)
 
 
 @dataclass(frozen=True)
@@ -95,25 +120,14 @@ EDITS = (
         f"    return [\n        {AGENT}_spec,\n    ]\n",
         "    return []\n",
     ),
-    # The settings defaults that name the agent (ruling R29), with their test and docs.
+    # The settings default that names the agent (ruling R29), with its test and docs.
     Edit(f"{PACKAGE_DIR}/settings.py", f'intake_agent: str = "{AGENT}"', 'intake_agent: str = ""'),
-    Edit(
-        f"{PACKAGE_DIR}/settings.py",
-        f'_PACKAGE_DIR / "agents" / "{AGENT}" / "fixtures"',
-        '_PACKAGE_DIR / "fixtures"',
-    ),
     Edit("tests/unit/test_settings.py", f'"intake_agent": "{AGENT}"', '"intake_agent": ""'),
-    Edit(
-        "tests/unit/test_settings.py",
-        f'PACKAGE_DIR / "agents" / "{AGENT}" / "fixtures"',
-        'PACKAGE_DIR / "fixtures"',
-    ),
     Edit(".env.example", f"APP_INTAKE_AGENT={AGENT}\n", "APP_INTAKE_AGENT=\n"),
-    Edit(
-        ".env.example",
-        f"the package's agents/{AGENT}/fixtures directory",
-        "the package's fixtures directory",
-    ),
+    # The imports that only the marked parts of these files used. A marked part between
+    # two imports would leave a blank line there, which ruff's import sort rejects.
+    Edit(f"{PACKAGE_DIR}/settings.py", "from pathlib import Path\n"),
+    Edit("tests/unit/test_settings.py", f"import {PACKAGE}\n"),
     # make setup no longer fetches the grammars; CI no longer either.
     Edit(
         "Makefile",
@@ -373,6 +387,8 @@ def main(argv: Sequence[str] | None = None) -> int:
         print(f"edited  {path.relative_to(root)}")
     print(
         f"\nRemoved the example agent: {len(deletions)} deleted, {len(changed)} edited. Next:\n"
+        "- remove the example's dependencies from pyproject.toml and uv.lock:\n"
+        f"  uv remove {' '.join(EXAMPLE_DEPENDENCIES)}\n"
         "- update README.md, AGENTS.md and docs/, which still describe the example;\n"
         "- add your agent (docs/guides/customize.md), then run make lint typecheck test."
     )

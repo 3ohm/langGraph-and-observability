@@ -1,9 +1,8 @@
 # The real-mode settings that are not secret (.env.example lists every setting and its
 # default). The worker and the migrate Job load all of these keys as environment
 # variables. Secrets never go here: deployment.yaml and migrate-job.yaml read them from
-# Secrets. deployment.yaml also sets the settings that must match something in it
-# (the health port, the drain timeout, and the source cache); an `env` value there wins
-# over a key here.
+# Secrets. deployment.yaml also sets the settings that must match something in it, such
+# as the health port and the drain timeout; an `env` value there wins over a key here.
 apiVersion: v1
 kind: ConfigMap
 metadata:
@@ -13,15 +12,11 @@ metadata:
 data:
   # prod: a missing secret stops the start.
   APP_ENV: prod
+
+  # example-agent:begin (scripts/remove_example.py deletes this block)
   APP_ADAPTERS: real
   APP_LLM_MODE: bedrock
   APP_CLUSTER_NAME: <CLUSTER_NAME>
-
-  # Use the same Region in deploy/iam/policy.json.
-  APP_AWS_REGION: <REGION>
-  APP_SQS_QUEUE_URL: https://sqs.<REGION>.amazonaws.com/<ACCOUNT_ID>/<INPUT_QUEUE_NAME>
-  APP_RESULT_SINKS: '["log", "sqs"]'
-  APP_RESULT_QUEUE_URL: https://sqs.<REGION>.amazonaws.com/<ACCOUNT_ID>/<RESULT_QUEUE_NAME>
 
   # The settings default, the bare model ID anthropic.claude-opus-5-5, works in-Region
   # only in eu-west-2 (the AWS model card). From other Regions, use an inference profile:
@@ -33,10 +28,17 @@ data:
   # The only hosts that source checkouts fetch from and send APP_GIT_TOKEN to.
   APP_GIT_ALLOWED_HOSTS: '["github.com"]'
 
+  DD_SITE: datadoghq.com
+  # example-agent:end
+
+  # Use the same Region in deploy/iam/policy.json.
+  APP_AWS_REGION: <REGION>
+  APP_SQS_QUEUE_URL: https://sqs.<REGION>.amazonaws.com/<ACCOUNT_ID>/<INPUT_QUEUE_NAME>
+  APP_RESULT_SINKS: '["log", "sqs"]'
+  APP_RESULT_QUEUE_URL: https://sqs.<REGION>.amazonaws.com/<ACCOUNT_ID>/<RESULT_QUEUE_NAME>
+
   # true behind PgBouncer in transaction mode (spec 7.1).
   APP_PGBOUNCER_MODE: "false"
-
-  DD_SITE: datadoghq.com
 
   # Tracing starts only when the LANGSMITH_API_KEY secret is set too.
   LANGSMITH_TRACING: "true"

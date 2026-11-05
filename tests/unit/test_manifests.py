@@ -224,26 +224,35 @@ def test_security_context():
 
 
 def test_writable_paths_are_empty_dirs():
-    """The root file system is read-only: /tmp and the source cache are emptyDir volumes."""
+    """The root file system is read-only: each writable path, /tmp included, is an emptyDir."""
     for kind in ("Deployment", "Job"):
         mounts = {m["mountPath"]: m["name"] for m in _container(kind)["volumeMounts"]}
         volumes = _volumes(kind)
         assert all("emptyDir" in volumes[name] for name in mounts.values()), kind
         assert TMP in mounts, kind
     env = _env("Deployment")
-    # git writes its config under HOME.
-    assert env["HOME"]["value"] == TMP
+    # example-agent:begin (scripts/remove_example.py deletes this block)
     mounts = {m["mountPath"]: m["name"] for m in _container("Deployment")["volumeMounts"]}
     cache = _volumes("Deployment")[mounts[env["APP_SOURCE_CACHE_DIR"]["value"]]]
     # The cache can run over its budget while runs still read their checkouts, and the
     # kubelet evicts the pod when an emptyDir passes its sizeLimit.
     max_bytes = int(env["APP_SOURCE_CACHE_MAX_MB"]["value"]) * 2**20
     assert _bytes(cache["emptyDir"]["sizeLimit"]) > max_bytes
+    # example-agent:end
+    # git writes its config under HOME.
+    assert env["HOME"]["value"] == TMP
 
 
 def test_secrets_come_from_secret_references():
     secrets = _secret_env_names()
-    assert secrets >= {"DD_API_KEY", "DD_APP_KEY", "APP_GIT_TOKEN", "LANGGRAPH_AES_KEY"}
+    assert secrets >= {
+        "LANGGRAPH_AES_KEY",
+        # example-agent:begin (scripts/remove_example.py deletes this block)
+        "DD_API_KEY",
+        "DD_APP_KEY",
+        "APP_GIT_TOKEN",
+        # example-agent:end
+    }
     # The worker gets every secret but the migration role's URL (test_two_database_roles).
     assert secrets & set(_env("Deployment")) == secrets - {"APP_MIGRATION_DATABASE_URL"}
     for kind in ("Deployment", "Job"):
@@ -262,8 +271,10 @@ def test_configmap_is_real_mode_without_secrets():
     unknown = {k for k in data if k not in _setting_env_names() and not k.startswith("LANGSMITH_")}
     assert not unknown
     assert data["APP_ENV"] == "prod"
+    # example-agent:begin (scripts/remove_example.py deletes this block)
     assert data["APP_ADAPTERS"] == "real"
     assert data["APP_LLM_MODE"] == "bedrock"
+    # example-agent:end
     # Both load the ConfigMap, and nothing else wholesale: no secretRef.
     config = {"configMapRef": {"name": _kind("ConfigMap")["metadata"]["name"]}}
     assert _container("Deployment")["envFrom"] == _container("Job")["envFrom"] == [config]
@@ -309,6 +320,7 @@ def test_iam_statements_scoped_to_their_resources():
         assert all(":repository/" in r for r in _as_list(statement["Resource"]))
 
 
+# example-agent:begin (scripts/remove_example.py deletes this block)
 def test_iam_bedrock_through_the_inference_profile():
     """A global profile needs its ARN and the model's in the source Region and globally."""
     data = _kind("ConfigMap")["data"]
@@ -331,3 +343,6 @@ def test_iam_bedrock_through_the_inference_profile():
         if ":foundation-model/" in resource:
             condition = statement["Condition"]["StringEquals"]
             assert condition["bedrock:InferenceProfileArn"] == profile, resource
+
+
+# example-agent:end

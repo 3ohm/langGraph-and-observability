@@ -1,11 +1,11 @@
 """Application settings, read from environment variables.
 
 Every variable has the ``APP_`` prefix, except the vendor names, which keep their
-vendor form: ``DD_API_KEY``, ``DD_APP_KEY``, ``DD_SITE`` and ``LANGGRAPH_AES_KEY``. List
-values are JSON, for example ``APP_EXTRA_AGENTS=["my_pkg.graph:SPEC"]``. An empty value
-means "not set", so the field keeps its default. ``.env.example`` documents every
-variable. Numeric settings have bounds; a value outside them, or a heartbeat that is
-not shorter than the lease, fails validation, so the worker does not start.
+vendor form, such as ``LANGGRAPH_AES_KEY``. List values are JSON, for example
+``APP_EXTRA_AGENTS=["my_pkg.graph:SPEC"]``. An empty value means "not set", so the field
+keeps its default. ``.env.example`` documents every variable. Numeric settings have
+bounds; a value outside them, or a heartbeat that is not shorter than the lease, fails
+validation, so the worker does not start.
 
 Settings reads the process environment only, never a ``.env`` file. ``langgraph
 dev`` and Docker Compose load ``.env`` into the environment themselves.
@@ -17,8 +17,6 @@ from typing import Any, Literal, Self
 
 from pydantic import Field, SecretStr, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
-
-_PACKAGE_DIR = Path(__file__).parent
 
 
 class MissingSecretsError(RuntimeError):
@@ -83,6 +81,7 @@ class Settings(BaseSettings):
     intake_agent: str = "incident_triage"
     extra_agents: list[str] = []
 
+    # example-agent:begin (scripts/remove_example.py deletes this block)
     # Adapters and model
     adapters: Literal["simulated", "real"] = "simulated"
     llm_mode: Literal["recorded", "bedrock"] = "recorded"
@@ -116,16 +115,19 @@ class Settings(BaseSettings):
     # The folder of the tree-sitter grammars, which `make grammars` fetches (ruling R51);
     # None: the library's user cache. The agent never downloads a grammar.
     grammar_dir: Path | None = None
+    # example-agent:end
 
     # Tracing (LangSmith)
     trace_content: Literal["full", "redacted", "none"] = "redacted"
     trace_sampling_rate: float = Field(default=1.0, ge=0, le=1)
 
+    # example-agent:begin (scripts/remove_example.py deletes this block)
     # Local runs, Studio and tests (simulated adapters)
-    fixtures_dir: Path = _PACKAGE_DIR / "agents" / "incident_triage" / "fixtures"
+    fixtures_dir: Path = Path(__file__).parent / "agents" / "incident_triage" / "fixtures"
     studio_fixture: str = "python-keyerror"
     fake_call_log_dir: Path | None = None
     fake_datadog_delay_s: float = 0.0
+    # example-agent:end
 
     @model_validator(mode="after")
     def _check_related_settings(self) -> Self:

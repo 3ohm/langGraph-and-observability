@@ -6,9 +6,11 @@
 #     --from-env-file=<FILE>
 # Its keys:
 #   APP_DATABASE_URL   required; connects as the app role lps_app (deploy/sql/roles.sql)
+# example-agent:begin (scripts/remove_example.py deletes this block)
 #   DD_API_KEY         required in real mode
 #   DD_APP_KEY         required in real mode
 #   APP_GIT_TOKEN      optional; sent only to APP_GIT_ALLOWED_HOSTS
+# example-agent:end
 #   LANGGRAPH_AES_KEY  optional; encrypts checkpoints at rest (16, 24 or 32 bytes)
 #   LANGSMITH_API_KEY  optional; turns on tracing with LANGSMITH_TRACING=true
 # The migration role's URL is not here: only the migrate Job gets it.
@@ -64,11 +66,13 @@ spec:
             # Below terminationGracePeriodSeconds.
             - name: APP_DRAIN_TIMEOUT_SECONDS
               value: "45"
+            # example-agent:begin (scripts/remove_example.py deletes this block)
             # The source cache volume. Its sizeLimit leaves room above this budget.
             - name: APP_SOURCE_CACHE_DIR
               value: /var/cache/source
             - name: APP_SOURCE_CACHE_MAX_MB
               value: "2048"
+            # example-agent:end
             # The root file system is read-only; git writes its config under HOME.
             - name: HOME
               value: /tmp
@@ -77,6 +81,7 @@ spec:
                 secretKeyRef:
                   name: langgraph-and-observability-secrets
                   key: APP_DATABASE_URL
+            # example-agent:begin (scripts/remove_example.py deletes this block)
             - name: DD_API_KEY
               valueFrom:
                 secretKeyRef:
@@ -93,6 +98,7 @@ spec:
                   name: langgraph-and-observability-secrets
                   key: APP_GIT_TOKEN
                   optional: true
+            # example-agent:end
             - name: LANGGRAPH_AES_KEY
               valueFrom:
                 secretKeyRef:
@@ -141,15 +147,19 @@ spec:
           volumeMounts:
             - name: tmp
               mountPath: /tmp
+            # example-agent:begin (scripts/remove_example.py deletes this block)
             - name: source-cache
               mountPath: /var/cache/source
+            # example-agent:end
       volumes:
         - name: tmp
           emptyDir:
             sizeLimit: 1Gi
+        # example-agent:begin (scripts/remove_example.py deletes this block)
         # The cache can run over APP_SOURCE_CACHE_MAX_MB while runs still read their
         # checkouts, and the kubelet evicts the pod when an emptyDir passes its sizeLimit:
         # so twice the budget.
         - name: source-cache
           emptyDir:
             sizeLimit: 4Gi
+        # example-agent:end

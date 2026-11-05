@@ -21,6 +21,7 @@ import pytest
 import yaml
 
 import langgraph_and_observability
+from scripts import remove_example
 
 ROOT = Path(__file__).resolve().parents[2]
 PACKAGE = langgraph_and_observability.__name__
@@ -60,6 +61,18 @@ _BUILD_FILES = (
     "langgraph.json",
     "pyproject.toml",
     ".env.example",
+)
+# Names of the example's settings, as fields or variables (lower case).
+_EXAMPLE_SETTINGS = (
+    "dd_api_key",
+    "dd_site",
+    "app_dd_",
+    "fixtures_dir",
+    "app_adapters",
+    "app_bedrock_model_id",
+    "app_git_token",
+    "app_git_allowed_hosts",
+    "app_source_cache_dir",
 )
 _UNIT_TESTS = ["-m", "pytest", "--collect-only", "-q", "-p", "no:cacheprovider"]
 _UNIT_MARKERS = ["-m", "not integration and not e2e"]
@@ -261,10 +274,43 @@ def test_upgrade_guide_sed_survives_rename(tmp_path, renamed):
     assert ported == _diff_lines(package, package.replace("_", "-"))
 
 
+def _dependency_name(requirement: str) -> str:
+    """Return the normalized project name of a PEP 508 requirement (PEP 503)."""
+    name = re.split(r"[\s\[<>=!~;@(]", requirement.strip(), maxsplit=1)[0]
+    return re.sub(r"[-_.]+", "-", name).lower()
+
+
+@needs_example_agent
+def test_example_dependencies_are_project_dependencies():
+    # The removal prints `uv remove` with these names: each must be a dependency of the
+    # project. After that command they are gone, so a fork without the example skips this.
+    project = tomllib.loads((ROOT / "pyproject.toml").read_text())["project"]
+    names = {_dependency_name(requirement) for requirement in project["dependencies"]}
+    assert set(remove_example.EXAMPLE_DEPENDENCIES) <= names
+
+
+def _example_settings_left(root: Path) -> list[str]:
+    """Return ``file: name`` for each of the example's settings that a file below ``root`` names.
+
+    The files are the settings, ``.env.example`` and the Kubernetes manifests that map
+    settings to the worker. The check ignores case; the manifests must also still parse.
+    """
+    files = [Path("src", PACKAGE, "settings.py"), Path(".env.example")]
+    files += [Path("deploy", "k8s", name) for name in ("configmap.yaml", "deployment.yaml")]
+    left = []
+    for path in files:
+        text = (root / path).read_text()
+        if path.suffix == ".yaml":
+            assert all(doc for doc in yaml.safe_load_all(text)), path
+        left += [f"{path.as_posix()}: {name}" for name in _EXAMPLE_SETTINGS if name in text.lower()]
+    return left
+
+
 def test_remove_example_in_temp_copy(repo_copy):
+    package = repo_copy / "src" / PACKAGE
+    first_run = (package / "agents" / EXAMPLE_AGENT).is_dir()
     result = _run(repo_copy, "scripts/remove_example.py")
     assert result.returncode == 0, result.stderr
-    package = repo_copy / "src" / PACKAGE
     assert not (package / "agents" / EXAMPLE_AGENT).exists()
     assert (package / "agents" / "__init__.py").is_file()
     assert EXAMPLE_AGENT not in json.loads((repo_copy / "langgraph.json").read_text())["graphs"]
@@ -283,9 +329,28 @@ def test_remove_example_in_temp_copy(repo_copy):
         'run: "! grep -r incident_triage src"'
     ]
 
+    # The example's settings go too, from the settings, .env.example and the manifests (F4).
+    assert _example_settings_left(repo_copy) == []
+    # The next step: remove the example's dependencies. A second run has nothing to do.
+    if first_run:
+        assert f"uv remove {' '.join(remove_example.EXAMPLE_DEPENDENCIES)}\n" in result.stdout
+    else:
+        assert "Nothing to change" in result.stdout
+
     # What is left imports cleanly: pytest collects the unit suite without an error.
     collected = _run(repo_copy, *_UNIT_TESTS, *_UNIT_MARKERS, python_path=(repo_copy / "src",))
     assert collected.returncode == 0, collected.stdout + collected.stderr
+
+    # Review Focus 5: without the example, prod settings need only the database URL (no
+    # SQS queue, no Datadog keys).
+    prod = _run(
+        repo_copy,
+        "-c",
+        f"from {PACKAGE}.settings import Settings\n"
+        "Settings(env='prod', database_url='postgresql://x').require_runtime_secrets()\n",
+        python_path=(repo_copy / "src",),
+    )
+    assert prod.returncode == 0, prod.stderr
 
     # No recipe or CI step calls a make target that the removal deleted: each target that
     # the Makefile defines or CI calls dry-runs, with the $(MAKE) lines of its recipe.

@@ -36,20 +36,26 @@ It deletes `src/<package>/agents/incident_triage/` and the files that only the e
 (`scripts/send_incident.py`, `scripts/sync_dataset.py`, their tests, the agent's end-to-end test,
 `.github/workflows/evals.yml` and `docs/guides/real-mode.md`, with its links in `README.md` and
 the other docs). It
-removes the agent's `langgraph.json` entry and registry line, resets the settings defaults that
-name it (`APP_INTAKE_AGENT` becomes empty), and deletes the example's parts of the Makefile
-(`grammars`, `incident`), the Dockerfile (the tree-sitter grammars) and CI, which those files mark
-with `# example-agent:begin` and `# example-agent:end` lines. It prints each change; a second run
-changes nothing. On a first run it refuses, and changes nothing, when a file it must edit has
+removes the agent's `langgraph.json` entry and registry line, resets the settings default that
+names it (`APP_INTAKE_AGENT` becomes empty), and deletes the example's parts of the Makefile
+(`grammars`, `incident`), the Dockerfile (the tree-sitter grammars), CI, `settings.py` (the
+example's settings), `.env.example` (their lines), `tests/unit/test_settings.py` (their test
+defaults), and `deploy/k8s/configmap.yaml` and `deployment.yaml` (their keys, secrets and source
+cache), which those files mark with `# example-agent:begin` and `# example-agent:end` lines.
+After the removal, a `prod` worker needs only `APP_DATABASE_URL`. It prints each change; a second
+run changes nothing. On a first run it refuses, and changes nothing, when a file it must edit has
 drifted from the text it expects, or when the removal would leave a Makefile recipe or CI step
 calling a make target that it deletes. CI's `removal` job proves on every commit that the rest
 still passes (P22).
 
 Then:
 
+- remove the example's dependencies with the `uv remove` command that the script prints (it
+  leaves `pyproject.toml` and `uv.lock` as they are);
 - update `README.md`, `AGENTS.md` and `docs/`, which still describe the example;
-- trim what only the example needs: the Datadog, Git and ECR settings, the read-only ClusterRole
-  in `deploy/k8s/rbac.yaml`, and the Bedrock and ECR statements of `deploy/iam/policy.json`;
+- trim what only the example needs: the read-only ClusterRole in `deploy/k8s/rbac.yaml`, and the
+  Bedrock and ECR statements of `deploy/iam/policy.json`. JSON has no comments for the markers, so
+  the IAM policy keeps those statements until you remove them (least privilege, P19);
 - register your agent and set `APP_INTAKE_AGENT`: without an agent, a worker with
   `APP_SQS_QUEUE_URL` set refuses to start.
 

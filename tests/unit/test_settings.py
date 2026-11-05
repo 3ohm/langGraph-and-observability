@@ -14,11 +14,15 @@ from langgraph_and_observability.settings import (
 )
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
+
+# example-agent:begin (scripts/remove_example.py deletes this block)
 PACKAGE_DIR = Path(langgraph_and_observability.__file__).parent
+# example-agent:end
 
 # The field list from the plan (Task 2), with every default.
 EXPECTED_DEFAULTS = {
     "env": "dev",
+    "git_sha": "unknown",
     "database_url": None,
     "migration_database_url": None,
     "db_pool_min": 1,
@@ -27,7 +31,6 @@ EXPECTED_DEFAULTS = {
     "db_connect_timeout_s": 10,
     "pgbouncer_mode": False,
     "langgraph_aes_key": None,
-    "cluster_name": "local",
     "aws_region": "us-east-1",
     "sqs_queue_url": None,
     "sqs_endpoint_url": None,
@@ -42,12 +45,20 @@ EXPECTED_DEFAULTS = {
     "max_attempts": 3,
     "run_deadline_seconds": 900,
     "health_port": 8080,
+    "retention_checkpoint_days": 14,
+    "retention_result_days": 90,
+    "intake_agent": "incident_triage",
+    "extra_agents": [],
+    "trace_content": "redacted",
+    "trace_sampling_rate": 1.0,
+    # example-agent:begin (scripts/remove_example.py deletes this block)
     "adapters": "simulated",
     "llm_mode": "recorded",
     "bedrock_model_id": "anthropic.claude-opus-5-5",
     "judge_model_id": None,
     "model_effort": "medium",
     "max_output_tokens": 16000,
+    "cluster_name": "local",
     "log_tail_lines": 500,
     "dd_lookback_minutes": 30,
     "dd_max_events": 50,
@@ -63,20 +74,16 @@ EXPECTED_DEFAULTS = {
     "dd_api_key": None,
     "dd_app_key": None,
     "dd_site": "datadoghq.com",
-    "trace_content": "redacted",
-    "trace_sampling_rate": 1.0,
-    "git_sha": "unknown",
-    "retention_checkpoint_days": 14,
-    "retention_result_days": 90,
     "fixtures_dir": PACKAGE_DIR / "agents" / "incident_triage" / "fixtures",
     "studio_fixture": "python-keyerror",
-    "extra_agents": [],
-    "intake_agent": "incident_triage",
     "fake_call_log_dir": None,
     "fake_datadog_delay_s": 0.0,
+    # example-agent:end
 }
 
 PROD_DATABASE_URL = "postgresql://db.internal/app"
+# A 16-byte key for LANGGRAPH_AES_KEY, the core's field with a vendor name.
+AES_KEY = "0123456789abcdef"
 PROD_SECRETS = {"database_url": PROD_DATABASE_URL, "sqs_queue_url": "https://sqs/q"}
 
 
@@ -91,18 +98,20 @@ def test_defaults_match_spec():
         s.max_attempts,
         s.run_deadline_seconds,
     ) == (4, 60, 15, 30, 45, 3, 900)
+    # example-agent:begin (scripts/remove_example.py deletes this block)
     assert (s.log_tail_lines, s.dd_lookback_minutes, s.dd_max_events, s.code_budget_chars) == (
         500,
         30,
         50,
         60_000,
     )
-    assert (s.retention_checkpoint_days, s.retention_result_days, s.health_port) == (14, 90, 8080)
     assert (s.bedrock_model_id, s.model_effort, s.max_output_tokens) == (
         "anthropic.claude-opus-5-5",
         "medium",
         16000,
     )
+    # example-agent:end
+    assert (s.retention_checkpoint_days, s.retention_result_days, s.health_port) == (14, 90, 8080)
 
 
 def test_every_field_and_default_matches_the_plan():
@@ -111,37 +120,52 @@ def test_every_field_and_default_matches_the_plan():
 
 def test_env_prefix_and_vendor_names(monkeypatch):
     monkeypatch.setenv("APP_WORKER_CONCURRENCY", "7")
+    monkeypatch.setenv("LANGGRAPH_AES_KEY", AES_KEY)
+    s = load_settings()
+    assert s.worker_concurrency == 7
+    assert s.langgraph_aes_key is not None and s.langgraph_aes_key.get_secret_value() == AES_KEY
+
+
+# example-agent:begin (scripts/remove_example.py deletes this block)
+def test_datadog_settings_keep_the_vendor_names(monkeypatch):
     monkeypatch.setenv("DD_API_KEY", "k")
     monkeypatch.setenv("DD_SITE", "us5.datadoghq.com")
     s = load_settings()
-    assert s.worker_concurrency == 7
     assert s.dd_api_key is not None and s.dd_api_key.get_secret_value() == "k"
     assert s.dd_site == "us5.datadoghq.com"
+    # Overrides take the field names.
+    s = load_settings(dd_app_key="a", dd_site="datadoghq.eu")
+    assert s.dd_app_key is not None and s.dd_app_key.get_secret_value() == "a"
+    assert s.dd_site == "datadoghq.eu"
+
+
+# example-agent:end
 
 
 def test_list_fields_parse_json_from_env(monkeypatch):
+    # example-agent:begin (scripts/remove_example.py deletes this block)
+    monkeypatch.setenv("APP_GIT_ALLOWED_HOSTS", '["github.com","git.example.com"]')
+    assert load_settings().git_allowed_hosts == ["github.com", "git.example.com"]
+    # example-agent:end
     monkeypatch.setenv("APP_EXTRA_AGENTS", '["tests.graphs.steps:STEPS_SPEC"]')
     monkeypatch.setenv("APP_RESULT_SINKS", '["log","sqs"]')
-    monkeypatch.setenv("APP_GIT_ALLOWED_HOSTS", '["github.com","git.example.com"]')
     s = load_settings()
     assert s.extra_agents == ["tests.graphs.steps:STEPS_SPEC"]
     assert s.result_sinks == ["log", "sqs"]
-    assert s.git_allowed_hosts == ["github.com", "git.example.com"]
 
 
 def test_empty_env_value_keeps_the_default(monkeypatch):
     monkeypatch.setenv("APP_DATABASE_URL", "")
-    monkeypatch.setenv("APP_CLUSTER_NAME", "")
+    monkeypatch.setenv("APP_AWS_REGION", "")
     s = load_settings()
-    assert s.database_url is None and s.cluster_name == "local"
+    assert s.database_url is None and s.aws_region == "us-east-1"
 
 
 def test_overrides_use_field_names_including_aliased_fields(monkeypatch):
     monkeypatch.setenv("APP_WORKER_CONCURRENCY", "7")
-    s = load_settings(worker_concurrency=2, dd_app_key="a", dd_site="datadoghq.eu")
+    s = load_settings(worker_concurrency=2, langgraph_aes_key=AES_KEY)
     assert s.worker_concurrency == 2
-    assert s.dd_app_key is not None and s.dd_app_key.get_secret_value() == "a"
-    assert s.dd_site == "datadoghq.eu"
+    assert s.langgraph_aes_key is not None and s.langgraph_aes_key.get_secret_value() == AES_KEY
 
 
 def test_unknown_override_is_rejected():
@@ -159,11 +183,6 @@ OUT_OF_BOUNDS = [
     ("drain_timeout_seconds", 0),
     ("max_attempts", 0),
     ("run_deadline_seconds", 0),
-    ("log_tail_lines", 0),
-    ("dd_lookback_minutes", -1),
-    ("dd_max_events", 0),
-    ("dd_max_events", 1001),
-    ("code_budget_chars", 0),
     ("sqs_wait_seconds", -1),
     ("sqs_wait_seconds", 21),
     ("health_port", 0),
@@ -172,6 +191,13 @@ OUT_OF_BOUNDS = [
     ("trace_sampling_rate", 1.1),
     ("db_pool_min", 0),
     ("db_pool_max", 1),
+    # example-agent:begin (scripts/remove_example.py deletes this block)
+    ("log_tail_lines", 0),
+    ("dd_lookback_minutes", -1),
+    ("dd_max_events", 0),
+    ("dd_max_events", 1001),
+    ("code_budget_chars", 0),
+    # example-agent:end
 ]
 
 
@@ -194,8 +220,10 @@ def test_values_on_the_bounds_are_accepted():
         worker_concurrency=1,
         lease_seconds=2,
         heartbeat_seconds=1,
+        # example-agent:begin (scripts/remove_example.py deletes this block)
         dd_lookback_minutes=0,
         dd_max_events=1000,
+        # example-agent:end
         sqs_wait_seconds=0,
         health_port=65535,
         trace_sampling_rate=0.0,
@@ -251,11 +279,15 @@ def test_prod_without_an_intake_agent_needs_only_the_database():
     ).require_runtime_secrets()
 
 
+# example-agent:begin (scripts/remove_example.py deletes this block)
 def test_prod_secret_check_names_no_agent_setting(monkeypatch):
     # The agents check their own settings (AgentSpec.required_settings): the core check
     # needs no Datadog key, even with real adapters.
     monkeypatch.setenv("APP_ADAPTERS", "real")
     load_settings(env="prod", intake_agent="my_agent", **PROD_SECRETS).require_runtime_secrets()
+
+
+# example-agent:end
 
 
 def test_prod_rejects_full_trace_content():
@@ -275,7 +307,7 @@ def test_test_env_rejects_full_trace_content():
 
 
 def test_dev_allows_full_trace_content():
-    load_settings(env="dev", adapters="real", trace_content="full").require_runtime_secrets()
+    load_settings(env="dev", trace_content="full").require_runtime_secrets()
 
 
 def _env_name(field_name: str) -> str:
@@ -309,7 +341,14 @@ def test_env_example_leaves_secrets_empty():
         for name, field in Settings.model_fields.items()
         if SecretStr in get_args(field.annotation)
     ]
-    assert {"APP_GIT_TOKEN", "DD_API_KEY", "DD_APP_KEY", "LANGGRAPH_AES_KEY"} <= set(secrets)
+    assert {
+        "LANGGRAPH_AES_KEY",
+        # example-agent:begin (scripts/remove_example.py deletes this block)
+        "APP_GIT_TOKEN",
+        "DD_API_KEY",
+        "DD_APP_KEY",
+        # example-agent:end
+    } <= set(secrets)
     assert all(documented[name] == "" for name in secrets)
 
 
@@ -327,8 +366,10 @@ VENDOR_SAMPLES = {
     "NO_PROXY",
     "AWS_PROFILE",
     "AWS_CA_BUNDLE",
-    "KUBECONFIG",
     "POD_NAME",
+    # example-agent:begin (scripts/remove_example.py deletes this block)
+    "KUBECONFIG",
+    # example-agent:end
 }
 
 
