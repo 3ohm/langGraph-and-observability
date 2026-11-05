@@ -71,9 +71,15 @@ read its entries, then apply the template's diff between two tags with your name
 git remote add template https://github.com/3ohm/langGraph-and-observability.git
 git fetch template --tags
 git diff v0.1.0 v0.2.0 \
-  | sed -e 's/langgraph_postgres_starter/acme_agents/g' -e 's/langgraph-postgres-starter/acme-agents/g' \
+  | sed -e 's/langgraph[_]postgres[_]starter/langgraph_postgres_starter/g' \
+        -e 's/langgraph[-]postgres[-]starter/langgraph-postgres-starter/g' \
   | git apply --reject
 ```
+
+Each `sed` expression turns one of the template's names into yours. `scripts/rename.py` writes
+your names on the right side when it renames the package. The brackets on the left match the
+same characters but stop the script from rewriting the template's names, so the command still
+works after a rename. If you renamed the package by hand, put your names on the right side.
 
 `--reject` applies what fits and leaves a `.rej` file for each hunk to resolve by hand. Changes
 to the example agent do not apply to a fork that removed it; skip them.

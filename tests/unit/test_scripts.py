@@ -26,6 +26,11 @@ ROOT = Path(__file__).resolve().parents[2]
 PACKAGE = langgraph_postgres_starter.__name__
 DIST = PACKAGE.replace("_", "-")
 NEW_NAME = "acme_triage_kit"
+# The template's own names, built from parts so that rename.py does not rewrite them here:
+# the template's diffs hold these names, whatever a fork renamed its package to.
+TEMPLATE_PACKAGE = "_".join(("langgraph", "postgres", "starter"))
+TEMPLATE_DIST = TEMPLATE_PACKAGE.replace("_", "-")
+UPGRADE_GUIDE = Path("docs", "guides", "upgrade.md")
 EXAMPLE_AGENT = "incident_triage"
 # A first removal needs the example agent; the removal job runs this suite without it.
 needs_example_agent = pytest.mark.skipif(
@@ -204,6 +209,55 @@ def test_rename_rejects_a_bad_name(repo_copy, name):
     assert result.returncode == 2
     assert result.stderr.startswith(f"rename.py: {name!r} ")
     assert _snapshot(repo_copy) == before
+
+
+def _diff_lines(package: str, dist: str) -> str:
+    """Return lines of a template diff that hold a package path and a Kubernetes name."""
+    return (
+        f"--- a/src/{package}/worker/runs.py\n"
+        f"+++ b/src/{package}/worker/runs.py\n"
+        f"+  namespace: {dist}\n"
+    )
+
+
+def _upgrade_sed(guide: Path, text: str) -> str:
+    """Run the upgrade guide's ``sed`` expressions on ``text``, and return the output."""
+    expressions = re.findall(r"-e '([^']+)'", guide.read_text())
+    assert len(expressions) == 2, expressions
+    result = subprocess.run(  # noqa: S603 - sed from PATH, with the guide's expressions
+        ["sed", *(arg for expression in expressions for arg in ("-e", expression))],  # noqa: S607
+        input=text,
+        capture_output=True,
+        text=True,
+        check=True,
+        timeout=30,
+    )
+    return result.stdout
+
+
+@pytest.mark.parametrize("renamed", [False, True], ids=["as-is", "renamed"])
+def test_upgrade_guide_sed_survives_rename(tmp_path, renamed):
+    """The upgrade guide's sed turns the template's names into the fork's, also after rename.py.
+
+    rename.py rewrites every name in the docs. The guide's patterns must keep matching the
+    template's names, and its replacements must become the fork's names.
+    """
+    copy = tmp_path / "repo"
+    (copy / "src" / PACKAGE).mkdir(parents=True)
+    (copy / "pyproject.toml").write_text(f'[project]\nname = "{DIST}"\n')
+    (copy / "scripts").mkdir()
+    shutil.copy2(ROOT / "scripts" / "rename.py", copy / "scripts")
+    (copy / UPGRADE_GUIDE).parent.mkdir(parents=True)
+    shutil.copy2(ROOT / UPGRADE_GUIDE, copy / UPGRADE_GUIDE)
+    package = PACKAGE
+    if renamed:
+        result = _run(copy, "scripts/rename.py", NEW_NAME)
+        assert result.returncode == 0, result.stderr
+        assert str(UPGRADE_GUIDE) in result.stdout
+        package = NEW_NAME
+
+    ported = _upgrade_sed(copy / UPGRADE_GUIDE, _diff_lines(TEMPLATE_PACKAGE, TEMPLATE_DIST))
+    assert ported == _diff_lines(package, package.replace("_", "-"))
 
 
 def test_remove_example_in_temp_copy(repo_copy):
