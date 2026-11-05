@@ -237,6 +237,17 @@ def test_runs_create_input_that_is_not_json_is_a_usage_error(capsys):
     assert "SECRET123" not in err
 
 
+@pytest.mark.parametrize("key", ["", "  "], ids=["empty", "blank"])
+def test_runs_create_empty_dedup_key_is_a_usage_error(capsys, key):
+    # A key from an unset variable (--dedup-key "$KEY") would fold every later run into the first.
+    argv = ["runs", "create", AGENT, "--input", json.dumps({"key": "k1"}), "--dedup-key", key]
+    with pytest.raises(SystemExit) as exited:
+        main(argv)
+
+    assert exited.value.code == 2
+    assert "--dedup-key: must not be empty" in capsys.readouterr().err
+
+
 def test_cli_migrate_components_core(db, capsys):
     assert main(["migrate", "--components", "core"]) == 0
     first = _lines(capsys.readouterr().out)

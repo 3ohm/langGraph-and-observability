@@ -21,7 +21,8 @@ the exit code is 0. An error goes to stderr as one JSON line with an ``error`` k
   ``details``: where each failure is and why, never the value that failed);
 - exit 2: the settings are wrong, for example no database URL, or Postgres can't be
   reached. The message never holds the DSN. Usage errors also exit 2, for example an
-  ``--input`` that is not JSON; that message never quotes the input.
+  ``--input`` that is not JSON (that message never quotes the input) or an empty
+  ``--dedup-key``.
 
 ``migrate`` and ``runs`` leave logging unconfigured, so stdout holds their results only.
 """
@@ -86,7 +87,10 @@ def build_parser() -> argparse.ArgumentParser:
         help="the run's input, which the agent's input model validates",
     )
     create.add_argument(
-        "--dedup-key", metavar="KEY", help="(default: the agent's dedup_key of the input)"
+        "--dedup-key",
+        type=_dedup_key,
+        metavar="KEY",
+        help="not empty (default: the agent's dedup_key of the input)",
     )
     create.set_defaults(handler=_runs, run=_create)
     list_ = actions.add_parser("list", help="print runs, newest first")
@@ -210,6 +214,13 @@ def _components(value: str) -> set[str]:
     if not names:
         raise argparse.ArgumentTypeError("name at least one component")
     return names
+
+
+def _dedup_key(value: str) -> str:
+    # An empty key, from an unset variable for one, would fold every later run into the first.
+    if not value.strip():
+        raise argparse.ArgumentTypeError("must not be empty")
+    return value
 
 
 def _json_value(value: str) -> Any:
