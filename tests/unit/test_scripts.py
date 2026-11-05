@@ -372,9 +372,12 @@ def test_remove_example_in_temp_copy(repo_copy):
     # The example's settings go too, from the settings, .env.example and the manifests (F4).
     assert _example_settings_left(repo_copy) == []
     _check_deploy_after_removal(repo_copy)
-    # The next step: remove the example's dependencies. A second run has nothing to do.
+    # The next step: remove the example's dependencies, then sync every group again (uv
+    # remove syncs only the default groups, without the test tools). A second run has
+    # nothing to do.
     if first_run:
-        assert f"uv remove {' '.join(remove_example.EXAMPLE_DEPENDENCIES)}\n" in result.stdout
+        dependencies = " ".join(remove_example.EXAMPLE_DEPENDENCIES)
+        assert f"uv remove {dependencies} && uv sync --all-groups\n" in result.stdout
     else:
         assert "Nothing to change" in result.stdout
 

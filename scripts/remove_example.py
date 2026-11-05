@@ -26,9 +26,10 @@ file marks such a part with a ``# example-agent:begin`` line and a
 lines after it.
 
 The example's dependencies (``EXAMPLE_DEPENDENCIES``) stay in ``pyproject.toml`` and
-``uv.lock``: the script prints the ``uv remove`` command for them as the next step. JSON
-has no comments, so ``deploy/iam/policy.json`` keeps the example's Bedrock and ECR
-statements.
+``uv.lock``: the script prints the ``uv remove`` command for them as the next step,
+followed by ``uv sync --all-groups``, because ``uv remove`` syncs only the default groups
+and so uninstalls the test and lint tools. JSON has no comments, so
+``deploy/iam/policy.json`` keeps the example's Bedrock and ECR statements.
 
 The script works out every change before it makes one, then prints each change as it
 makes it. It refuses, and changes nothing:
@@ -412,8 +413,9 @@ def main(argv: Sequence[str] | None = None) -> int:
         print(f"edited  {path.relative_to(root)}")
     print(
         f"\nRemoved the example agent: {len(deletions)} deleted, {len(changed)} edited. Next:\n"
-        "- remove the example's dependencies from pyproject.toml and uv.lock:\n"
-        f"  uv remove {' '.join(EXAMPLE_DEPENDENCIES)}\n"
+        "- remove the example's dependencies from pyproject.toml and uv.lock, then install\n"
+        "  every dependency group again (uv remove syncs only the default groups):\n"
+        f"  uv remove {' '.join(EXAMPLE_DEPENDENCIES)} && uv sync --all-groups\n"
         "- update README.md, AGENTS.md and docs/, which still describe the example;\n"
         "- add your agent (docs/guides/customize.md), then run make lint typecheck test."
     )

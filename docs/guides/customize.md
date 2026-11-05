@@ -65,8 +65,10 @@ still passes (P22).
 
 Then:
 
-- remove the example's dependencies with the `uv remove` command that the script prints (it
-  leaves `pyproject.toml` and `uv.lock` as they are);
+- remove the example's dependencies with the command that the script prints,
+  `uv remove <dependencies> && uv sync --all-groups` (the script leaves `pyproject.toml` and
+  `uv.lock` as they are). `uv remove` syncs only the default dependency groups, which uninstalls
+  the test and lint tools; `uv sync --all-groups` installs them again;
 - update `README.md`, `AGENTS.md` and `docs/`, which still describe the example;
 - remove the Bedrock and ECR statements of `deploy/iam/policy.json`, which only the example needs
   (least privilege, P19). The script removes the example's RBAC, but JSON has no comments for the
