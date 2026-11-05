@@ -47,5 +47,5 @@ The first release (Phases 0 and 1). It is tagged after the owner's real-mode smo
   RBAC, and an IAM policy.
 - Docs and scripts: 23 practice notes; the quickstart, run-on-eks, real-mode, customize and
   upgrade guides; a release checklist; `scripts/rename.py`, `scripts/remove_example.py` and
-  `scripts/send_incident.py`; CI with lint, unit, integration, end-to-end, image, removal and
-  Python 3.15 canary jobs.
+  `scripts/send_incident.py`; CI on Python 3.14 with lint, unit, integration, end-to-end, image
+  and removal jobs.

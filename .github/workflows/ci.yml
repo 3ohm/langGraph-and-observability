@@ -1,5 +1,6 @@
 # CI (spec 13.3). Every Python job uses the same steps: check out the code, install uv and
-# Python, install all dependency groups from uv.lock, then run one make target.
+# Python 3.14 with astral-sh/setup-uv, install all dependency groups from uv.lock, then run
+# one make target. The project uses Python 3.14 only (the owner's decision, 2026-11-05).
 # UV_LOCKED makes every uv command, also the `uv run` inside make targets, fail when uv.lock
 # does not match pyproject.toml. (uv refuses --frozen alongside it.)
 # A job that runs tests first fetches the tree-sitter grammars (make grammars): tests never
@@ -196,20 +197,3 @@ jobs:
       - name: Lint and typecheck without the example agent
         working-directory: ${{ runner.temp }}/removal
         run: make lint typecheck
-
-  # Early warning for the next Python version. A failure here does not fail the run.
-  canary-3-15:
-    runs-on: ubuntu-latest
-    continue-on-error: true
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          persist-credentials: false
-      - uses: astral-sh/setup-uv@68559e99cc807c1eb7e9238fd43a15bba460eec2 # v10.3.3
-        with:
-          python-version: "3.15"
-          enable-cache: true
-      - run: uv sync --all-groups
-      - run: make grammars
-      - run: sudo apt-get update && sudo apt-get install -y --no-install-recommends ripgrep
-      - run: make test

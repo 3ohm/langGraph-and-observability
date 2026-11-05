@@ -20,9 +20,16 @@ def test_minimal_permissions():
     assert WF["permissions"] == {"contents": "read"}
 
 
-def test_canary_does_not_block():
-    j = WF["jobs"]["canary-3-15"]
-    assert j["continue-on-error"] is True and "3.15" in json.dumps(j)
+def test_every_python_job_uses_python_3_14_through_setup_uv():
+    # The owner's decision (2026-11-05): Python 3.14 only, installed by astral-sh/setup-uv.
+    setups = [
+        s
+        for j in WF["jobs"].values()
+        for s in j["steps"]
+        if s.get("uses", "").startswith("astral-sh/setup-uv@")
+    ]
+    assert setups and all(s["with"]["python-version"] == "3.14" for s in setups)
+    assert "actions/setup-python" not in json.dumps(WF)
 
 
 def test_dependabot_weekly_grouped_with_cooldown():
@@ -69,7 +76,7 @@ def test_test_jobs_run_their_make_targets():
 # example-agent:begin (scripts/remove_example.py deletes this block)
 def test_test_jobs_fetch_grammars_after_sync():
     # Ruling R51: tests never download a grammar, so each job that runs tests fetches them first.
-    for name in ("unit", "integration", "e2e", "canary-3-15"):
+    for name in ("unit", "integration", "e2e"):
         runs = [s.get("run") for s in WF["jobs"][name]["steps"]]
         sync = runs.index("uv sync --all-groups")
         assert runs[sync + 1] == "make grammars", name
@@ -84,7 +91,6 @@ def test_test_jobs_install_ripgrep_before_tests():
         "unit": "make test",
         "integration": "make test-int",
         "e2e": "make test-e2e",
-        "canary-3-15": "make test",
     }
     install = "sudo apt-get update && sudo apt-get install -y --no-install-recommends ripgrep"
     for name, target in targets.items():

@@ -11,9 +11,6 @@ CI is green on it. Tag only after the smoke test has passed.
   candidate: `lint`, `unit`, `integration`, `e2e`, `docker` and `removal`. The `removal` job runs
   `scripts/remove_example.py` on a copy of the commit, then the unit tests, lint and typecheck
   without the example agent.
-- The `canary-3-15` job has run and reported. It is allowed to fail (`continue-on-error`), and it
-  is expected to be red until PyYAML and zstandard publish wheels for Python 3.15. Read its log:
-  a new kind of failure is a warning for the next Python upgrade, not a release blocker.
 - Locally, from a clean checkout of the same commit, with Docker running:
 
   ```bash
@@ -84,13 +81,11 @@ These are open items from the build that need the owner's accounts, an outward-f
 a check that the builders could not run.
 
 - **O1, project contacts.** Replace `[INSERT CONTACT METHOD]` in `CODE_OF_CONDUCT.md` with a
-  real contact, and turn on GitHub's private vulnerability reporting, which `SECURITY.md` tells
-  reporters to use.
-- **O2, the first CI run on GitHub.** The workflows have not run on GitHub yet. Watch the first
-  run: every job on a real runner, including the amd64 `docker` job with its Compose migration
-  smoke test and the `integration` and `e2e` jobs, and the runner image (the jobs install
-  ripgrep, which `ubuntu-latest` lacks). The 3.15 canary is expected to be red until PyYAML and
-  zstandard ship 3.15 wheels.
+  real contact. GitHub's private vulnerability reporting, which `SECURITY.md` tells reporters to
+  use, is on since 2026-11-05.
+- **O2, the first CI run on GitHub.** Watch the first complete run: every job on a real runner,
+  including the amd64 `docker` job with its Compose migration smoke test and the `integration`
+  and `e2e` jobs, and the runner image (the jobs install ripgrep, which `ubuntu-latest` lacks).
 - **O3, the upstream checkpointer issue.** Open the issue and pull request in LangGraph's
   repository for the `AsyncPostgresSaver` `_cursor` lock that spec §7.2 describes, then add
   their links to the docstring of `src/langgraph_and_observability/persistence/checkpointer.py`.

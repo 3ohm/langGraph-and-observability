@@ -51,7 +51,7 @@ Every step is saved to Postgres. A run that dies at any step resumes at that ste
 7. **It runs locally with no credentials.** Simulated adapters stand in for Kubernetes, Datadog and Git, and recorded model responses stand in for Bedrock. `docker compose up` shows the whole flow.
 8. **Studio works.** `make studio` opens the graph in LangGraph Studio with simulated data.
 9. **It's ready for coding assistants,** through `AGENTS.md`.
-10. **It stays current:** CI on Python 3.14, a non-blocking 3.15 job, and scheduled dependency updates.
+10. **It stays current:** CI on Python 3.14, and scheduled dependency updates.
 
 ## 4. Non-goals (v1) and backlog
 
@@ -104,7 +104,7 @@ Every step is saved to Postgres. A run that dies at any step resumes at that ste
   - datadog-api-client 2.62.0 imports (it's pure Python; its PyPI classifiers only go up to 3.12);
   - kubernetes-asyncio 36.1.0 and boto3 1.43.123 import.
 - **LangGraph's own CI** tests 3.10–3.14.
-- **Python 3.15** came out on 2026-10-09. It gets a non-blocking CI job only, because PyYAML 6.0.3 and zstandard 0.25.0 have no 3.15 wheels yet.
+- **Python 3.15** came out on 2026-10-09. On 2026-11-05 the owner decided: Python 3.14 only, and no 3.15 CI job.
 - **Warning filter:** on 3.14, langsmith emits `DeprecationWarning: 'asyncio.iscoroutinefunction' is deprecated`. Filter that warning by name in the pytest config.
 - **3.14 features to use:**
   - `uuid.uuid7()` for time-ordered IDs;
@@ -631,7 +631,6 @@ OpenTelemetry is the common pipe. This covers LangSmith's OTel bridge, Phoenix (
 - integration tests with Postgres 18 and ElasticMQ service containers;
 - end-to-end tests: the `kill -9` resume and SIGTERM drain tests against a worker subprocess;
 - a Docker build plus a migration smoke test;
-- a 3.15 job with `continue-on-error`;
 - the removal job;
 - evals (a separate workflow, gated on secrets).
 
@@ -725,7 +724,7 @@ The infrastructure fixtures have no sample app.
 - **Drain:** SIGTERM drains the run after its current step, and another worker resumes it.
 - **Duplicates:** a duplicate message produces one run.
 - **Bad messages:** a bad message goes to the DLQ.
-- **CI:** all required jobs are green, and the 3.15 job reports.
+- **CI:** all required jobs are green.
 - **Practices:** every practice in §11 has code, a test and a note.
 - **Real mode:** a manual check with the owner's AWS, EKS, Datadog and Git access produces a valid result for a real crashed pod. This is documented in `docs/guides/real-mode.md`.
 

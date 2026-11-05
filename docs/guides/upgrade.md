@@ -37,9 +37,8 @@ its own schedule.
 
 ## Python
 
-The project targets Python 3.14 (`requires-python = ">=3.14"`, `.python-version`). CI's
-`canary-3-15` job runs the unit tests on Python 3.15 without blocking the run, so a dependency
-that breaks there shows up early. To move up: change `.python-version`, `requires-python`,
+The project uses Python 3.14 (`.python-version`, with `requires-python = ">=3.14"`). uv installs
+it, locally and in every CI job (`astral-sh/setup-uv`). To move up: change `.python-version`, `requires-python`,
 ruff's `target-version` and mypy's `python_version` in `pyproject.toml`, the `python-version`
 of the CI jobs and the `python:3.14-slim` base of the Dockerfile, then run `uv lock` and the
 whole suite.
