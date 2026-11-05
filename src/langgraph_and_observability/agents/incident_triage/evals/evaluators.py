@@ -156,16 +156,17 @@ def code_location_hit(outputs: Mapping[str, Any], reference: Mapping[str, Any]) 
     )
 
 
-def citations_valid(outputs: Mapping[str, Any], evidence_ids: Collection[str]) -> EvalResult:
-    """1.0 when every cited evidence ID and code snippet ID is in ``evidence_ids``.
+def citations_valid(outputs: Mapping[str, Any], collected: Collection[str]) -> EvalResult:
+    """1.0 when every cited evidence ID and code snippet ID is in ``collected``.
 
+    ``collected`` holds the IDs that the run collected, as ``evidence_ids`` returns them.
     An analysis with no citations, or no analysis, cites nothing that is not there.
     """
     cited = [
         *(citation["id"] for citation in outputs.get("evidence", [])),
         *(code["snippet_id"] for code in outputs.get("suspected_code", [])),
     ]
-    unknown = [cited_id for cited_id in dict.fromkeys(cited) if cited_id not in evidence_ids]
+    unknown = [cited_id for cited_id in dict.fromkeys(cited) if cited_id not in collected]
     if unknown:
         named = ", ".join(repr(cited_id) for cited_id in unknown)
         return _result(CITATIONS, 0.0, f"cites IDs that the run did not collect: {named}")
@@ -255,7 +256,7 @@ def missed_thresholds(scores: Mapping[str, float | None]) -> list[str]:
     ]
 
 
-def render_scorecard(
+def render_scorecard(  # pylint: disable=too-many-locals  # one report, top to bottom
     case_results: Mapping[str, Sequence[EvalResult]], *, mode: str, experiment_url: str | None
 ) -> str:
     """The scorecard, in Markdown: each evaluator's aggregate and threshold, then each case.

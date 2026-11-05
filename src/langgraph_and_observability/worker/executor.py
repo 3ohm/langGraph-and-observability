@@ -50,7 +50,7 @@ _MAX_ERROR_MESSAGE = 2000
 _MARK_ERROR_STATUSES = frozenset({RunStatus.PENDING, RunStatus.FAILED})
 
 
-class RunExecutor:
+class RunExecutor:  # pylint: disable=too-many-instance-attributes  # collaborators, caches
     """Executes claimed runs of ``agents`` for the pod ``owner``.
 
     ``saver`` is the checkpointer that every agent's graph is compiled with, once.
@@ -109,7 +109,7 @@ class RunExecutor:
             if await self._repo.release([run.run_id], self._owner) == 1:
                 return RunStatus.PENDING
             return await self._lease_lost(run, log)
-        except Exception as exc:
+        except Exception as exc:  # pylint: disable=broad-exception-caught  # the run fails
             return await self._mark_error(run, error_fields(exc), log)
         if await self._repo.mark_success(run.run_id, self._owner):
             log.info("run.success")

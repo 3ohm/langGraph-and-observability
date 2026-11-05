@@ -154,6 +154,7 @@ def _show(root: Path, path: Path) -> str:
 
 
 def main(argv: Sequence[str] | None = None) -> int:
+    """Rename the package in the repository in the current folder."""
     parser = argparse.ArgumentParser(
         prog=PROG,
         description=f"Rename the package {OLD_PACKAGE} (and {OLD_DIST}) everywhere in the "

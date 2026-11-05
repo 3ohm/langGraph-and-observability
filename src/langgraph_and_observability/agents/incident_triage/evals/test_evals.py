@@ -178,7 +178,7 @@ async def _score(
     async with limit:
         try:
             state = await _run(case, settings)
-        except Exception as exc:
+        except Exception as exc:  # pylint: disable=broad-exception-caught  # the case fails
             failed = f"the run failed: {_describe(exc)}"
             return run_failed(case.expected, failed, judged=judge is not None)
         outputs = outputs_of(state)
@@ -189,7 +189,7 @@ async def _score(
         ]
         try:
             results.append(await judge_root_cause(outputs, case.expected, llm=judge))
-        except Exception as exc:
+        except Exception as exc:  # pylint: disable=broad-exception-caught  # no verdict
             comment = f"no verdict: the judge failed: {_describe(exc)}"
             results.append({"key": JUDGE, "score": None, "comment": comment})
         return results
@@ -231,7 +231,7 @@ def _report(
     if tracked:
         try:
             url = log({"scores": scores, "cases": case_results}, scores)
-        except Exception as exc:
+        except Exception as exc:  # pylint: disable=broad-exception-caught  # the link is optional
             _log.warning("evals.langsmith_failed", error=_describe(exc))
     card = render_scorecard(case_results, mode=mode, experiment_url=url)
     print(card)

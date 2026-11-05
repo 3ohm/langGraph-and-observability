@@ -8,12 +8,13 @@ from psycopg import AsyncConnection
 from psycopg.rows import DictRow
 from psycopg_pool import AsyncConnectionPool
 
-_pool: AsyncConnectionPool[AsyncConnection[DictRow]] | None = None
+# Not a constant: set_pool sets it.
+_pool: AsyncConnectionPool[AsyncConnection[DictRow]] | None = None  # pylint: disable=invalid-name
 
 
 def set_pool(pool: AsyncConnectionPool[AsyncConnection[DictRow]] | None) -> None:
     """Register the process's pool. ``None`` clears it, for example at shutdown."""
-    global _pool
+    global _pool  # pylint: disable=global-statement  # the process-wide registry
     _pool = pool
 
 

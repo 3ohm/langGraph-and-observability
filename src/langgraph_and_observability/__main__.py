@@ -21,10 +21,12 @@ _WORKER = f"{__package__}.worker"
 class _Cli(Protocol):
     """``worker/cli.py``, as this module uses it."""
 
-    def main(self, argv: Sequence[str]) -> int: ...
+    def main(self, argv: Sequence[str]) -> int:
+        """Run the command ``argv[0]`` with the arguments after it; return the exit code."""
 
 
 def build_parser() -> argparse.ArgumentParser:
+    """Return the parser of the CLI: a command, and the arguments for that command."""
     parser = argparse.ArgumentParser(
         prog=PROG,
         description="langgraph-and-observability operator CLI.",
@@ -40,6 +42,7 @@ def build_parser() -> argparse.ArgumentParser:
 
 
 def main(argv: Sequence[str] | None = None) -> int:
+    """Run the command in ``argv`` (default: ``sys.argv[1:]``); return its exit code."""
     parser = build_parser()
     args = parser.parse_args(argv)
     if args.command is None:

@@ -215,7 +215,8 @@ async def test_configurable_holds_only_thread_id(make_executor, repo, monkeypatc
     calls = []
     ainvoke = CompiledStateGraph.ainvoke
 
-    async def spy(self, input, config=None, **kwargs):
+    # CompiledStateGraph.ainvoke's signature.
+    async def spy(self, input, config=None, **kwargs):  # pylint: disable=redefined-builtin
         calls.append(config)
         return await ainvoke(self, input, config, **kwargs)
 

@@ -108,7 +108,7 @@ class _HealthServer(uvicorn.Server):
         yield
 
 
-class Worker:
+class Worker:  # pylint: disable=too-many-instance-attributes  # the process's resources and tasks
     """One pod's queue worker, for the agents in ``agents`` (``load_agents``).
 
     ``owner`` is the pod's name, which its leases carry. ``sqs_client`` is a boto3 SQS
@@ -315,7 +315,7 @@ class Worker:
             try:
                 run_ids = await intake.poll(free)
                 await self._claim_new(run_ids, repo, executor)
-            except Exception as exc:
+            except Exception as exc:  # pylint: disable=broad-exception-caught  # log; poll again
                 _log.error("intake.failed", error=_error(exc))
                 await asyncio.sleep(_ERROR_BACKOFF_S)
 
@@ -353,7 +353,7 @@ class Worker:
         while True:
             try:
                 await self._recover(repo, executor)
-            except Exception as exc:
+            except Exception as exc:  # pylint: disable=broad-exception-caught  # log; try again
                 _log.error("recovery.failed", error=_error(exc))
             await asyncio.sleep(self._settings.recovery_interval_seconds)
 
@@ -381,7 +381,7 @@ class Worker:
                 continue
             try:
                 extended = await repo.heartbeat(self._owner, run_ids, self._settings.lease_seconds)
-            except Exception as exc:
+            except Exception as exc:  # pylint: disable=broad-exception-caught  # log; beat again
                 _log.error("heartbeat.failed", runs=len(run_ids), error=_error(exc))
                 continue
             if extended < len(run_ids):
@@ -394,7 +394,7 @@ class Worker:
                 report = await prune_once(
                     pool, saver, self._agents, self._settings, now=datetime.now(UTC)
                 )
-            except Exception as exc:
+            except Exception as exc:  # pylint: disable=broad-exception-caught  # log; prune later
                 _log.error("prune.failed", error=_error(exc))
             else:
                 _log.info(
@@ -418,7 +418,7 @@ class Worker:
             # A run whose task had not begun when stop() started is released by stop().
             if not self._draining:
                 await executor.execute(run)
-        except Exception as exc:
+        except Exception as exc:  # pylint: disable=broad-exception-caught  # only this run fails
             _log.error("run.crashed", run_id=str(run.run_id), agent=run.agent, error=_error(exc))
         finally:
             self._runs.pop(run.run_id, None)
@@ -447,7 +447,7 @@ class Worker:
         if active and self._repo is not None:
             try:
                 released = await self._repo.release(active, self._owner)
-            except Exception as exc:
+            except Exception as exc:  # pylint: disable=broad-exception-caught  # the drain goes on
                 _log.error("worker.release_failed", runs=len(active), error=_error(exc))
             else:
                 _log.info("worker.drained", runs=len(active), released=released)
@@ -472,7 +472,7 @@ class Worker:
         if self._health_task is not None:
             try:
                 await self._health_task
-            except Exception as exc:
+            except Exception as exc:  # pylint: disable=broad-exception-caught  # shutdown goes on
                 _log.error("health.failed", error=_error(exc))
 
 
@@ -514,7 +514,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         settings.require_runtime_secrets()
         agents = load_agents(settings)
         sqs_client = None if settings.sqs_queue_url is None else make_sqs_client(settings)
-    except Exception as exc:
+    except Exception as exc:  # pylint: disable=broad-exception-caught  # exit code 1, logged
         return _startup_failed(exc)
     owner = os.environ.get("POD_NAME") or socket.gethostname()
     worker = Worker(settings, agents=agents, sqs_client=sqs_client, owner=owner)
@@ -529,7 +529,7 @@ async def _run(worker: Worker) -> int:
     try:
         try:
             await worker.start()
-        except Exception as exc:
+        except Exception as exc:  # pylint: disable=broad-exception-caught  # exit code 1, logged
             return _startup_failed(exc)
         await stop_requested.wait()
         await worker.stop()

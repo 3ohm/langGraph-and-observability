@@ -54,6 +54,7 @@ _DUMMY_SECRET = "test"  # noqa: S105 - not a secret: a placeholder that ElasticM
 
 
 def build_parser() -> argparse.ArgumentParser:
+    """Return the parser of the command line."""
     parser = argparse.ArgumentParser(
         prog="send_incident.py",
         description="Send one IncidentMessage to an SQS queue and print its message ID.",
@@ -123,6 +124,7 @@ def make_client(endpoint_url: str | None) -> SQSClient:
 
 
 def main(argv: Sequence[str] | None = None) -> int:
+    """Send the incident that ``argv`` names, and print its message ID."""
     parser = build_parser()
     args = parser.parse_args(argv)
     try:

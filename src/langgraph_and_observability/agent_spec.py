@@ -33,7 +33,7 @@ class RunInfo:
 
 
 @dataclass(frozen=True)
-class AgentSpec:
+class AgentSpec:  # pylint: disable=too-many-instance-attributes  # one per part of an agent
     """One agent: its graph and the functions the worker calls around it.
 
     - ``name``: the agent's name in the registry and in ``runs.agent``. It is unique.

@@ -338,6 +338,7 @@ def is_repo_root(path: Path) -> bool:
 
 
 def main(argv: Sequence[str] | None = None) -> int:
+    """Remove the example agent from the repository in the current folder."""
     parser = argparse.ArgumentParser(
         prog=PROG,
         description=f"Remove the example agent ({AGENT}) from this repository. "

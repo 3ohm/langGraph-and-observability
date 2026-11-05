@@ -53,7 +53,8 @@ PRIMARY_FRAMES = 3
 MAX_LISTED_FRAMES = 20
 
 
-async def collect_code(state: TriageState, runtime: Runtime[TriageContext]) -> TriageState:
+# One step that reads top to bottom: its locals are the stages of the collection.
+async def collect_code(state: TriageState, runtime: Runtime[TriageContext]) -> TriageState:  # pylint: disable=too-many-locals
     """Collect the code evidence. Returns ``{"code_evidence": [...], "notes": [...]}``."""
     context = ctx(runtime, state.get("message"))
     adapters = context.adapters

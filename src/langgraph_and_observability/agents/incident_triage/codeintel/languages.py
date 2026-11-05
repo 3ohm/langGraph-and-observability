@@ -234,8 +234,8 @@ _lock = threading.Lock()
 _parsers: dict[tuple[str, Path | None], _CachedParser] = {}
 # The base folder that the library is configured with, and its default base folder.
 # Both are None until the first call to _configure.
-_base: Path | None = None
-_default_base: Path | None = None
+_base: Path | None = None  # pylint: disable=invalid-name  # not a constant
+_default_base: Path | None = None  # pylint: disable=invalid-name  # not a constant
 
 
 def _parser(grammar: str, grammar_dir: Path | None) -> _CachedParser:
@@ -260,7 +260,7 @@ def _configure(grammar_dir: Path | None) -> None:
     The library keeps its grammars in ``<base>/tree-sitter-language-pack/v<version>/libs``
     and has no call that restores its default base, so the first call records it.
     """
-    global _base, _default_base
+    global _base, _default_base  # pylint: disable=global-statement  # under _lock
     if _default_base is None:
         _default_base = _base = Path(tslp.cache_dir()).parents[2]
     base = _default_base if grammar_dir is None else grammar_dir

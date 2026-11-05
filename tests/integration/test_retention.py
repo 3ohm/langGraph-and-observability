@@ -31,7 +31,8 @@ AGENTS = {STEPS_SPEC.name: STEPS_SPEC}
 CHECKPOINT_TABLES = ("checkpoints", "checkpoint_blobs", "checkpoint_writes")
 
 
-class _ScriptedSaver(PoolAwarePostgresSaver):
+# AsyncPostgresSaver does not implement copy_thread and delete_for_runs (nor their async forms).
+class _ScriptedSaver(PoolAwarePostgresSaver):  # pylint: disable=abstract-method
     """A real saver that records each ``aprune`` call.
 
     Before it prunes, a call waits for ``gate`` (if set), then raises the next of

@@ -89,7 +89,7 @@ def main(argv: Sequence[str]) -> int:
 
 def _worker(argv: Sequence[str]) -> int:
     # Imported here: only this command loads the worker's runtime.
-    from langgraph_and_observability.worker.main import main as worker_main
+    from langgraph_and_observability.worker.main import main as worker_main  # pylint: disable=import-outside-toplevel
 
     return worker_main(list(argv))
 

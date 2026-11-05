@@ -40,8 +40,8 @@ from langgraph_and_observability.settings import load_settings
 # Nothing listens on port 1: a request that got past NoNetworkSession would fail too.
 NO_NETWORK = "http://127.0.0.1:1"
 # Bound at import: tests patch the attributes on the langsmith module.
-REAL_CLIENT = langsmith.Client
-RESET = langsmith.configure
+REAL_CLIENT = langsmith.Client  # pylint: disable=invalid-name  # a module constant
+RESET = langsmith.configure  # pylint: disable=invalid-name  # a module constant
 
 
 class NoNetworkSession(requests.Session):
@@ -243,7 +243,8 @@ def test_tracing_errors_are_logged_redacted(tracing_env, clients, capsys):
     assert "hunter2" not in out
 
 
-class RecordingClient(REAL_CLIENT):
+# langsmith.Client's feedback-formula methods raise NotImplementedError: nothing to override.
+class RecordingClient(REAL_CLIENT):  # pylint: disable=abstract-method
     """A real offline client that records close() calls, and fails them when asked."""
 
     def __init__(self, fail: bool = False) -> None:

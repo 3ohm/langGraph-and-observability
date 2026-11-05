@@ -21,7 +21,8 @@ from psycopg.rows import DictRow, dict_row
 from psycopg_pool import AsyncConnectionPool
 
 
-class PoolAwarePostgresSaver(AsyncPostgresSaver):
+# AsyncPostgresSaver does not implement copy_thread and delete_for_runs (nor their async forms).
+class PoolAwarePostgresSaver(AsyncPostgresSaver):  # pylint: disable=abstract-method
     """An ``AsyncPostgresSaver`` that, on a pool, runs checkpoint calls concurrently.
 
     Delete this class when upstream ``AsyncPostgresSaver._cursor`` stops taking
@@ -39,7 +40,8 @@ class PoolAwarePostgresSaver(AsyncPostgresSaver):
         # out its own connection, so it takes a fresh lock. A single connection keeps
         # the instance lock.
         lock = asyncio.Lock() if isinstance(self.conn, AsyncConnectionPool) else self.lock
-        async with lock, _ainternal.get_connection(self.conn) as conn:
+        # _cursor is a context manager itself, so the contexts below exit when it does.
+        async with lock, _ainternal.get_connection(self.conn) as conn:  # pylint: disable=contextmanager-generator-missing-cleanup
             if self.pipe:
                 # a connection in pipeline mode can be used concurrently
                 # in multiple threads/coroutines, but only one cursor can be

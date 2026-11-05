@@ -82,7 +82,7 @@ class ImageLabelError(RuntimeError):
 class NoRedirects(urllib.request.HTTPRedirectHandler):
     """Refuses every redirect: the blob URL is the one ECR returned, or nothing."""
 
-    def redirect_request(
+    def redirect_request(  # pylint: disable=too-many-positional-arguments  # urllib's method
         self,
         req: urllib.request.Request,
         fp: IO[bytes] | None,

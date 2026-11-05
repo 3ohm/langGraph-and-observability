@@ -51,6 +51,7 @@ class SyncCounts:
 
 
 def build_parser() -> argparse.ArgumentParser:
+    """Return the parser of the command line."""
     parser = argparse.ArgumentParser(
         prog="sync_dataset.py",
         description="Upload the Incident Triage eval cases to a LangSmith dataset.",
@@ -105,6 +106,7 @@ def sync(client: langsmith.Client, dataset_name: str, cases: Sequence[EvalCase])
 
 
 def main(argv: Sequence[str] | None = None) -> int:
+    """Upload the eval cases to the LangSmith dataset that ``argv`` names."""
     parser = build_parser()
     args = parser.parse_args(argv)
     if not any(os.environ.get(name, "").strip() for name in _API_KEYS):

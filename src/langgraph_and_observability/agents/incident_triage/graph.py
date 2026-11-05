@@ -61,13 +61,15 @@ TIMEOUTS: dict[str, float] = {
 DEFAULT_TIMEOUT_S = 120
 
 
-async def datadog_unavailable(state: TriageState, error: NodeError) -> Command[Literal["assess"]]:
+# LangGraph's handler signature: (state, error). This handler reads only the error.
+async def datadog_unavailable(state: TriageState, error: NodeError) -> Command[Literal["assess"]]:  # pylint: disable=unused-argument
     """``collect_datadog``'s error handler: note that Datadog failed, then go to ``assess``."""
     note = _unavailable(error, "datadog", "Datadog events unavailable", "Datadog events")
     return Command(update={"notes": [note]}, goto="assess")
 
 
-async def code_unavailable(state: TriageState, error: NodeError) -> Command[Literal["analyze"]]:
+# LangGraph's handler signature: (state, error). This handler reads only the error.
+async def code_unavailable(state: TriageState, error: NodeError) -> Command[Literal["analyze"]]:  # pylint: disable=unused-argument
     """``collect_code``'s error handler: note that the code step failed, then go to ``analyze``."""
     note = _unavailable(error, "code", "Code evidence unavailable", "code evidence")
     return Command(update={"notes": [note]}, goto="analyze")

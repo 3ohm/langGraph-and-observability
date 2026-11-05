@@ -47,7 +47,7 @@ class RunStatus(StrEnum):
 
 
 @dataclass(frozen=True)
-class RunRow:
+class RunRow:  # pylint: disable=too-many-instance-attributes  # one per column of runs
     """One row of ``runs``. ``error`` is the last failed attempt's error."""
 
     run_id: UUID
@@ -181,7 +181,10 @@ class RunRepo:
         self._pool = pool
 
     async def create(
-        self, agent: str, dedup_key: str, input: Mapping[str, Any]
+        self,
+        agent: str,
+        dedup_key: str,
+        input: Mapping[str, Any],  # pylint: disable=redefined-builtin  # the runs.input column
     ) -> tuple[UUID, bool]:
         """Add a pending run for ``dedup_key``, unless one exists (spec §8.1 step 3).
 

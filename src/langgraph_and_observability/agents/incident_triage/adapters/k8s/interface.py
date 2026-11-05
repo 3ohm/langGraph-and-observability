@@ -21,7 +21,7 @@ class Terminated:
 
 
 @dataclass(frozen=True)
-class ContainerStatus:
+class ContainerStatus:  # pylint: disable=too-many-instance-attributes  # the pod status's fields
     """One container of a pod.
 
     ``image_id`` is the image with its digest, as the pod status reports it, or None.

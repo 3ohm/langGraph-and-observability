@@ -35,6 +35,8 @@ _FRAME = re.compile(
 )
 
 
+# Each stack trace parser has this shape: detect() and parse() (AGENTS.md).
+# pylint: disable=duplicate-code
 def detect(text: str) -> bool:
     """Whether ``text`` holds a Ruby backtrace line."""
     return _FRAME.search(text) is not None

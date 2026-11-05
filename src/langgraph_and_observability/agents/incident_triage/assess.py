@@ -119,7 +119,8 @@ def assess(k8s: Sequence[EvidenceItem], frames: Sequence[Frame], *, has_logs: bo
     )
 
 
-async def assess_node(state: TriageState, runtime: Runtime[TriageContext]) -> TriageState:
+# The graph's nodes take (state, runtime). This one reads only the state.
+async def assess_node(state: TriageState, runtime: Runtime[TriageContext]) -> TriageState:  # pylint: disable=unused-argument
     """The graph's ``assess`` step. Returns ``{"assessment": Assessment}``.
 
     It parses the frames of ``log_text`` and assesses them with ``k8s_evidence``. It

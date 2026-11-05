@@ -53,14 +53,14 @@ class ReadinessProbe:
             async with asyncio.timeout(DATABASE_TIMEOUT_S):
                 async with self._pool.connection(timeout=DATABASE_TIMEOUT_S) as conn:
                     await conn.execute("SELECT 1")
-        except Exception:
+        except Exception:  # pylint: disable=broad-exception-caught  # any failure: not ready
             return False
         return True
 
     def _intake(self) -> bool:
         try:
             return bool(self._intake_alive())
-        except Exception:
+        except Exception:  # pylint: disable=broad-exception-caught  # any failure: not ready
             return False
 
 

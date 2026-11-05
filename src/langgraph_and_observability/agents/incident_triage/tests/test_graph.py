@@ -388,7 +388,8 @@ async def test_cancelled_step_runs_no_handler():
 # --- context, traces and checkpoints (P14, N43) ------------------------------------------
 
 
-class RecordingClient(langsmith.Client):
+# langsmith.Client's feedback-formula methods raise NotImplementedError: nothing to override.
+class RecordingClient(langsmith.Client):  # pylint: disable=abstract-method
     """A langsmith client that keeps each run it would create or update, and sends nothing."""
 
     def __init__(self) -> None:

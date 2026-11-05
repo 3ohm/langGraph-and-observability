@@ -62,7 +62,7 @@ class _LogResponse:
 
 
 @dataclass
-class _Cluster:
+class _Cluster:  # pylint: disable=too-many-instance-attributes  # one per API object kind
     """The objects that the mocked API classes serve, and the calls they received."""
 
     pods: list[Any] = field(default_factory=list)

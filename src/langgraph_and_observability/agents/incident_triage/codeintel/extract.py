@@ -51,7 +51,7 @@ _DECLARATOR = "variable_declarator"
 
 
 @dataclass(frozen=True)
-class ExtractedDef:
+class ExtractedDef:  # pylint: disable=duplicate-code  # CodeSnippet's fields, less its ID
     """The lines ``start_line`` to ``end_line`` (from 1, inclusive) of the file ``path``.
 
     ``path`` is relative to the checkout's root. ``language`` is the grammar's name.

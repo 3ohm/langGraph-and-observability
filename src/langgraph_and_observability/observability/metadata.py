@@ -22,16 +22,20 @@ class TracedRun(Protocol):
     """What ``run_metadata`` reads from a run."""
 
     @property
-    def run_id(self) -> UUID: ...
+    def run_id(self) -> UUID:
+        """The run's ID."""
 
     @property
-    def dedup_key(self) -> str: ...
+    def dedup_key(self) -> str:
+        """The run's dedup key."""
 
     @property
-    def agent(self) -> str: ...
+    def agent(self) -> str:
+        """The name of the run's agent."""
 
     @property
-    def input(self) -> Mapping[str, Any]: ...
+    def input(self) -> Mapping[str, Any]:
+        """The run's input."""
 
 
 def run_metadata(run: TracedRun, settings: Settings) -> dict[str, str]:

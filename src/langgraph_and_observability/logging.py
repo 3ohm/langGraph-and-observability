@@ -36,11 +36,11 @@ class _StdoutHandler(logging.Handler):
         try:
             sys.stdout.write(self.format(record) + "\n")
             sys.stdout.flush()
-        except Exception:
+        except Exception:  # pylint: disable=broad-exception-caught  # as logging.Handler.emit does
             self.handleError(record)
 
 
-def configure_logging(settings: Settings) -> None:
+def configure_logging(settings: Settings) -> None:  # pylint: disable=unused-argument  # for later
     """Send all logs to stdout as JSON at INFO and above. Safe to call again.
 
     ``settings`` is accepted so later configuration can tune logging; v1 output is

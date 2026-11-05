@@ -39,7 +39,7 @@ needs_example_agent = pytest.mark.skipif(
     reason="the example agent was removed",
 )
 
-_IGNORED = shutil.ignore_patterns(
+_IGNORED = shutil.ignore_patterns(  # pylint: disable=invalid-name  # a module constant
     ".git",
     ".venv",
     ".superpowers",

@@ -166,7 +166,8 @@ async def test_runs_carry_trace_metadata(make_worker, sqs, queue, repo, monkeypa
     configs = []
     ainvoke = CompiledStateGraph.ainvoke
 
-    async def spy(self, input, config=None, **kwargs):
+    # CompiledStateGraph.ainvoke's signature.
+    async def spy(self, input, config=None, **kwargs):  # pylint: disable=redefined-builtin
         configs.append(config)
         return await ainvoke(self, input, config, **kwargs)
 

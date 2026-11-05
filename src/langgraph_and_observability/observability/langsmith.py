@@ -111,7 +111,7 @@ async def close_tracing(client: TracingClient) -> None:
     """
     try:
         await asyncio.to_thread(client.close, timeout=FLUSH_TIMEOUT_S)
-    except Exception as exc:
+    except Exception as exc:  # pylint: disable=broad-exception-caught  # shutdown goes on
         _log.error("tracing.flush_failed", error=_error(exc))
 
 
@@ -178,7 +178,7 @@ def log_eval_results(outputs: dict[str, Any], scores: Mapping[str, float | None]
     None. Inside a run that the plugin does not track, langsmith raises ValueError.
     """
     # Imported here: langsmith.testing imports pytest when pytest is installed.
-    from langsmith import testing
+    from langsmith import testing  # pylint: disable=import-outside-toplevel
 
     run = get_current_run_tree()
     if run is None:
@@ -189,7 +189,7 @@ def log_eval_results(outputs: dict[str, Any], scores: Mapping[str, float | None]
             testing.log_feedback(key=key, score=score)
     try:
         url: str | None = run.client.read_project(project_name=run.session_name).url
-    except Exception as exc:
+    except Exception as exc:  # pylint: disable=broad-exception-caught  # the link is optional
         _log.warning("tracing.experiment_unavailable", error=_error(exc))
         return None
     return url
@@ -242,7 +242,7 @@ def _redact_values(payload: dict[str, Any]) -> dict[str, Any]:
     return {key: redact_obj(value) for key, value in payload.items()}
 
 
-def _drop(payload: dict[str, Any]) -> dict[str, Any]:
+def _drop(_payload: dict[str, Any]) -> dict[str, Any]:
     return {}
 
 
