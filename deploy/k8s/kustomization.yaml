@@ -18,7 +18,9 @@ namespace: langgraph-and-observability
 
 resources:
   - serviceaccount.yaml
+  # example-agent:begin (scripts/remove_example.py deletes this block)
   - rbac.yaml
+  # example-agent:end
   - configmap.yaml
   - migrate-job.yaml
   - deployment.yaml

@@ -77,6 +77,9 @@ _EXAMPLE_SETTINGS = (
 )
 _UNIT_TESTS = ["-m", "pytest", "--collect-only", "-q", "-p", "no:cacheprovider"]
 _UNIT_MARKERS = ["-m", "not integration and not e2e"]
+_MANIFEST_TESTS = ["-m", "pytest", "-q", "-p", "no:cacheprovider", "tests/unit/test_manifests.py"]
+# The services of the IAM statements that only the example agent needs.
+_EXAMPLE_IAM_SERVICES = ("bedrock:", "ecr:")
 # The variables that a make running this suite (make test) passes to its children.
 _MAKE_VARIABLES = ("MAKEFLAGS", "MFLAGS", "MAKELEVEL", "MAKEOVERRIDES")
 
@@ -308,6 +311,41 @@ def _example_settings_left(root: Path) -> list[str]:
     return left
 
 
+def _trim_example_statements(policy_path: Path) -> None:
+    """Delete the example's Bedrock and ECR statements from an IAM policy, as a fork does."""
+    policy = json.loads(policy_path.read_text())
+    statements = policy["Statement"]
+
+    def is_example(statement: dict[str, object]) -> bool:
+        actions = statement["Action"]
+        names = [actions] if isinstance(actions, str) else actions
+        assert isinstance(names, list), statement
+        return all(str(name).startswith(_EXAMPLE_IAM_SERVICES) for name in names)
+
+    policy["Statement"] = [s for s in statements if not is_example(s)]
+    assert 0 < len(policy["Statement"]) < len(statements)
+    policy_path.write_text(json.dumps(policy, indent=2) + "\n")
+
+
+def _check_deploy_after_removal(root: Path) -> None:
+    """Check the manifests and the IAM policy of a copy that the removal has run on."""
+    # The example's read-only RBAC is gone: the core worker reads no Kubernetes API. Its
+    # ServiceAccount stays, for the IAM role.
+    k8s = root / "deploy" / "k8s"
+    assert not (k8s / "rbac.yaml").exists()
+    resources = yaml.safe_load((k8s / "kustomization.yaml").read_text())["resources"]
+    assert "rbac.yaml" not in resources and "serviceaccount.yaml" in resources
+    for name in ("rbac.yaml", "ClusterRole"):
+        assert _files_containing(root / "deploy", name) == [], name
+    # The manifest tests pass with the IAM policy as it is, and once a fork has trimmed the
+    # example's statements by hand (JSON has no comments for the markers).
+    as_shipped = _run(root, *_MANIFEST_TESTS, python_path=(root / "src",))
+    assert as_shipped.returncode == 0, as_shipped.stdout + as_shipped.stderr
+    _trim_example_statements(root / "deploy" / "iam" / "policy.json")
+    trimmed = _run(root, *_MANIFEST_TESTS, python_path=(root / "src",))
+    assert trimmed.returncode == 0, trimmed.stdout + trimmed.stderr
+
+
 def test_remove_example_in_temp_copy(repo_copy):
     package = repo_copy / "src" / PACKAGE
     first_run = (package / "agents" / EXAMPLE_AGENT).is_dir()
@@ -333,6 +371,7 @@ def test_remove_example_in_temp_copy(repo_copy):
 
     # The example's settings go too, from the settings, .env.example and the manifests (F4).
     assert _example_settings_left(repo_copy) == []
+    _check_deploy_after_removal(repo_copy)
     # The next step: remove the example's dependencies. A second run has nothing to do.
     if first_run:
         assert f"uv remove {' '.join(remove_example.EXAMPLE_DEPENDENCIES)}\n" in result.stdout

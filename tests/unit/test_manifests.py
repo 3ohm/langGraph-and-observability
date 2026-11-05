@@ -2,9 +2,14 @@
 §9.10, §10.1; P19).
 
 The files are examples with placeholders, so these tests parse them as YAML and JSON and
-check what the worker relies on: read-only RBAC, the shutdown and probe settings, a
-locked-down container, secrets only from Secret references, two database roles, and an
-IAM policy with exactly the actions of spec §9.10.
+check what the worker relies on: the shutdown and probe settings, a locked-down
+container, secrets only from Secret references, two database roles, an IAM policy with
+the actions of spec §9.10, and the example agent's read-only RBAC.
+
+``scripts/remove_example.py`` deletes the RBAC with the example. JSON has no comments for
+the markers, so the IAM policy keeps the example's Bedrock and ECR statements until a fork
+trims them by hand (``docs/guides/customize.md``): the IAM tests accept the policy with or
+without them, and fail on any other action.
 """
 
 import functools
@@ -22,9 +27,19 @@ ROOT = Path(__file__).resolve().parents[2]
 K8S = ROOT / "deploy" / "k8s"
 POLICY = ROOT / "deploy" / "iam" / "policy.json"
 
-# One object of each kind: no Secret, no HPA or KEDA object (spec §10.1).
-KINDS = ["ClusterRole", "ClusterRoleBinding", "ConfigMap", "Deployment", "Job", "ServiceAccount"]
+# One object of each kind, in sorted order: no Secret, no HPA or KEDA object (spec §10.1).
+KINDS = [
+    # example-agent:begin (scripts/remove_example.py deletes this block)
+    "ClusterRole",
+    "ClusterRoleBinding",
+    # example-agent:end
+    "ConfigMap",
+    "Deployment",
+    "Job",
+    "ServiceAccount",
+]
 
+# example-agent:begin (scripts/remove_example.py deletes this block)
 # What the real Kubernetes adapter reads (spec §9.3), as (API group, resource).
 K8S_READS = {
     ("", "pods"),
@@ -37,13 +52,19 @@ K8S_READS = {
     ("apps", "daemonsets"),
     ("batch", "jobs"),
 }
+# example-agent:end
 
-IAM_ACTIONS = {
-    "bedrock:InvokeModel",
+# The worker's IAM actions (spec §9.10): the intake queue and the result queue.
+IAM_CORE_ACTIONS = {
     "sqs:ReceiveMessage",
     "sqs:DeleteMessage",
     "sqs:ChangeMessageVisibility",
     "sqs:SendMessage",
+}
+# The example agent's: the model, and the image labels of the triaged workloads. The
+# policy may keep or drop them (the module docstring).
+IAM_EXAMPLE_ACTIONS = {
+    "bedrock:InvokeModel",
     "ecr:BatchGetImage",
     "ecr:GetDownloadUrlForLayer",
 }
@@ -170,6 +191,7 @@ def test_only_the_example_objects_and_no_secret():
     assert "secretGenerator" not in _kustomization()
 
 
+# example-agent:begin (scripts/remove_example.py deletes this block)
 def test_rbac_read_only():
     role = _kind("ClusterRole")
     rules = role["rules"]
@@ -193,6 +215,9 @@ def test_rbac_binds_the_worker_service_account():
         {"kind": "ServiceAccount", "name": account, "namespace": namespace}
     ]
     assert _pod("Deployment")["serviceAccountName"] == account
+
+
+# example-agent:end
 
 
 def test_service_account_has_the_iam_role_placeholder():
@@ -303,8 +328,9 @@ def test_iam_actions_exact():
     assert policy["Version"] == "2012-10-17"
     assert all(s["Effect"] == "Allow" for s in statements)
     assert not any({"NotAction", "NotResource", "Principal"} & set(s) for s in statements)
-    actions = [a for s in statements for a in _as_list(s["Action"])]
-    assert set(actions) == IAM_ACTIONS
+    actions = {a for s in statements for a in _as_list(s["Action"])}
+    # Every action of the worker; the example's, if the policy still has them; nothing else.
+    assert IAM_CORE_ACTIONS <= actions <= IAM_CORE_ACTIONS | IAM_EXAMPLE_ACTIONS
     resources = [r for s in statements for r in _as_list(s["Resource"])]
     assert resources and not any("*" in r for r in resources)
 
@@ -315,9 +341,10 @@ def test_iam_statements_scoped_to_their_resources():
     for action in ("sqs:ReceiveMessage", "sqs:DeleteMessage", "sqs:ChangeMessageVisibility"):
         assert [_as_list(s["Resource"]) for s in _statements_with(action)] == [[intake]]
     assert [_as_list(s["Resource"]) for s in _statements_with("sqs:SendMessage")] == [[results]]
+    # The example's ECR statements, while the policy has them: only repositories.
     for action in ("ecr:BatchGetImage", "ecr:GetDownloadUrlForLayer"):
-        (statement,) = _statements_with(action)
-        assert all(":repository/" in r for r in _as_list(statement["Resource"]))
+        for statement in _statements_with(action):
+            assert all(":repository/" in r for r in _as_list(statement["Resource"])), action
 
 
 # example-agent:begin (scripts/remove_example.py deletes this block)

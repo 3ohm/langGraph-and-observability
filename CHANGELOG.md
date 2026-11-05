@@ -67,5 +67,5 @@ The first release (Phases 0 and 1). It is tagged after the owner's real-mode smo
 - A tested recipe in `docs/guides/customize.md` to run a graph in your own process with the same
   persistence and tracing.
 - `scripts/remove_example.py` also removes the example's settings, with their `.env.example`
-  lines, test defaults, `compose.yaml` lines and Kubernetes keys, and prints the `uv remove`
-  command for the example's dependencies.
+  lines, test defaults, `compose.yaml` lines and Kubernetes keys, and the example's read-only
+  RBAC, and prints the `uv remove` command for the example's dependencies.

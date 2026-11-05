@@ -47,8 +47,9 @@ make lint typecheck test
 
 It deletes `src/<package>/agents/incident_triage/` and the files that only the example uses
 (`scripts/send_incident.py`, `scripts/sync_dataset.py`, their tests, the agent's end-to-end test,
-`.github/workflows/evals.yml` and `docs/guides/real-mode.md`, with its links in `README.md` and
-the other docs). It
+`.github/workflows/evals.yml`, `docs/guides/real-mode.md` with its links in `README.md` and the
+other docs, and the read-only RBAC `deploy/k8s/rbac.yaml` with its line in `kustomization.yaml`;
+the worker's ServiceAccount stays, for its IAM role). It
 removes the agent's `langgraph.json` entry and registry line, resets the settings default that
 names it (`APP_INTAKE_AGENT` becomes empty), and deletes the example's parts of the Makefile
 (`grammars`, `incident`), the Dockerfile (the tree-sitter grammars), CI, `settings.py` (the
@@ -67,9 +68,10 @@ Then:
 - remove the example's dependencies with the `uv remove` command that the script prints (it
   leaves `pyproject.toml` and `uv.lock` as they are);
 - update `README.md`, `AGENTS.md` and `docs/`, which still describe the example;
-- trim what only the example needs: the read-only ClusterRole in `deploy/k8s/rbac.yaml`, and the
-  Bedrock and ECR statements of `deploy/iam/policy.json`. JSON has no comments for the markers, so
-  the IAM policy keeps those statements until you remove them (least privilege, P19);
+- remove the Bedrock and ECR statements of `deploy/iam/policy.json`, which only the example needs
+  (least privilege, P19). The script removes the example's RBAC, but JSON has no comments for the
+  markers, so the IAM policy keeps those statements until you remove them by hand.
+  `tests/unit/test_manifests.py` accepts the policy with or without them;
 - register your agent and set `APP_INTAKE_AGENT`: without an agent, a worker with
   `APP_SQS_QUEUE_URL` set refuses to start.
 

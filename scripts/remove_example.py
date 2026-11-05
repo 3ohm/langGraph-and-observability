@@ -9,7 +9,10 @@ that only the example uses: ``scripts/send_incident.py`` (``make incident``) and
 ``scripts/sync_dataset.py``, their tests, the agent's end-to-end test, the Evals
 workflow and the real-mode guide, whose links it removes from ``README.md``,
 ``docs/guides/quickstart.md``, ``docs/guides/run-on-eks.md`` and
-``docs/release-checklist.md``. It removes
+``docs/release-checklist.md``, and the read-only RBAC for the Kubernetes evidence,
+``deploy/k8s/rbac.yaml``, with its line in ``kustomization.yaml`` and the lines of
+``docs/practices/P19.md`` that name it (the worker's ServiceAccount stays, for its IAM
+role). It removes
 the agent's entry from ``langgraph.json`` and its line from ``worker/registry.py`` (in a
 fork that has deleted the worker, the registry is gone with it), and
 it resets the settings default that names it (``intake_agent`` to ``""``) in
@@ -75,6 +78,8 @@ DELETE = (
     "tests/e2e/test_triage_e2e.py",
     ".github/workflows/evals.yml",
     "docs/guides/real-mode.md",
+    # The read-only RBAC for the Kubernetes evidence: the core worker reads no Kubernetes API.
+    "deploy/k8s/rbac.yaml",
 )
 
 # The lines that open and close a part of a file that only the example agent uses.
@@ -89,6 +94,8 @@ MARKED_FILES = (
     "tests/unit/test_settings.py",
     "deploy/k8s/configmap.yaml",
     "deploy/k8s/deployment.yaml",
+    "deploy/k8s/kustomization.yaml",
+    "deploy/k8s/serviceaccount.yaml",
     "tests/unit/test_manifests.py",
     "compose.yaml",
 )
@@ -186,6 +193,14 @@ EDITS = (
         "Follow [guides/real-mode.md](guides/real-mode.md), steps 1 to 8, with the owner's AWS, "
         "EKS,\n",
         "Run a first real triage of your agent, with the owner's AWS, EKS,\n",
+    ),
+    # The practice note's lines on the deleted RBAC: its file, and its test in the marked
+    # part of test_manifests.py.
+    Edit("docs/practices/P19.md", "- `deploy/k8s/rbac.yaml`\n"),
+    Edit(
+        "docs/practices/P19.md",
+        "- `tests/unit/test_manifests.py::test_rbac_read_only`: every RBAC verb is `get` or "
+        "`list`.\n",
     ),
 )
 
