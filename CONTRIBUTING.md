@@ -12,7 +12,7 @@ change. Read [AGENTS.md](AGENTS.md) for the rules that every change follows.
    make setup
    ```
 
-3. Install the git hooks (ruff, mypy, gitleaks, the lockfile check and basic hygiene):
+3. Install the git hooks (ruff, pylint, mypy, gitleaks, the lockfile check and basic hygiene):
 
    ```bash
    uv run pre-commit install

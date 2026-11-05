@@ -15,8 +15,9 @@ The first release (Phases 0 and 1). It is tagged after the owner's real-mode smo
 
 ### Added
 
-- Project skeleton: a uv project on Python 3.14 with ruff, mypy (strict), pytest (warnings are
-  errors, coverage reported), pre-commit hooks, a Makefile and the governance files.
+- Project skeleton: a uv project on Python 3.14 with ruff, pylint, mypy (strict), pytest
+  (warnings are errors, coverage reported), pre-commit hooks, a Makefile and the governance
+  files.
 - Postgres persistence: a health-checked connection pool with a PgBouncer-safe mode, a pool-aware
   checkpointer, strict serialization with an allowlist and optional encryption at rest,
   forward-only plain-SQL migrations as their own step, an action ledger for idempotent side

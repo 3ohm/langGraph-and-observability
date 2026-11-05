@@ -77,7 +77,7 @@ an empty context runs `APP_STUDIO_FIXTURE` (`python-keyerror`).
 ## Develop
 
 ```bash
-make lint typecheck        # ruff and mypy (strict)
+make lint typecheck        # ruff, pylint and mypy (strict)
 make test                  # unit tests: no Docker, no network, no credentials
 make test-int              # integration tests against Postgres and ElasticMQ (Docker)
 make test-e2e              # worker subprocesses, kill -9 and SIGTERM (Docker)

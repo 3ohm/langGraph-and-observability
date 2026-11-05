@@ -30,8 +30,8 @@ the example, and build your own agent on the same base.
   tree-sitter code extraction, and recorded model replies, so it all runs without credentials.
 - **Deployment:** a Dockerfile, a Compose stack, and EKS manifests with read-only RBAC and an
   IAM policy.
-- **Tooling:** uv, ruff, mypy (strict), pytest with warnings as errors, and CI with a removal
-  job and gated evals.
+- **Tooling:** uv, ruff, pylint, mypy (strict), pytest with warnings as errors, and CI with a
+  removal job and gated evals.
 
 ## Quickstart
 
@@ -105,7 +105,7 @@ You need uv; it installs Python 3.14 when it is missing.
 
 ```bash
 make setup      # install every dependency group, then fetch the tree-sitter grammars
-make lint       # ruff lint and format check
+make lint       # ruff lint and format check, then pylint
 make typecheck  # mypy (strict)
 make test       # unit tests with coverage: no Docker, no network, no credentials
 make test-int   # integration tests against Postgres and ElasticMQ (needs Docker)

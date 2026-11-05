@@ -35,7 +35,8 @@ Use uv for everything (`uv add`, `uv run`). Do not use pip. Commit `uv.lock`.
 ```bash
 make setup       # uv sync --all-groups, then make grammars
 make grammars    # fetch the tree-sitter grammars (APP_GRAMMAR_DIR or the user cache)
-make lint        # ruff check + ruff format --check
+make lint        # ruff check + ruff format --check, then make pylint
+make pylint      # pylint on package code and scripts, then on the tests with fewer checks
 make fmt         # ruff fixes, then ruff format
 make typecheck   # mypy (strict) on src, tests, scripts and conftest.py
 make test        # unit tests with coverage: no Docker, no network, no credentials
@@ -73,6 +74,10 @@ uv run scripts/remove_example.py                          # remove the example a
 
 - Python 3.14. Do not add `from __future__ import annotations`. Use `uuid.uuid7()` for time-ordered IDs.
 - mypy strict for package code. Test modules may leave functions unannotated; mypy still checks them.
+- ruff lints and is the only formatter (do not add black). pylint lints on top of ruff, with its
+  config in `pyproject.toml`. Fix a pylint message before you silence it; silence one line with
+  `# pylint: disable=<symbolic-name>  # reason`, never with a message code. Test modules skip
+  the checks in the Makefile's `PYLINT_TEST_DISABLE`.
 - Warnings are errors in tests. Add a filter only for an unavoidable third-party warning: scope it
   to the message and the module, and add a comment that says why.
 - Settings use the `APP_` prefix. Vendor variables keep their own names: `DD_*`, `LANGSMITH_*`,
