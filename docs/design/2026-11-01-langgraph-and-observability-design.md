@@ -299,7 +299,7 @@ If a step lasts longer than the grace period, Kubernetes sends SIGKILL, and that
 - **Health:** a small FastAPI app on `APP_HEALTH_PORT` serves two endpoints.
   - `/ok` is liveness: the event loop responds.
   - `/ready` is readiness: Postgres answers `SELECT 1`, the pool is open, and the intake loop is alive.
-- **Inspection:** a CLI, `python -m langgraph_and_observability runs list|show <run_id>|retry <run_id>`.
+- **Inspection:** a CLI, `python -m langgraph_and_observability runs create <agent> --input <json>|list|show <run_id>|retry <run_id>`.
 
 ## 9. The first agent: Incident Triage
 
@@ -600,7 +600,7 @@ OpenTelemetry is the common pipe. This covers LangSmith's OTel bridge, Phoenix (
 ├── scripts/                  rename.py, remove_example.py, send_incident.py
 ├── src/langgraph_and_observability/
 │   ├── __main__.py  settings.py  logging.py  ids.py  redaction.py
-│   ├── persistence/          pool.py checkpointer.py serde.py ledger.py migrate.py  migrations/
+│   ├── persistence/          pool.py checkpointer.py store.py resources.py serde.py ledger.py migrate.py  migrations/
 │   ├── worker/               main.py intake.py runs.py recovery.py drain.py health.py cli.py registry.py  migrations/
 │   ├── observability/        langsmith.py metadata.py
 │   └── agents/incident_triage/
