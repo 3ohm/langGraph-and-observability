@@ -312,7 +312,10 @@ def _example_settings_left(root: Path) -> list[str]:
 
 
 def _trim_example_statements(policy_path: Path) -> None:
-    """Delete the example's Bedrock and ECR statements from an IAM policy, as a fork does."""
+    """Delete the example's Bedrock and ECR statements from an IAM policy, as a fork does.
+
+    A policy that a fork has trimmed already stays as it is.
+    """
     policy = json.loads(policy_path.read_text())
     statements = policy["Statement"]
 
@@ -322,9 +325,11 @@ def _trim_example_statements(policy_path: Path) -> None:
         assert isinstance(names, list), statement
         return all(str(name).startswith(_EXAMPLE_IAM_SERVICES) for name in names)
 
-    policy["Statement"] = [s for s in statements if not is_example(s)]
-    assert 0 < len(policy["Statement"]) < len(statements)
-    policy_path.write_text(json.dumps(policy, indent=2) + "\n")
+    kept = [s for s in statements if not is_example(s)]
+    assert kept, "the worker's own statements are gone"
+    if len(kept) < len(statements):
+        policy["Statement"] = kept
+        policy_path.write_text(json.dumps(policy, indent=2) + "\n")
 
 
 def _check_deploy_after_removal(root: Path) -> None:
@@ -341,7 +346,12 @@ def _check_deploy_after_removal(root: Path) -> None:
     # example's statements by hand (JSON has no comments for the markers).
     as_shipped = _run(root, *_MANIFEST_TESTS, python_path=(root / "src",))
     assert as_shipped.returncode == 0, as_shipped.stdout + as_shipped.stderr
-    _trim_example_statements(root / "deploy" / "iam" / "policy.json")
+    policy = root / "deploy" / "iam" / "policy.json"
+    _trim_example_statements(policy)
+    # A fork that has trimmed them already runs this suite too: trimming again does nothing.
+    once = policy.read_text()
+    _trim_example_statements(policy)
+    assert policy.read_text() == once
     trimmed = _run(root, *_MANIFEST_TESTS, python_path=(root / "src",))
     assert trimmed.returncode == 0, trimmed.stdout + trimmed.stderr
 
