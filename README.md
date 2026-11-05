@@ -18,8 +18,9 @@ the example, and build your own agent on the same base.
 ## What's inside
 
 - **Postgres persistence:** one health-checked connection pool per process, a pool-aware
-  checkpointer, strict serialization with optional encryption, plain-SQL migrations as their own
-  step, two database roles, and retention for checkpoints and results.
+  checkpointer, the LangGraph Store for long-term memory on the same pool, strict serialization
+  with optional encryption, plain-SQL migrations as their own step, two database roles, and
+  retention for checkpoints and results.
 - **A queue worker:** SQS intake with dedup and a dead-letter queue, leases and heartbeats,
   periodic recovery, a drain within Kubernetes' 60-second shutdown hook, idempotent publishing,
   health endpoints and an operator CLI.
@@ -98,6 +99,7 @@ test-only graph, so they keep their proof when you remove the example agent.
 | [P21](docs/practices/P21.md) | Evals gate pull requests |
 | [P22](docs/practices/P22.md) | Removable example agent |
 | [P23](docs/practices/P23.md) | Cache-friendly prompts |
+| [P24](docs/practices/P24.md) | Long-term memory in the Postgres Store |
 
 ## Development
 

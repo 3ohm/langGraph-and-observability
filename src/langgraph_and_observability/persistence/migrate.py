@@ -29,6 +29,7 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from langgraph.checkpoint.postgres.aio import AsyncPostgresSaver
+from langgraph.store.postgres.aio import AsyncPostgresStore
 from psycopg import AsyncConnection
 from psycopg.rows import DictRow
 from psycopg_pool import AsyncConnectionPool
@@ -39,7 +40,8 @@ from langgraph_and_observability.settings import Settings
 CORE_MIGRATIONS_DIR = Path(__file__).parent / "migrations"
 WORKER_MIGRATIONS_DIR = Path(__file__).parents[1] / "worker" / "migrations"
 
-# The component name of LangGraph's own checkpoint tables (AsyncPostgresSaver.setup()).
+# The component name of LangGraph's own tables: the checkpoint tables
+# (AsyncPostgresSaver.setup()) and the Store's (AsyncPostgresStore.setup()).
 LANGGRAPH = "langgraph"
 _BUILT_IN = frozenset({"core", LANGGRAPH, "worker"})
 
@@ -142,11 +144,12 @@ async def run_migrate(
     """Bring the schema up to date and return the SQL migrations that were applied.
 
     The order is ``core``; ``langgraph``; ``worker``; then each ``(agent, directory)``
-    of ``agent_sources``. ``langgraph`` is the stock ``AsyncPostgresSaver.setup()``. It
-    keeps its own versions in ``checkpoint_migrations`` and runs on every call, so new
-    checkpoint migrations from a library upgrade apply too. ``components`` names the
-    components to run; None runs all of them. Connects with ``migration_database_url``,
-    else ``database_url``, and holds the migration lock for the whole run.
+    of ``agent_sources``. ``langgraph`` is the stock ``AsyncPostgresSaver.setup()``, then
+    ``AsyncPostgresStore.setup()``. Each keeps its own versions (``checkpoint_migrations``,
+    ``store_migrations``) and runs on every call, so new migrations from a library
+    upgrade apply too. ``components`` names the components to run; None runs all of
+    them. Connects with ``migration_database_url``, else ``database_url``, and holds the
+    migration lock for the whole run.
 
     Raises ValueError, before connecting, for an unknown component, an agent with a
     built-in component name, a bad migration folder, or no database URL.
@@ -175,9 +178,10 @@ async def run_migrate(
         async with _migration_lock(pool) as conn:
             applied = await _apply_locked(conn, [m for m in migrations if m.component == "core"])
             if selected(LANGGRAPH):
-                # The pool's connections are in autocommit mode, which setup() needs for
-                # its CREATE INDEX CONCURRENTLY statements.
+                # The pool's connections are in autocommit mode, which both setup() calls
+                # need for their CREATE INDEX CONCURRENTLY statements.
                 await AsyncPostgresSaver(conn).setup()
+                await AsyncPostgresStore(conn).setup()
             applied += await _apply_locked(conn, [m for m in migrations if m.component != "core"])
     finally:
         await pool.close()

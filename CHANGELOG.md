@@ -23,6 +23,9 @@ The first release (Phases 0 and 1). It is tagged after the owner's real-mode smo
   forward-only plain-SQL migrations as their own step, an action ledger for idempotent side
   effects, two database roles (`deploy/sql/roles.sql`) and leader-elected retention for
   checkpoints and results.
+- The LangGraph Store on the same Postgres pool (`persistence/store.py`): long-term memory that
+  nodes read and write through `runtime.store`. `migrate` creates its tables, and the worker
+  compiles every graph with it.
 - The queue worker: SQS intake that validates, dedups and records a message before it deletes
   it, with bad messages left to the dead-letter queue; runs with leases, heartbeats and periodic
   recovery; a run deadline; a drain within Kubernetes' 60-second shutdown hook; resume at the
@@ -46,7 +49,7 @@ The first release (Phases 0 and 1). It is tagged after the owner's real-mode smo
 - Deployment: a Dockerfile (`python:3.14-slim` with ripgrep, git and the grammars), a Compose
   stack (Postgres, ElasticMQ, migrate, worker), example EKS manifests (kustomize) with read-only
   RBAC, and an IAM policy.
-- Docs and scripts: 23 practice notes; the quickstart, run-on-eks, real-mode, customize and
+- Docs and scripts: 24 practice notes; the quickstart, run-on-eks, real-mode, customize and
   upgrade guides; a release checklist; `scripts/rename.py`, `scripts/remove_example.py` and
   `scripts/send_incident.py`; CI on Python 3.14 with lint, unit, integration, end-to-end, image
   and removal jobs.

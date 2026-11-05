@@ -1,9 +1,10 @@
 """The queue worker: intake, heartbeats, recovery and drain (spec §8; P9, P10).
 
 ``Worker.start`` configures tracing (``observability.langsmith.configure_tracing``; off
-unless LangSmith tracing and a key are set), opens the pool, builds the checkpointer and
-the run executor, which gives each run its trace metadata (``run_metadata``), starts the
-health server on ``APP_HEALTH_PORT`` (§8.6) and starts these loops:
+unless LangSmith tracing and a key are set), opens the pool, builds the checkpointer, the
+Store (P24) and the run executor, which gives each run its trace metadata
+(``run_metadata``), starts the health server on ``APP_HEALTH_PORT`` (§8.6) and starts
+these loops:
 
 - intake, only when ``APP_SQS_QUEUE_URL`` is set: while a run slot is free, it
   long-polls SQS for at most as many messages as there are free slots, then claims and
@@ -66,6 +67,7 @@ from langgraph_and_observability.persistence.checkpointer import (
 from langgraph_and_observability.persistence.pool import create_pool, open_pool
 from langgraph_and_observability.persistence.resources import set_pool
 from langgraph_and_observability.persistence.serde import make_serde
+from langgraph_and_observability.persistence.store import make_store
 from langgraph_and_observability.settings import Settings, load_settings
 from langgraph_and_observability.worker.executor import RunExecutor, error_fields
 from langgraph_and_observability.worker.health import ReadinessProbe, create_health_app
@@ -218,10 +220,12 @@ class Worker:  # pylint: disable=too-many-instance-attributes  # the process's r
             list(serde_types), aes_key=None if aes_key is None else aes_key.get_secret_value()
         )
         saver = make_checkpointer(pool, serde, pgbouncer_mode=settings.pgbouncer_mode)
+        store = make_store(pool)
         repo = RunRepo(pool)
         self._repo = repo
         executor = RunExecutor(
             saver=saver,
+            store=store,
             agents=self._agents,
             repo=repo,
             settings=settings,

@@ -20,6 +20,7 @@ pytestmark = pytest.mark.integration
 
 ROLES_SQL = Path(__file__).parents[2] / "deploy" / "sql" / "roles.sql"
 CHECKPOINT_TABLES = {"checkpoints", "checkpoint_blobs", "checkpoint_writes"}
+STORE_TABLES = {"store", "store_migrations"}
 
 
 async def _existing(dsn: str, *names: str) -> set[str]:
@@ -100,14 +101,27 @@ async def test_langgraph_component_creates_checkpoint_tables(fresh_dsn):
     applied = await run_migrate(load_settings(database_url=fresh_dsn), components={"langgraph"})
 
     assert applied == []
-    assert await _existing(fresh_dsn, *CHECKPOINT_TABLES, "action_ledger") == CHECKPOINT_TABLES
+    langgraph_tables = CHECKPOINT_TABLES | STORE_TABLES
+    assert await _existing(fresh_dsn, *langgraph_tables, "action_ledger") == langgraph_tables
 
 
 async def test_components_filter_skips_langgraph(fresh_dsn):
     applied = await run_migrate(load_settings(database_url=fresh_dsn), components={"core"})
 
     assert [(m.component, m.version) for m in applied] == [("core", 1)]
-    assert await _existing(fresh_dsn, *CHECKPOINT_TABLES, "action_ledger") == {"action_ledger"}
+    assert await _existing(fresh_dsn, *CHECKPOINT_TABLES, *STORE_TABLES, "action_ledger") == {
+        "action_ledger"
+    }
+
+
+async def test_migrate_twice_sets_up_the_store(fresh_dsn):
+    settings = load_settings(database_url=fresh_dsn)
+
+    await run_migrate(settings)
+    # The second run's setup() calls find their migrations applied: no error.
+    await run_migrate(settings)
+
+    assert await _existing(fresh_dsn, *STORE_TABLES) == STORE_TABLES
 
 
 async def test_run_migrate_orders_core_langgraph_then_agents(fresh_dsn, tmp_path):
@@ -174,3 +188,7 @@ async def test_app_role_cannot_run_ddl(fresh_dsn):
             " VALUES ('k1', 'publish', 'h', '{}'::jsonb)"
         )
         await app.execute("DELETE FROM checkpoint_writes")
+        # The Store's tables too: roles.sql's default privileges cover them.
+        await app.execute(
+            "INSERT INTO store (prefix, key, value) VALUES ('memory', 'k1', '{}'::jsonb)"
+        )

@@ -26,7 +26,7 @@ PRACTICES = ROOT / "docs" / "practices"
 GUIDES = ROOT / "docs" / "guides"
 README = ROOT / "README.md"
 
-PRACTICE_IDS = [f"P{n}" for n in range(1, 24)]
+PRACTICE_IDS = [f"P{n}" for n in range(1, 25)]
 SECTIONS = ["Problem", "What the template does", "Where", "Proof"]
 MAX_LINES = 40
 

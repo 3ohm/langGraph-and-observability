@@ -14,12 +14,12 @@ own agent. The design is in `docs/design/`; the implementation plans are in `doc
 src/langgraph_and_observability/
   __main__.py               CLI: python -m langgraph_and_observability (worker, migrate, runs)
   settings.py logging.py ids.py redaction.py policies.py agent_spec.py
-  persistence/              connection pool, migrations, serializer, checkpointer, action ledger
+  persistence/              connection pool, migrations, serializer, checkpointer, store, action ledger
   worker/                   queue worker: intake, runs, executor, health, CLI, registry, retention
   observability/            LangSmith tracing and run metadata
   agents/incident_triage/   the example agent: graph, nodes, adapters, codeintel, fixtures, evals, tests
 tests/                      unit/  integration/  e2e/  graphs/ (the test-only steps graph)  conftest.py
-docs/                       design/  plans/  adr/  practices/ (P1-P23)  guides/
+docs/                       design/  plans/  adr/  practices/ (P1-P24)  guides/
 deploy/                     example manifests (Kubernetes, IAM, SQL roles, ElasticMQ)
 scripts/                    rename.py  remove_example.py  send_incident.py  sync_dataset.py
 .claude/agents/             build agents (implementer, reviewer)

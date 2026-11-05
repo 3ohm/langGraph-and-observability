@@ -36,6 +36,7 @@ from langgraph.checkpoint.base import BaseCheckpointSaver
 from langgraph.errors import GraphDrained
 from langgraph.graph.state import CompiledStateGraph
 from langgraph.runtime import RunControl
+from langgraph.store.base import BaseStore
 from pydantic import ValidationError
 
 from langgraph_and_observability.agent_spec import AgentSpec, RunInfo
@@ -76,7 +77,9 @@ class InterruptNotSupportedError(RuntimeError):
 class RunExecutor:  # pylint: disable=too-many-instance-attributes  # collaborators, caches
     """Executes claimed runs of ``agents`` for the pod ``owner``.
 
-    ``saver`` is the checkpointer that every agent's graph is compiled with, once.
+    ``saver`` is the checkpointer that every agent's graph is compiled with, once, and
+    ``store`` the LangGraph Store that its nodes reach as ``runtime.store`` (None: no
+    store).
     ``metadata`` maps a run to the trace metadata of its invocation; secrets and the
     run's identity stay out of ``configurable`` (spec §8.5).
     """
@@ -90,11 +93,13 @@ class RunExecutor:  # pylint: disable=too-many-instance-attributes  # collaborat
         settings: Settings,
         owner: str,
         metadata: Callable[[RunRow], dict[str, str]] | None = None,
+        store: BaseStore | None = None,
     ) -> None:
         self._saver = saver
         self._agents = dict(agents)
         self._graphs: dict[str, CompiledStateGraph[Any, Any, Any, Any]] = {
-            name: spec.build_graph().compile(checkpointer=saver) for name, spec in agents.items()
+            name: spec.build_graph().compile(checkpointer=saver, store=store)
+            for name, spec in agents.items()
         }
         self._repo = repo
         self._settings = settings

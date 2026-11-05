@@ -10,6 +10,9 @@ import pytest
 import structlog
 from langgraph.graph import START, StateGraph
 from langgraph.graph.state import CompiledStateGraph
+from langgraph.runtime import Runtime
+from langgraph.store.base import BaseStore
+from langgraph.store.memory import InMemoryStore
 from langgraph.types import interrupt
 
 from langgraph_and_observability.agent_spec import AgentSpec
@@ -43,10 +46,12 @@ async def saver(steps_pool):
 def make_executor(saver, repo):
     """Build a RunExecutor for one agent, by default the steps agent.
 
-    Keyword arguments other than ``metadata`` and ``spec`` override settings.
+    Keyword arguments other than ``metadata``, ``spec`` and ``store`` override settings.
     """
 
-    def make(metadata=None, spec: AgentSpec = STEPS_SPEC, **settings):
+    def make(
+        metadata=None, spec: AgentSpec = STEPS_SPEC, store: BaseStore | None = None, **settings
+    ):
         return RunExecutor(
             saver=saver,
             agents={spec.name: spec},
@@ -54,6 +59,7 @@ def make_executor(saver, repo):
             settings=load_settings(**settings),
             owner=OWNER,
             metadata=metadata,
+            store=store,
         )
 
     return make
@@ -356,3 +362,25 @@ async def test_retry_after_an_interrupt_completes_when_the_condition_clears(make
     assert calls == Counter({"first": 1, "gate": 2})
     row = await _get(repo, run_id)
     assert (row.status, row.attempt) == (RunStatus.SUCCESS, 1)
+
+
+async def remember(state: StepsState, runtime: Runtime[StepsContext]) -> dict[str, list[str]]:
+    """Put an item in the Store, under the run's key."""
+    assert runtime.store is not None
+    await runtime.store.aput(
+        ("memory", state["key"]), "last_run", {"run_id": str(runtime.context.run.run_id)}
+    )
+    return {"log": ["remembered"]}
+
+
+async def test_executor_compiles_graphs_with_the_store(make_executor, repo):
+    store = InMemoryStore()
+    spec = replace(STEPS_SPEC, name="test_store", build_graph=lambda: _graph(remember))
+    executor = make_executor(spec=spec, store=store)
+    run_id = await _create(repo, spec.name, "user-1")
+
+    assert await executor.execute(await _claim(repo, run_id)) == RunStatus.SUCCESS
+
+    item = await store.aget(("memory", "user-1"), "last_run")
+    assert item is not None
+    assert item.value == {"run_id": str(run_id)}

@@ -73,7 +73,7 @@ Every step is saved to Postgres. A run that dies at any step resumes at that ste
   - an Agent Server-compatible HTTP API with SSE, compatible with agent-chat-ui;
   - end-user auth and per-user ownership of conversations;
   - human-in-the-loop approvals.
-- **Long-term memory** in the LangGraph Store, for example past incidents for each workload.
+- **Long-term memory for the example agent,** for example past incidents for each workload. The LangGraph Store itself is no longer backlog: it runs on the shared pool (§7.3, P24).
 - **LangSmith Deployment** as a hosting option for the graph.
 - **Result sinks** for Slack, Jira and PagerDuty.
 - **Producer adapters** that turn Datadog monitor webhooks and Alertmanager alerts into the input envelope.
@@ -137,7 +137,7 @@ These are minimum versions; the lockfile pins exact versions.
 
 ### 6.3 Infrastructure
 
-- **Postgres 18**, using the image `pgvector/pgvector:0.8.4-pg18`. pgvector isn't used in v1, but this image keeps the backlog's Store work from needing a different database.
+- **Postgres 18**, using the image `pgvector/pgvector:0.8.4-pg18`. pgvector isn't used in v1, but with this image the Store (P24) can add semantic search without a different database.
 - **Local SQS:** ElasticMQ (`softwaremill/elasticmq-native:1.7.1`, Apache-2.0), which is SQS-compatible.
 - **Runtime image:** `python:3.14-slim` (Debian trixie), built with uv, with `ripgrep` and `git` installed from apt.
 - **Docker:** no daemon was running on this machine on 2026-11-02. Compose and the integration tests need Docker Desktop, OrbStack or colima.
@@ -235,9 +235,9 @@ There's an index on `(status, lease_expires_at)`.
 
 **How migrations run:**
 
-- **The `migrate` command** runs our SQL migrations, then `AsyncPostgresSaver.setup()`.
+- **The `migrate` command** runs our SQL migrations, then `AsyncPostgresSaver.setup()` and `AsyncPostgresStore.setup()`: the checkpoint tables and the tables of the LangGraph Store, which the worker compiles every graph with (P24).
 - **It's a one-shot step** under the migration role, run as a Compose service or a Kubernetes Job. It never runs during startup on every replica.
-- **Autocommit:** `setup()` needs it, because it uses `CREATE INDEX CONCURRENTLY`.
+- **Autocommit:** both `setup()` calls need it, because they use `CREATE INDEX CONCURRENTLY`.
 
 ### 7.4 Retention
 
