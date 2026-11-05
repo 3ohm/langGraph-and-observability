@@ -1,35 +1,31 @@
 """Retry and timeout policies for graph nodes (spec §6.5 and §8.5).
 
-LangGraph's ``default_retry_on`` does not suit this agent. It never retries
+LangGraph's ``default_retry_on`` does not suit this template. It never retries
 ``TimeoutError`` (an ``OSError``), and it retries provider-SDK errors that it does not
 recognise, 400s included. External calls get one retry layer: the client library's
-own (botocore's standard mode, the Datadog and Kubernetes clients' retries). The
-graph's ``RetryPolicy`` retries only what ``is_transient`` accepts: transient
-infrastructure errors, and never a 4xx except a Kubernetes 429.
+own, when it has one. The graph's ``RetryPolicy`` retries only what its ``retry_on``
+predicate accepts: transient infrastructure errors, never a client's error that the
+client has already retried.
 
-From the vendor SDKs, this module imports exception types only: the ones that
-``is_transient`` accepts, and one that it must exclude. botocore's errors and the
-Datadog client's ``ApiException`` are not transient here, because those clients have
-already retried them. The Datadog async client retries only on HTTP status, so the
-timeouts and dropped connections of its transport, aiosonic, are transient here: this
-is their one retry layer.
+``is_transient`` here accepts the transient errors of the standard library, LangGraph
+and psycopg, and imports no vendor SDK, so it stays when a fork removes an agent and
+its clients. An agent whose clients raise other transient errors, such as their
+transports' timeouts, writes its own predicate that also accepts what this one
+accepts, and gives it to ``default_retry_policy(retry_on=...)``.
 """
 
 import socket
 import ssl
+from collections.abc import Callable
 
-import aiohttp
-import aiosonic.exceptions as aiosonic_exc  # type: ignore[import-untyped]
 import psycopg
-from kubernetes_asyncio.client.exceptions import ApiException as KubernetesApiException
 from langgraph.errors import NodeTimeoutError
 from langgraph.types import RetryPolicy, TimeoutPolicy
 from psycopg import errors as pg_errors
 
-# Transient by type; subclasses count too. OSError is not on the list: botocore's
-# connect, read, SSL and proxy errors subclass OSError (through botocore's vendored
-# requests), and botocore has already retried them. None of them subclasses
-# ConnectionError, TimeoutError, socket.gaierror or ssl.SSLEOFError.
+# Transient by type; subclasses count too. OSError is not on the list: it also holds
+# errors that a retry cannot fix (a missing file, a denied permission), and client
+# libraries subclass it for errors that they have already retried.
 _TRANSIENT_TYPES: tuple[type[BaseException], ...] = (
     ConnectionError,
     TimeoutError,
@@ -44,26 +40,7 @@ _TRANSIENT_TYPES: tuple[type[BaseException], ...] = (
     pg_errors.SerializationFailure,
     pg_errors.DeadlockDetected,
     psycopg.OperationalError,
-    aiohttp.ClientConnectionError,
-    # aiosonic, the Datadog async client's transport, which does not retry them. Its
-    # timeouts subclass AiosonicError, not TimeoutError, and so do its connection errors:
-    # a connection dropped before the response (ConnectionDisconnected), and a read or
-    # write on a connection that is already closed (MissingReader/WriterException). Its
-    # protocol and request errors (parsing, redirects, HTTP/2, decompression, status)
-    # stay not transient.
-    aiosonic_exc.ConnectTimeout,
-    aiosonic_exc.ReadTimeout,
-    aiosonic_exc.RequestTimeout,
-    aiosonic_exc.ConnectionPoolAcquireTimeout,
-    aiosonic_exc.ConnectionDisconnected,
-    aiosonic_exc.MissingReaderException,
-    aiosonic_exc.MissingWriterException,
 )
-
-# Subclasses of a transient type that are not transient. WebSocketMessageTooBig
-# subclasses ConnectionDisconnected, but it is a protocol error: a frame over the size
-# limit, which a retry would receive again.
-_NOT_TRANSIENT_TYPES: tuple[type[BaseException], ...] = (aiosonic_exc.WebSocketMessageTooBig,)
 
 
 def is_transient(exc: BaseException) -> bool:
@@ -71,31 +48,27 @@ def is_transient(exc: BaseException) -> bool:
 
     True for connection errors, timeouts (``TimeoutError`` and LangGraph's
     ``NodeTimeoutError``), failed DNS lookups (``socket.gaierror``), TLS connections
-    closed early (``ssl.SSLEOFError``), Postgres serialization failures, deadlocks and operational
-    errors, aiohttp connection errors, aiosonic timeouts and connection errors, and a
-    Kubernetes ``ApiException`` with status 429 or 5xx. False for everything else, which
-    includes all botocore errors, the Datadog client's ``ApiException`` and LangGraph's
-    ``GraphDrained``.
+    closed early (``ssl.SSLEOFError``), and Postgres serialization failures, deadlocks
+    and operational errors. False for everything else, which includes every other
+    ``OSError`` and LangGraph's ``GraphDrained``.
     """
-    if isinstance(exc, _NOT_TRANSIENT_TYPES):
-        return False
-    if isinstance(exc, _TRANSIENT_TYPES):
-        return True
-    if isinstance(exc, KubernetesApiException):
-        # The stub types status as int, but it is None when the exception has no status.
-        status = exc.status
-        return isinstance(status, int) and (status == 429 or status >= 500)
-    return False
+    return isinstance(exc, _TRANSIENT_TYPES)
 
 
-def default_retry_policy() -> RetryPolicy:
-    """The graph-wide retry policy: at most 3 attempts, only for transient errors."""
+def default_retry_policy(
+    retry_on: Callable[[BaseException], bool] = is_transient,
+) -> RetryPolicy:
+    """The graph-wide retry policy: at most 3 attempts, only for transient errors.
+
+    ``retry_on`` says which errors are transient. An agent with its own predicate gives
+    it here; the attempts and the backoff stay the same.
+    """
     return RetryPolicy(
         max_attempts=3,
         initial_interval=0.5,
         backoff_factor=2.0,
         jitter=True,
-        retry_on=is_transient,
+        retry_on=retry_on,
     )
 
 

@@ -10,7 +10,8 @@ returns.
 Errors: a missing object (404) is None, ``[]`` or ``{}``, as the interface says. A log
 that does not exist (400, such as the previous log of a container that has not
 restarted, or 404) is None. Every other ``ApiException`` goes up: the graph's retry
-policy retries a 429 or a 5xx (``policies.is_transient``) and fails on the rest.
+policy retries a 429 or a 5xx (the example's ``policies.is_transient``) and fails on
+the rest.
 """
 
 import asyncio

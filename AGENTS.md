@@ -56,8 +56,8 @@ uv run scripts/remove_example.py                          # remove the example a
 1. **Adapters.** Every external system is reached through an adapter interface (a `Protocol`) that
    has a fake. Import vendor SDKs (`kubernetes_asyncio`, `datadog_api_client`, `boto3`/`botocore`,
    `langsmith`) only under `agents/*/adapters/`, `worker/intake.py`, `observability/`,
-   `policies.py` (the last for exception types only) and `scripts/` (operator scripts, such as
-   `send_incident.py` and `sync_dataset.py`, which the package never imports).
+   `agents/*/policies.py` (the last for exception types only) and `scripts/` (operator scripts,
+   such as `send_incident.py` and `sync_dataset.py`, which the package never imports).
 2. **Async and idempotent.** Every graph step is `async`, and every side effect is idempotent.
 3. **No secrets** in graph state, in `configurable`, in logs, in traces or in prompts. All evidence
    text passes `redaction.redact()` before it enters state. `configurable` holds only `thread_id`.

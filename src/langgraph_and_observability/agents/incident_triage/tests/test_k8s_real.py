@@ -27,8 +27,8 @@ from langgraph_and_observability.agents.incident_triage.adapters.k8s.interface i
 )
 from langgraph_and_observability.agents.incident_triage.adapters.k8s.real import RealK8s
 from langgraph_and_observability.agents.incident_triage.fixtures.loader import load_fixture
+from langgraph_and_observability.agents.incident_triage.policies import is_transient
 from langgraph_and_observability.agents.incident_triage.schemas import WorkloadRef
-from langgraph_and_observability.policies import is_transient
 from langgraph_and_observability.settings import load_settings
 
 NS = "shop"

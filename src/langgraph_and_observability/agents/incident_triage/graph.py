@@ -5,9 +5,10 @@
 
 Policies (P12):
 
-- Every node retries what ``policies.is_transient`` accepts (``default_retry_policy``)
-  and caps each attempt with its own timeout (``TIMEOUTS``); the graph-wide default,
-  120 s, applies to the error handlers.
+- Every node retries what the example's ``policies.is_transient`` accepts
+  (``default_retry_policy(retry_on=is_transient)``): the core's transient errors and
+  those of the example's vendor clients. Each node caps each attempt with its own
+  timeout (``TIMEOUTS``); the graph-wide default, 120 s, applies to the error handlers.
 - ``collect_datadog`` and ``collect_code`` have error handlers. When the step fails for
   good (an error that is not transient, or the last attempt), its handler adds the
   note ``note:datadog:unavailable`` or ``note:code:unavailable`` and the run goes on:
@@ -40,6 +41,7 @@ from langgraph_and_observability.agents.incident_triage.nodes.datadog import col
 from langgraph_and_observability.agents.incident_triage.nodes.k8s import collect_k8s
 from langgraph_and_observability.agents.incident_triage.nodes.publish import publish
 from langgraph_and_observability.agents.incident_triage.nodes.resolve import resolve_target
+from langgraph_and_observability.agents.incident_triage.policies import is_transient
 from langgraph_and_observability.agents.incident_triage.schemas import EvidenceItem
 from langgraph_and_observability.agents.incident_triage.state import TriageState
 from langgraph_and_observability.logging import get_logger
@@ -79,7 +81,8 @@ def build_graph() -> StateGraph[TriageState, TriageContext, TriageState, TriageS
     """The graph, not compiled. The worker compiles it with its checkpointer."""
     builder = StateGraph(TriageState, context_schema=TriageContext)
     builder.set_node_defaults(
-        retry_policy=default_retry_policy(), timeout=step_timeout(DEFAULT_TIMEOUT_S)
+        retry_policy=default_retry_policy(retry_on=is_transient),
+        timeout=step_timeout(DEFAULT_TIMEOUT_S),
     )
     builder.add_node(resolve_target, timeout=step_timeout(TIMEOUTS["resolve_target"]))
     builder.add_node(collect_k8s, timeout=step_timeout(TIMEOUTS["collect_k8s"]))

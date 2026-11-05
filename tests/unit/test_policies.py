@@ -1,20 +1,21 @@
-import inspect
+import ast
 import socket
 import ssl
+from pathlib import Path
 
-import aiohttp
-import aiosonic.exceptions as aiosonic_exc  # type: ignore[import-untyped]
-import botocore.exceptions as botocore_exc
-import datadog_api_client.exceptions as datadog_exc
 import psycopg
 import pydantic
 import pytest
-from kubernetes_asyncio.client.exceptions import ApiException as KubernetesApiException
 from langgraph.errors import GraphBubbleUp, GraphDrained, NodeTimeoutError
 from langgraph.types import RetryPolicy, TimeoutPolicy
 from psycopg import errors as pg_errors
 
+from langgraph_and_observability import policies
 from langgraph_and_observability.policies import default_retry_policy, is_transient, step_timeout
+
+# The vendor packages whose errors only an agent's own predicate may accept: the core
+# policy must not depend on them.
+VENDOR_PACKAGES = {"aiohttp", "aiosonic", "kubernetes_asyncio"}
 
 
 def _validation_error() -> pydantic.ValidationError:
@@ -25,14 +26,8 @@ def _validation_error() -> pydantic.ValidationError:
     raise AssertionError("expected a ValidationError")
 
 
-def _datadog_error(status: int) -> Exception:
-    # The Datadog client ships py.typed, but this constructor has no annotations.
-    return datadog_exc.ApiException(status=status)  # type: ignore[no-untyped-call]
-
-
-BEDROCK = "https://bedrock-runtime.us-east-1.amazonaws.com"
-
-# The table from the plan (Task 6), with a few subclasses and neighbours added.
+# The table from the plan (Task 6), with a few subclasses and neighbours added. The
+# vendor clients' errors are in the example agent's table (its tests/test_policies.py).
 TABLE = [
     # Transient: connection errors and timeouts.
     pytest.param(ConnectionError("reset"), True, id="ConnectionError"),
@@ -56,92 +51,6 @@ TABLE = [
     pytest.param(pg_errors.SerializationFailure(), True, id="psycopg-SerializationFailure"),
     pytest.param(pg_errors.DeadlockDetected(), True, id="psycopg-DeadlockDetected"),
     pytest.param(psycopg.OperationalError("server closed"), True, id="psycopg-OperationalError"),
-    # Transient: aiohttp (the Kubernetes client's transport).
-    pytest.param(aiohttp.ClientConnectionError(), True, id="aiohttp-ClientConnectionError"),
-    pytest.param(aiohttp.ServerDisconnectedError(), True, id="aiohttp-ServerDisconnectedError"),
-    # Transient: aiosonic (the Datadog async client's transport, which does not retry).
-    pytest.param(aiosonic_exc.ConnectTimeout(), True, id="aiosonic-ConnectTimeout"),
-    pytest.param(aiosonic_exc.ReadTimeout(), True, id="aiosonic-ReadTimeout"),
-    pytest.param(aiosonic_exc.RequestTimeout(), True, id="aiosonic-RequestTimeout"),
-    pytest.param(
-        aiosonic_exc.ConnectionPoolAcquireTimeout(),
-        True,
-        id="aiosonic-ConnectionPoolAcquireTimeout",
-    ),
-    pytest.param(aiosonic_exc.ConnectionDisconnected(), True, id="aiosonic-ConnectionDisconnected"),
-    pytest.param(
-        aiosonic_exc.MissingReaderException("reader not set."),
-        True,
-        id="aiosonic-MissingReaderException",
-    ),
-    pytest.param(
-        aiosonic_exc.MissingWriterException("writer not set."),
-        True,
-        id="aiosonic-MissingWriterException",
-    ),
-    # aiosonic protocol and request errors are not transient, nor is its base class.
-    pytest.param(
-        aiosonic_exc.HttpParsingError("missing hostname"), False, id="aiosonic-HttpParsingError"
-    ),
-    pytest.param(
-        aiosonic_exc.WebSocketMessageTooBig("frame too big"),
-        False,
-        id="aiosonic-WebSocketMessageTooBig",
-    ),
-    pytest.param(aiosonic_exc.MaxRedirects(), False, id="aiosonic-MaxRedirects"),
-    pytest.param(aiosonic_exc.AiosonicError(), False, id="aiosonic-AiosonicError"),
-    # Kubernetes: 429 and 5xx are transient; other 4xx and no status are not.
-    pytest.param(KubernetesApiException(status=429), True, id="k8s-429"),
-    pytest.param(KubernetesApiException(status=500), True, id="k8s-500"),
-    pytest.param(KubernetesApiException(status=503), True, id="k8s-503"),
-    pytest.param(KubernetesApiException(status=400), False, id="k8s-400"),
-    pytest.param(KubernetesApiException(status=403), False, id="k8s-403"),
-    pytest.param(KubernetesApiException(status=404), False, id="k8s-404"),
-    pytest.param(KubernetesApiException(status=409), False, id="k8s-409"),
-    pytest.param(KubernetesApiException(), False, id="k8s-no-status"),
-    # botocore has already retried these (standard mode).
-    pytest.param(
-        botocore_exc.ClientError({"Error": {"Code": "ThrottlingException"}}, "InvokeModel"),
-        False,
-        id="botocore-ClientError-throttling",
-    ),
-    pytest.param(
-        botocore_exc.ClientError({"Error": {"Code": "ServiceUnavailableException"}}, "InvokeModel"),
-        False,
-        id="botocore-ClientError-unavailable",
-    ),
-    pytest.param(
-        botocore_exc.EndpointConnectionError(endpoint_url=BEDROCK),
-        False,
-        id="botocore-EndpointConnectionError",
-    ),
-    # These four subclass OSError (through botocore's vendored requests).
-    pytest.param(
-        botocore_exc.ConnectTimeoutError(endpoint_url=BEDROCK),
-        False,
-        id="botocore-ConnectTimeoutError",
-    ),
-    pytest.param(
-        botocore_exc.ReadTimeoutError(endpoint_url=BEDROCK), False, id="botocore-ReadTimeoutError"
-    ),
-    pytest.param(
-        botocore_exc.SSLError(endpoint_url=BEDROCK, error=Exception("handshake")),
-        False,
-        id="botocore-SSLError",
-    ),
-    pytest.param(
-        botocore_exc.ProxyConnectionError(proxy_url="http://proxy:3128", error="refused"),
-        False,
-        id="botocore-ProxyConnectionError",
-    ),
-    pytest.param(
-        botocore_exc.ConnectionClosedError(endpoint_url=BEDROCK),
-        False,
-        id="botocore-ConnectionClosedError",
-    ),
-    # The Datadog client retries 429 and 5xx itself.
-    pytest.param(_datadog_error(429), False, id="datadog-429"),
-    pytest.param(_datadog_error(503), False, id="datadog-503"),
     # Programming and data errors.
     pytest.param(ValueError("bad"), False, id="ValueError"),
     pytest.param(_validation_error(), False, id="pydantic-ValidationError"),
@@ -157,13 +66,22 @@ def test_is_transient_table(exc, expected):
     assert is_transient(exc) is expected
 
 
-@pytest.mark.parametrize("module", [botocore_exc, datadog_exc], ids=["botocore", "datadog"])
-def test_no_client_error_subclasses_the_transient_os_errors(module):
-    # botocore and the Datadog client retry their own errors (one retry layer), so none
-    # of them may count as transient by subclassing gaierror or SSLEOFError.
-    errors = [obj for _, obj in inspect.getmembers(module, inspect.isclass)]
-    assert errors
-    assert [e for e in errors if issubclass(e, (socket.gaierror, ssl.SSLEOFError))] == []
+def _imported_packages(path: Path) -> set[str]:
+    """The top-level packages that the module at ``path`` imports."""
+    packages: set[str] = set()
+    for node in ast.walk(ast.parse(path.read_text())):
+        if isinstance(node, ast.Import):
+            packages.update(alias.name.split(".")[0] for alias in node.names)
+        elif isinstance(node, ast.ImportFrom) and node.module and node.level == 0:
+            packages.add(node.module.split(".")[0])
+    return packages
+
+
+def test_core_policies_import_no_vendor_sdk():
+    # A fork that removes the example agent, and its vendor clients, keeps this module.
+    imported = _imported_packages(Path(policies.__file__))
+    assert "langgraph" in imported  # the walk finds the imports
+    assert imported & VENDOR_PACKAGES == set()
 
 
 def test_default_policy():
@@ -171,6 +89,16 @@ def test_default_policy():
     assert isinstance(p, RetryPolicy)
     assert p.max_attempts == 3 and p.retry_on is is_transient
     assert p.initial_interval == 0.5 and p.backoff_factor == 2.0 and p.jitter is True
+
+
+def test_default_retry_policy_takes_retry_on():
+    def never(_exc: BaseException) -> bool:
+        return False
+
+    p = default_retry_policy(retry_on=never)
+    assert p.retry_on is never
+    # Only the predicate changes.
+    assert p._replace(retry_on=is_transient) == default_retry_policy()
 
 
 def test_step_timeout_caps_one_node_attempt():

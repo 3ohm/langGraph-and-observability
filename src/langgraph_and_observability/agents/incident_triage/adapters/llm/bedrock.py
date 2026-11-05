@@ -22,7 +22,7 @@ an inference-profile prefix, such as ``global.anthropic.claude-opus-5-5`` or
 
 boto3 is synchronous, so the call runs in a thread (``asyncio.to_thread``). botocore
 retries a failed call in standard mode: it is the only retry layer, and the graph
-does not retry botocore's errors (``policies.is_transient``).
+does not retry botocore's errors (the example's ``policies.is_transient``).
 """
 
 import asyncio

@@ -43,6 +43,7 @@ from langgraph_and_observability.agents.incident_triage.fixtures.loader import (
 )
 from langgraph_and_observability.agents.incident_triage.graph import build_graph
 from langgraph_and_observability.agents.incident_triage.nodes.analyze import validate_analysis
+from langgraph_and_observability.agents.incident_triage.policies import is_transient
 from langgraph_and_observability.agents.incident_triage.prompts import PROMPT_VERSION
 from langgraph_and_observability.agents.incident_triage.schemas import (
     SERDE_TYPES,
@@ -286,7 +287,7 @@ def test_node_policies():
     for name, seconds in TIMEOUTS.items():
         node = graph.nodes[name]
         assert node.timeout == step_timeout(seconds), name
-        assert node.retry_policy == (default_retry_policy(),), name
+        assert node.retry_policy == (default_retry_policy(retry_on=is_transient),), name
     assert graph.nodes["collect_datadog"].error_handler_node == DATADOG_HANDLER
     assert graph.nodes["collect_code"].error_handler_node == CODE_HANDLER
     others = set(TIMEOUTS) - {"collect_datadog", "collect_code"}
@@ -294,7 +295,7 @@ def test_node_policies():
     # The handlers get the graph's defaults.
     for handler in (DATADOG_HANDLER, CODE_HANDLER):
         assert graph.nodes[handler].timeout == step_timeout(120)
-        assert graph.nodes[handler].retry_policy == (default_retry_policy(),)
+        assert graph.nodes[handler].retry_policy == (default_retry_policy(retry_on=is_transient),)
 
 
 async def test_datadog_failure_continues_with_note():

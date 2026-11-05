@@ -23,13 +23,13 @@ from langgraph_and_observability.agents.incident_triage.adapters.llm.interface i
     AnalysisRequest,
     LlmResponse,
 )
+from langgraph_and_observability.agents.incident_triage.policies import is_transient
 from langgraph_and_observability.agents.incident_triage.prompts import (
     PROMPT_VERSION,
     SYSTEM_PROMPT,
     analysis_schema,
 )
 from langgraph_and_observability.agents.incident_triage.schemas import Usage
-from langgraph_and_observability.policies import is_transient
 from langgraph_and_observability.settings import load_settings
 
 PROFILE = "global.anthropic.claude-opus-5-5"

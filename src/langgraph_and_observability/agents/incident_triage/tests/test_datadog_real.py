@@ -38,7 +38,7 @@ from langgraph_and_observability.agents.incident_triage.adapters.datadog.fake im
 from langgraph_and_observability.agents.incident_triage.adapters.datadog.interface import DdEvent
 from langgraph_and_observability.agents.incident_triage.adapters.datadog.real import RealDatadog
 from langgraph_and_observability.agents.incident_triage.fixtures.loader import load_fixture
-from langgraph_and_observability.policies import is_transient
+from langgraph_and_observability.agents.incident_triage.policies import is_transient
 from langgraph_and_observability.settings import load_settings
 
 API_KEY = "dd-api-key-for-tests"

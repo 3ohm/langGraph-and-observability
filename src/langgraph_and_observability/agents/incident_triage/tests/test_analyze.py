@@ -28,6 +28,7 @@ from langgraph_and_observability.agents.incident_triage.nodes.analyze import (
     analyze,
     validate_analysis,
 )
+from langgraph_and_observability.agents.incident_triage.policies import is_transient
 from langgraph_and_observability.agents.incident_triage.schemas import (
     Assessment,
     CodeSnippet,
@@ -41,7 +42,6 @@ from langgraph_and_observability.agents.incident_triage.tests.pipeline import (
     make_runtime,
     state_before_analyze,
 )
-from langgraph_and_observability.policies import is_transient
 from langgraph_and_observability.settings import load_settings
 
 RECORDED = load_settings().fixtures_dir / "recorded"

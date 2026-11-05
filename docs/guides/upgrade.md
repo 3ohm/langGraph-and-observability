@@ -32,8 +32,9 @@ its own schedule.
 - **Serialization (P7):** the allowlist is explicit, so an upgrade does not widen it. A new state
   type still has to be added to the agent's `serde_types`; the save-and-reload tests show a
   missing one.
-- **Retry and timeout policies (P12):** recheck `policies.is_transient` against the release
-  notes when LangGraph or a vendor client changes its errors or its own retries.
+- **Retry and timeout policies (P12):** recheck `policies.is_transient`, and each agent's own
+  predicate (the example's `agents/incident_triage/policies.py`), against the release notes
+  when LangGraph or a vendor client changes its errors or its own retries.
 
 ## Python
 
