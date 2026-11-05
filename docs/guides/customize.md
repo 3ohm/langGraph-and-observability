@@ -25,6 +25,19 @@ paths that hold either name. It skips `.git/`, `.venv/`, `.superpowers/`, caches
 and `LICENSE`, whose copyright notice MIT asks every copy to keep. `uv.lock` stays valid. A
 longer name can push a line past ruff's 100 characters; `make lint` shows where.
 
+The script changes only those two names. It keeps these short names as they are; change them by
+hand if you want other names:
+
+- the advisory lock keys `lps:migrate` and `lps:prune`, which let only one `migrate` and one
+  retention pass run at a time (P4, P6). Keep them stable while one fleet runs, because a new pod
+  must take the same lock as an old pod.
+- the database roles `lps_app` and `lps_migrator` (`deploy/sql/roles.sql`)
+- the annotation keys `lps.dev/source-repo` and `lps.dev/source-commit` (example), the defaults of
+  `APP_SOURCE_ANNOTATION_REPO_KEY` and `APP_SOURCE_ANNOTATION_COMMIT_KEY`
+- `/tmp/lps-source-cache` (example), the default of `APP_SOURCE_CACHE_DIR`
+- `LPS_TEST_FAULTS` (tests), the variable that gives the test graph its faults
+  (`tests/graphs/steps.py`)
+
 ## Remove the example agent
 
 ```bash
@@ -95,6 +108,13 @@ graph, which waits for a person's answer, runs on `langgraph dev` or the LangGra
    `langgraph.json` for Studio.
 3. Set `APP_INTAKE_AGENT=<name>` for the agent that takes the queue's messages.
 4. If it adds a practice, add its test and a note in `docs/practices/`.
+
+A node that writes to Postgres with its own SQL, not through `runtime.store`, takes the pool from
+`persistence.resources.current_pool()`. The worker registers its pool there at startup
+(`set_pool`), and so does `run_once`, the hosting recipe below. Without a pool, as in Studio or
+in a graph test without a database, `current_pool()` returns `None`: the node must fall back and
+say so, as the example's `publish` node does. It then sends the result to the `log` sinks only,
+and logs `publish.skipped` with the sinks that it skipped.
 
 ### The dedup key
 

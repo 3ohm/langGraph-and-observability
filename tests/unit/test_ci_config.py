@@ -105,6 +105,14 @@ def test_docker_job_smoke_tests_migrations():
     assert "docker compose run --rm --no-deps migrate" in script
 
 
+def test_check_yaml_accepts_multiple_documents():
+    # deploy/k8s/rbac.yaml holds more than one document (---), which check-yaml rejects
+    # without this argument.
+    config = yaml.safe_load((ROOT / ".pre-commit-config.yaml").read_text())
+    [hook] = [h for repo in config["repos"] for h in repo["hooks"] if h["id"] == "check-yaml"]
+    assert "--allow-multiple-documents" in hook.get("args", [])
+
+
 # --- the removal job (spec 13.3, 13.9; P22) ------------------------------------------
 
 REMOVAL = WF["jobs"]["removal"]

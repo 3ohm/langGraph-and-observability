@@ -4,6 +4,7 @@ repos:
     rev: v6.0.0
     hooks:
       - id: check-yaml
+        args: [--allow-multiple-documents] # deploy/k8s/rbac.yaml holds more than one
       - id: end-of-file-fixer
       - id: trailing-whitespace
         args: [--markdown-linebreak-ext=md]
