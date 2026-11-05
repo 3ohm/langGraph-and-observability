@@ -2,8 +2,8 @@
 
 A fork usually does three things: renames the package, removes or keeps the example agent, and
 adds its own agent. This guide also shows how to start runs without SQS, how to add an evidence
-collector or a language to the example, and how to run without the queue worker. The rules that
-every change follows are in [AGENTS.md](../../AGENTS.md).
+collector or a language to the example, how to run a graph in your own process, and how to run
+without the queue worker. The rules that every change follows are in [AGENTS.md](../../AGENTS.md).
 
 ## Rename the package
 
@@ -170,6 +170,94 @@ async def start_run(body: MyInput) -> dict[str, str | bool]:
    expected result, and the recorded reply (`fixtures/FORMAT.md`). Add `<language>:<id>` to
    `INCIDENTS` in the Makefile, so `make incident LANG=<language>` sends it.
 4. Run `make test`: the fixture checks, the stack-trace tests and the evals cover it.
+
+## Use the persistence and tracing in your own process
+
+The worker is one host for a graph. Your own process, such as a web app, a scheduled job or a
+script, can run a graph with the same persistence and tracing: the redacting LangSmith client
+(P15), the pool (P1, P2), the strict checkpoint serializer with its optional `LANGGRAPH_AES_KEY`
+encryption (P7), the pool-aware checkpointer (P3) and the Store (P24). `run_once` below makes the
+worker's startup calls (`Worker._start` in `worker/main.py`) in the same order, and invokes the
+graph as the run executor does: only `thread_id` in `configurable`, the run's fixed inputs in the
+context (P14), and `durability="sync"`, so each step's checkpoint is written before the next step
+starts (P11). It imports nothing from `worker/`, so it still works after you delete the worker.
+`tests/integration/test_host_recipe.py` runs this block, so it stays true.
+
+- Apply the migrations first (`migrate`, or `run_migrate` from your entry point): they create the
+  checkpoint and Store tables. The recipe needs none of the worker's tables.
+- `thread_id` is a UUID string, such as `str(uuid.uuid7())`. It is also the run's ID in the
+  context, as in the worker.
+- Input that fails validation raises pydantic's `ValidationError`, before anything opens. Its
+  message shows the input's values, which can hold secrets: log `exc.errors(include_input=False)`.
+- A graph that stops at an interrupt returns normally, with an `__interrupt__` key in the result:
+  the run has not ended. The worker counts it as a failed attempt.
+- `run_once` opens a pool and the tracing client, and closes them, on each call. A long-lived
+  process does the setup once at startup, keeps the pool, the saver, the store and the compiled
+  graph, invokes the graph per request, and closes the pool and the tracing client at shutdown.
+- The block names the package; `scripts/rename.py` renames it here too.
+
+<!-- host-recipe:begin -->
+```python
+from collections.abc import Mapping
+from datetime import UTC, datetime
+from typing import Any
+from uuid import UUID
+
+from langgraph_and_observability.agent_spec import AgentSpec, RunInfo
+from langgraph_and_observability.observability.langsmith import close_tracing, configure_tracing
+from langgraph_and_observability.persistence.checkpointer import make_checkpointer
+from langgraph_and_observability.persistence.pool import create_pool, open_pool
+from langgraph_and_observability.persistence.resources import set_pool
+from langgraph_and_observability.persistence.serde import make_serde
+from langgraph_and_observability.persistence.store import make_store
+from langgraph_and_observability.settings import Settings
+
+
+async def run_once(
+    spec: AgentSpec, payload: Mapping[str, Any], *, settings: Settings, thread_id: str
+) -> dict[str, Any]:
+    """Run the graph of ``spec`` once on ``payload`` and return its final state."""
+    model = spec.input_model.model_validate(payload)
+    tracing = configure_tracing(settings)
+    try:
+        pool = create_pool(settings)
+        # When Postgres can't be reached in time, open_pool closes the pool and raises.
+        await open_pool(pool, timeout=settings.db_connect_timeout_s)
+        # For nodes that use the pool directly (persistence.resources.current_pool).
+        set_pool(pool)
+        try:
+            aes_key = settings.langgraph_aes_key
+            serde = make_serde(
+                spec.serde_types,
+                aes_key=None if aes_key is None else aes_key.get_secret_value(),
+            )
+            saver = make_checkpointer(pool, serde, pgbouncer_mode=settings.pgbouncer_mode)
+            store = make_store(pool, pgbouncer_mode=settings.pgbouncer_mode)
+            graph = spec.build_graph().compile(checkpointer=saver, store=store)
+            run = RunInfo(
+                run_id=UUID(thread_id),
+                dedup_key=spec.dedup_key(model, datetime.now(UTC)),
+                attempt=1,
+            )
+            return await graph.ainvoke(
+                spec.initial_state(model),
+                {"configurable": {"thread_id": thread_id}},
+                context=spec.make_context(run, model, settings),
+                durability="sync",
+            )
+        finally:
+            set_pool(None)
+            await pool.close()
+    finally:
+        if tracing is not None:
+            # Sends the pending traces.
+            await close_tracing(tracing)
+```
+<!-- host-recipe:end -->
+
+`langgraph dev` and LangSmith Deployment (the Agent Server) do not run this code: on their path
+they bring their own checkpointer and store, so the graph gets neither this template's strict
+serializer, nor its `LANGGRAPH_AES_KEY` encryption, nor the pool-aware saver.
 
 ## Run without the queue worker
 

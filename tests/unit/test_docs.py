@@ -9,6 +9,10 @@ so a Proof path inside an agent folder that no longer exists is not checked (rul
 R29). The README's quickstart runs the example agent, so its check is skipped then too.
 A fork that deletes the worker keeps them too: once ``worker/`` is gone, the paths that
 ``docs/guides/customize.md`` says to delete with it are not checked (spec §13.9).
+
+The hosting recipe of ``customize.md`` is code: one ``python`` block between the
+``host-recipe`` markers. It must compile here, and ``tests/integration/test_host_recipe.py``
+runs it.
 """
 
 import re
@@ -39,6 +43,14 @@ WORKER_DIR = PACKAGE_DIR / "worker"
 WORKER_SECTION = "Run without the queue worker"
 WORKER_LIST = "Delete these files and folders:"
 needs_worker = pytest.mark.skipif(not WORKER_DIR.is_dir(), reason="the worker was removed")
+
+HOST_RECIPE_SECTION = "Use the persistence and tracing in your own process"
+HOST_RECIPE_BEGIN = "<!-- host-recipe:begin -->"
+HOST_RECIPE_END = "<!-- host-recipe:end -->"
+# The markers on their own lines, with one python block, and nothing else, between them.
+HOST_RECIPE = re.compile(
+    rf"^{HOST_RECIPE_BEGIN}\n```python\n(.*?)^```\n{HOST_RECIPE_END}$", re.DOTALL | re.MULTILINE
+)
 
 
 def _sections(text: str) -> dict[str, str]:
@@ -160,6 +172,16 @@ def test_customize_guide_lists_what_goes_with_the_worker():
         if not any(path == r or (r.endswith("/") and path.startswith(r)) for r in removed)
     ]
     assert importers and unlisted == [], f"customize.md does not list {unlisted}"
+
+
+def test_host_recipe_compiles():
+    text = CUSTOMIZE.read_text()
+    assert text.count(HOST_RECIPE_BEGIN) == 1
+    assert text.count(HOST_RECIPE_END) == 1
+    [code] = HOST_RECIPE.findall(_sections(text)[HOST_RECIPE_SECTION])
+    compile(code, "customize.md", "exec")
+    # The guide says the recipe works without the worker, which a fork may delete.
+    assert not re.search(rf"^\s*(?:from|import) {PACKAGE_DIR.name}\.worker\b", code, re.M)
 
 
 def _readme_links() -> list[str]:
