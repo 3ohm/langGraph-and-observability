@@ -268,6 +268,7 @@ It retries on `SerializationFailure` and `DeadlockDetected`. It never deletes fr
   - On success, the run is marked `success`.
   - On an error after the graph's own retries, the attempt count goes up and the run returns to `pending` for recovery.
   - After `APP_MAX_ATTEMPTS` attempts (default 3), the run is marked `failed`, with the error recorded.
+  - When the graph stops at an interrupt, the attempt fails as on an error (`InterruptNotSupportedError`): the worker has no resume value. The run gets a retry, and LangGraph runs only the interrupted node again; the steps that completed do not run again. An interrupt is never a `success` (owner decision 2026-11-05).
 
 ### 8.3 Recovery (the periodic check)
 
@@ -532,6 +533,7 @@ Each row ships as code, a test, and a short note in `docs/practices/`. The core 
 | P21 | Evals gate pull requests | CI job |
 | P22 | Removable example agent | CI job deletes it, and the suite passes |
 | P23 | Cache-friendly prompts | Test: the system prompt is identical across incidents |
+| P24 | Long-term memory in the Postgres Store, on the shared pool | Test: a second thread reads what the first one wrote; tests in PgBouncer mode and with `migrate` twice |
 
 ## 12. Observability and evals
 
@@ -593,7 +595,7 @@ OpenTelemetry is the common pipe. This covers LangSmith's OTel bridge, Phoenix (
 │   ├── design/               this document
 │   ├── plans/                implementation plans
 │   ├── adr/                  0001-template-not-framework.md, ...
-│   ├── practices/            one note per practice (P1–P23)
+│   ├── practices/            one note per practice (P1–P24)
 │   └── guides/               quickstart, run-on-eks, real-mode, customize, upgrade
 ├── scripts/                  rename.py, remove_example.py, send_incident.py
 ├── src/langgraph_and_observability/

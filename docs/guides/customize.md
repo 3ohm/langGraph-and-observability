@@ -96,7 +96,10 @@ graph, which waits for a person's answer, runs on `langgraph dev` or the LangGra
      model. Secrets stay in the context, never in state or `configurable` (P14).
    - `spec.py`: one `AgentSpec` with `name`, `build_graph`, `input_model`, `dedup_key`,
      `make_context`, `initial_state`, `serde_types` (every type the state stores, defined at
-     module level, P7), and optionally `migrations_dir` and `retention_sql` (P6).
+     module level, P7), and, optionally, `migrations_dir`, `retention_sql` (P6),
+     `required_settings` (the settings fields that a `prod` worker needs for the agent: it does
+     not start while one is not set) and `trace_metadata` (the agent's own trace metadata keys,
+     with string values, never a secret).
    - `adapters/`: one `interface.py` (a `Protocol`) per external system, with a real adapter and
      a fake. Vendor SDKs are imported only there.
    - `migrations/`: `0001_<name>.sql` and so on, if the agent has tables. `migrate` applies them

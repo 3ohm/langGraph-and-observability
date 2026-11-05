@@ -19,8 +19,11 @@ Retries: the client retries a 429 and a 5xx itself (``enable_retry=True``), so e
 ``policies.is_transient`` does not accept it, and the graph does not retry it again. The
 client does not retry transport errors, so the graph's retry policy is their one layer:
 ``is_transient`` accepts a stdlib ``ConnectionError`` or ``TimeoutError`` (such as a
-refused connection) and aiosonic's timeouts and connection errors. aiosonic's protocol
-errors, and DNS and TLS failures (plain ``OSError``), are retried by no layer.
+refused connection) and aiosonic's timeouts and connection errors. It also accepts,
+through the core ``policies.is_transient``, a failed DNS lookup, which aiosonic's
+default resolver re-raises as ``socket.gaierror``, and a TLS connection closed during
+the handshake (``ssl.SSLEOFError``). aiosonic's protocol errors, and other TLS errors
+such as a failed certificate check, are retried by no layer.
 """
 
 from collections.abc import AsyncIterator, Awaitable

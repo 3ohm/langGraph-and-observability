@@ -249,8 +249,12 @@ rm worker.env migration.env
   supported in this version.
 - **With `APP_ENV=prod`** (the example ConfigMap), a missing `APP_DATABASE_URL`,
   `APP_SQS_QUEUE_URL`, `DD_API_KEY` or `DD_APP_KEY` stops the worker at start, with a
-  `worker.startup_failed` log line that names them: first the worker's two, then the two
-  Datadog keys that the agent needs in real mode (`AgentSpec.required_settings`).
+  `worker.startup_failed` log line. The worker checks them in two steps, and the line names the
+  settings fields that are missing in the first step that fails. First come the worker's two
+  (`database_url`, and `sqs_queue_url` while `APP_INTAKE_AGENT` names an agent). Only when both
+  are set does it check the two Datadog keys that the agent needs in real mode (`dd_api_key`,
+  `dd_app_key`, from `AgentSpec.required_settings`). So a start with none of the four set names
+  only the first two; the next start, with those two set, names the Datadog keys.
 
 ## 4. Set APP_ADAPTERS=real and APP_LLM_MODE=bedrock
 

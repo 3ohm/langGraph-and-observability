@@ -31,10 +31,21 @@ The first release (Phases 0 and 1). It is tagged after the owner's real-mode smo
   recovery; a run deadline; a drain within Kubernetes' 60-second shutdown hook; resume at the
   failed step; health endpoints (`/ok`, `/ready`); and an operator CLI (`migrate`, `runs list`,
   `runs show`, `runs retry`).
+- Interrupts in the worker: a graph that stops at an interrupt is a failed attempt, with a retry
+  up to `APP_MAX_ATTEMPTS`, never a success; a retry runs only the interrupted node again.
+- `runs create AGENT --input JSON [--dedup-key KEY]`, a trigger without SQS: it validates the
+  input with the agent's input model and adds a pending run, which the worker's recovery loop
+  claims.
 - Plain LangGraph: `durability="sync"`, explicit retry, timeout and error-handler policies, a
   `context_schema`, an agent registry, and a test-only graph that proves the core practices.
+- A core retry policy without vendor types: `policies.is_transient` imports no vendor SDK,
+  `default_retry_policy(retry_on=...)` takes an agent's own predicate, and the example's
+  transient types live in the example (`agents/incident_triage/policies.py`).
 - LangSmith: one redacting client, trace content modes (`full`, `redacted`, `none`) and run
   metadata.
+- Agents declare the settings that a `prod` worker needs for them (`AgentSpec.required_settings`)
+  and their own trace metadata keys (`AgentSpec.trace_metadata`); run metadata has `session.id`;
+  a `prod` worker needs `APP_SQS_QUEUE_URL` only while `APP_INTAKE_AGENT` names an agent.
 - The Incident Triage example agent: Kubernetes and Datadog evidence, deterministic assessment
   rules, code evidence at the deployed commit (workload annotations, ECR image labels or a source
   map; Git checkouts from allowlisted hosts only, with a host-scoped token), stack-trace parsers
@@ -53,3 +64,8 @@ The first release (Phases 0 and 1). It is tagged after the owner's real-mode smo
   upgrade guides; a release checklist; `scripts/rename.py`, `scripts/remove_example.py` and
   `scripts/send_incident.py`; CI on Python 3.14 with lint, unit, integration, end-to-end, image
   and removal jobs.
+- A tested recipe in `docs/guides/customize.md` to run a graph in your own process with the same
+  persistence and tracing.
+- `scripts/remove_example.py` also removes the example's settings, with their `.env.example`
+  lines, test defaults, `compose.yaml` lines and Kubernetes keys, and prints the `uv remove`
+  command for the example's dependencies.

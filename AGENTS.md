@@ -92,7 +92,8 @@ uv run scripts/remove_example.py                          # remove the example a
    the uncompiled `StateGraph`; every node is `async`, with `default_retry_policy()` and
    `step_timeout(...)` from `policies.py`), its state, context and schemas, and `spec.py` with
    one `AgentSpec`: name, graph, input model, dedup key, context, initial state, `serde_types`,
-   and optional `migrations_dir` and `retention_sql`.
+   and optional `migrations_dir`, `retention_sql`, `required_settings` (its `prod` settings) and
+   `trace_metadata` (its trace keys).
 2. Put each external system behind `adapters/<system>/interface.py` (a `Protocol`), with a real
    adapter and a fake. Put the agent's tests in `agents/<name>/tests/`.
 3. Register it: one line in `builtin_agents()` of `worker/registry.py` (or an `APP_EXTRA_AGENTS`

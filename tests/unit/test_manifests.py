@@ -239,7 +239,7 @@ def test_writable_paths_are_empty_dirs():
     max_bytes = int(env["APP_SOURCE_CACHE_MAX_MB"]["value"]) * 2**20
     assert _bytes(cache["emptyDir"]["sizeLimit"]) > max_bytes
     # example-agent:end
-    # git writes its config under HOME.
+    # The process needs a writable HOME (in the example agent, git writes its config there).
     assert env["HOME"]["value"] == TMP
 
 

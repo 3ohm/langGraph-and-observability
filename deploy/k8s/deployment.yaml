@@ -73,7 +73,8 @@ spec:
             - name: APP_SOURCE_CACHE_MAX_MB
               value: "2048"
             # example-agent:end
-            # The root file system is read-only; git writes its config under HOME.
+            # The root file system is read-only, and the process needs a writable HOME
+            # (in the example agent, git writes its config there).
             - name: HOME
               value: /tmp
             - name: APP_DATABASE_URL

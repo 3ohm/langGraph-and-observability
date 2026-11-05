@@ -59,9 +59,11 @@ docker compose exec worker python -m langgraph_and_observability runs show <run_
 docker compose exec postgres psql -U postgres -c "select run_id, category from triage_results"
 ```
 
-`runs retry <run_id>` returns a failed run to pending. To see what a running worker is waiting
-on, `docker compose exec worker python -m asyncio ps 1` lists its asyncio tasks (Python 3.14;
-see [run-on-eks.md](run-on-eks.md#debug-a-stuck-run)).
+`runs retry <run_id>` returns a failed run to pending. `runs create <agent> --input '<json>'` adds
+a pending run without SQS, which the worker's recovery loop claims
+([customize.md](customize.md#other-triggers)). To see what a running worker is waiting on,
+`docker compose exec worker python -m asyncio ps 1` lists its asyncio tasks (Python 3.14; see
+[run-on-eks.md](run-on-eks.md#debug-a-stuck-run)).
 
 ## LangGraph Studio
 

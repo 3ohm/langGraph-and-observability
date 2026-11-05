@@ -1,5 +1,6 @@
-# The one-shot migration step (spec 7.3; P4): our SQL migrations, then
-# AsyncPostgresSaver.setup(), as the migration role. The worker never migrates.
+# The one-shot migration step (spec 7.3; P4): our SQL migrations and LangGraph's
+# AsyncPostgresSaver.setup() and AsyncPostgresStore.setup(), as the migration role.
+# The worker never migrates.
 #
 # It reads the migration role's URL from a Secret that is not shipped here. Create it
 # from a file with the line APP_MIGRATION_DATABASE_URL=... (keep the file out of git):

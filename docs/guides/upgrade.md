@@ -26,9 +26,10 @@ its own schedule.
   changes it, `tests/unit/test_upstream_shape.py` fails: compare the new upstream method with
   the copy in `persistence/checkpointer.py` and update the copy. Once upstream stops locking on
   a pool, delete the subclass and use `AsyncPostgresSaver` directly.
-- **Checkpoint migrations:** `migrate` runs `AsyncPostgresSaver.setup()` every time, and
-  `setup()` applies the new checkpoint migrations of a library upgrade. So run the migrate Job
-  (or `make migrate`) before you roll out the new image.
+- **Checkpoint and Store migrations:** `migrate` runs `AsyncPostgresSaver.setup()` and
+  `AsyncPostgresStore.setup()` every time, and each `setup()` applies the new checkpoint or Store
+  migrations of a library upgrade. So run the migrate Job (or `make migrate`) before you roll
+  out the new image.
 - **Serialization (P7):** the allowlist is explicit, so an upgrade does not widen it. A new state
   type still has to be added to the agent's `serde_types`; the save-and-reload tests show a
   missing one.
