@@ -68,7 +68,7 @@ from langgraph_and_observability.persistence.pool import create_pool, open_pool
 from langgraph_and_observability.persistence.resources import set_pool
 from langgraph_and_observability.persistence.serde import make_serde
 from langgraph_and_observability.persistence.store import make_store
-from langgraph_and_observability.settings import Settings, load_settings
+from langgraph_and_observability.settings import MissingSecretsError, Settings, load_settings
 from langgraph_and_observability.worker.executor import RunExecutor, error_fields
 from langgraph_and_observability.worker.health import ReadinessProbe, create_health_app
 from langgraph_and_observability.worker.intake import SqsIntake, make_sqs_client
@@ -493,14 +493,34 @@ def _error(exc: BaseException) -> dict[str, str]:
     return error_fields(exc)
 
 
+def check_agent_settings(settings: Settings, agents: Mapping[str, AgentSpec]) -> None:
+    """Stop a ``prod`` start that lacks a setting that one of ``agents`` needs.
+
+    In ``prod`` only, raises MissingSecretsError that names, once each, every settings
+    field that an agent's ``required_settings`` lists and that is not set (None).
+    """
+    if settings.env != "prod":
+        return
+    required = dict.fromkeys(
+        name
+        for spec in agents.values()
+        if spec.required_settings is not None
+        for name in spec.required_settings(settings)
+    )
+    missing = [name for name in required if getattr(settings, name) is None]
+    if missing:
+        raise MissingSecretsError(missing)
+
+
 def main(argv: Sequence[str] | None = None) -> int:
     """Run the worker until SIGTERM or SIGINT, then drain. Returns the exit code.
 
     Settings come from the environment. The lease owner is ``POD_NAME`` (Kubernetes'
     downward API), else the host name. Returns 0 after the drain, or
     EXIT_STARTUP_FAILED, with a ``worker.startup_failed`` log line, when the worker
-    cannot start: invalid settings, a missing secret, an agent that cannot be loaded,
-    an unknown intake agent, or a database that can't be reached.
+    cannot start: invalid settings, a missing secret (``require_runtime_secrets``, then
+    ``check_agent_settings``), an agent that cannot be loaded, an unknown intake agent,
+    or a database that can't be reached.
     """
     argparse.ArgumentParser(
         prog=PROG,
@@ -517,6 +537,7 @@ def main(argv: Sequence[str] | None = None) -> int:
     try:
         settings.require_runtime_secrets()
         agents = load_agents(settings)
+        check_agent_settings(settings, agents)
         sqs_client = None if settings.sqs_queue_url is None else make_sqs_client(settings)
     except Exception as exc:  # pylint: disable=broad-exception-caught  # exit code 1, logged
         return _startup_failed(exc)

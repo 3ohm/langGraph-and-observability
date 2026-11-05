@@ -172,7 +172,7 @@ async def test_runs_carry_trace_metadata(make_worker, sqs, queue, repo, monkeypa
         return await ainvoke(self, input, config, **kwargs)
 
     monkeypatch.setattr(CompiledStateGraph, "ainvoke", spy)
-    worker = make_worker(git_sha="abc123", cluster_name="eu-1")
+    worker = make_worker(git_sha="abc123")
     await worker.start()
 
     _send(sqs, queue, "md")
@@ -180,13 +180,13 @@ async def test_runs_carry_trace_metadata(make_worker, sqs, queue, repo, monkeypa
     await _wait_for_status(repo, run.run_id, RunStatus.SUCCESS)
 
     # P14: the run's metadata reaches the trace through config["metadata"], and only
-    # these keys: no settings, no DSN, no input.
+    # these keys: no settings, no DSN, no input. The steps agent adds no keys of its own.
     [config] = configs
     assert config["metadata"] == {
         "run_id": str(run.run_id),
+        "session.id": str(run.run_id),
         "dedup_key": run.dedup_key,
         "agent": STEPS_SPEC.name,
-        "cluster": "eu-1",
         "env": "dev",
         "app_version": __version__,
         "git_sha": "abc123",

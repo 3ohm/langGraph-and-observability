@@ -15,6 +15,7 @@ from langgraph_and_observability.agent_spec import AgentSpec, RunInfo
 from langgraph_and_observability.agents.incident_triage import context, dedup
 from langgraph_and_observability.agents.incident_triage.graph import build_graph
 from langgraph_and_observability.agents.incident_triage.schemas import SERDE_TYPES, IncidentMessage
+from langgraph_and_observability.agents.incident_triage.tracing import trace_metadata
 from langgraph_and_observability.settings import Settings
 
 # The agent's SQL migrations: its triage_results table.
@@ -42,6 +43,11 @@ def initial_state(model: BaseModel) -> dict[str, Any]:
     return {"message": _incident(model)}
 
 
+def required_settings(settings: Settings) -> list[str]:
+    """The settings that a ``prod`` worker needs for this agent: the Datadog keys in real mode."""
+    return ["dd_api_key", "dd_app_key"] if settings.adapters == "real" else []
+
+
 spec = AgentSpec(
     name="incident_triage",
     build_graph=build_graph,
@@ -52,4 +58,6 @@ spec = AgentSpec(
     serde_types=SERDE_TYPES,
     migrations_dir=MIGRATIONS_DIR,
     retention_sql="delete from triage_results where created_at < %(cutoff)s",
+    required_settings=required_settings,
+    trace_metadata=trace_metadata,
 )

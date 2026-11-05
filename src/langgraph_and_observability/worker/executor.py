@@ -80,8 +80,9 @@ class RunExecutor:  # pylint: disable=too-many-instance-attributes  # collaborat
     ``saver`` is the checkpointer that every agent's graph is compiled with, once, and
     ``store`` the LangGraph Store that its nodes reach as ``runtime.store`` (None: no
     store).
-    ``metadata`` maps a run to the trace metadata of its invocation; secrets and the
-    run's identity stay out of ``configurable`` (spec §8.5).
+    ``metadata`` maps a run to the core trace metadata of its invocation. The agent's
+    own keys (``AgentSpec.trace_metadata``) go under it, so a core key wins. Secrets and
+    the run's identity stay out of ``configurable`` (spec §8.5).
     """
 
     def __init__(
@@ -169,7 +170,7 @@ class RunExecutor:  # pylint: disable=too-many-instance-attributes  # collaborat
         info = RunInfo(run_id=run.run_id, dedup_key=run.dedup_key, attempt=attempt)
         config: RunnableConfig = {
             "configurable": {"thread_id": str(run.run_id)},
-            "metadata": self._metadata(run) if self._metadata is not None else {},
+            "metadata": self._trace_metadata(spec, run),
         }
         # A run with a checkpoint resumes from it; a new run starts from its input.
         resumed = await self._saver.aget_tuple(config) is not None
@@ -197,6 +198,15 @@ class RunExecutor:  # pylint: disable=too-many-instance-attributes  # collaborat
             raise InterruptNotSupportedError(
                 (await self._graphs[run.agent].aget_state(config)).next
             )
+
+    def _trace_metadata(self, spec: AgentSpec, run: RunRow) -> dict[str, str]:
+        """The agent's own trace keys, then the core keys over them: a core key wins."""
+        metadata: dict[str, str] = {}
+        if spec.trace_metadata is not None:
+            metadata.update(spec.trace_metadata(run.input, self._settings))
+        if self._metadata is not None:
+            metadata.update(self._metadata(run))
+        return metadata
 
     async def _mark_error(
         self, run: RunRow, error: dict[str, str], log: structlog.stdlib.BoundLogger

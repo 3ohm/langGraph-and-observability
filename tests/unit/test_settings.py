@@ -76,7 +76,8 @@ EXPECTED_DEFAULTS = {
     "fake_datadog_delay_s": 0.0,
 }
 
-PROD_SECRETS = {"database_url": "postgresql://db.internal/app", "sqs_queue_url": "https://sqs/q"}
+PROD_DATABASE_URL = "postgresql://db.internal/app"
+PROD_SECRETS = {"database_url": PROD_DATABASE_URL, "sqs_queue_url": "https://sqs/q"}
 
 
 def test_defaults_match_spec():
@@ -224,24 +225,37 @@ def test_get_settings_is_cached():
     assert get_settings() is get_settings()
 
 
-def test_prod_requires_secrets():
-    with pytest.raises(MissingSecretsError) as e:
-        load_settings(env="prod", adapters="real").require_runtime_secrets()
-    assert {"database_url", "sqs_queue_url", "dd_api_key", "dd_app_key"} <= set(e.value.missing)
-
-
-def test_prod_with_simulated_adapters_needs_no_datadog_keys(monkeypatch):
+def test_prod_requires_the_database_and_the_intake_queue(monkeypatch):
+    # The intake agent is named here: remove_example.py makes the default empty.
     monkeypatch.setenv("APP_DATABASE_URL", "")  # empty counts as missing
     with pytest.raises(MissingSecretsError) as e:
-        load_settings(env="prod").require_runtime_secrets()
+        load_settings(env="prod", intake_agent="my_agent").require_runtime_secrets()
     assert e.value.missing == ["database_url", "sqs_queue_url"]
-    load_settings(env="prod", **PROD_SECRETS).require_runtime_secrets()
+    load_settings(env="prod", intake_agent="my_agent", **PROD_SECRETS).require_runtime_secrets()
 
 
-def test_prod_with_every_secret_passes():
+def test_prod_with_an_intake_agent_needs_the_queue_url():
+    s = load_settings(env="prod", intake_agent="my_agent", database_url=PROD_DATABASE_URL)
+    with pytest.raises(MissingSecretsError) as e:
+        s.require_runtime_secrets()
+    assert e.value.missing == ["sqs_queue_url"]
+
+
+def test_prod_without_an_intake_agent_needs_only_the_database():
+    # Review Focus 5: a worker with no intake agent starts in prod without SQS.
+    with pytest.raises(MissingSecretsError) as e:
+        load_settings(env="prod", intake_agent="").require_runtime_secrets()
+    assert e.value.missing == ["database_url"]
     load_settings(
-        env="prod", adapters="real", dd_api_key="k", dd_app_key="a", **PROD_SECRETS
+        env="prod", intake_agent="", database_url=PROD_DATABASE_URL
     ).require_runtime_secrets()
+
+
+def test_prod_secret_check_names_no_agent_setting(monkeypatch):
+    # The agents check their own settings (AgentSpec.required_settings): the core check
+    # needs no Datadog key, even with real adapters.
+    monkeypatch.setenv("APP_ADAPTERS", "real")
+    load_settings(env="prod", intake_agent="my_agent", **PROD_SECRETS).require_runtime_secrets()
 
 
 def test_prod_rejects_full_trace_content():
@@ -252,7 +266,7 @@ def test_prod_rejects_full_trace_content():
 
 def test_secret_check_applies_only_in_prod():
     for env in ("dev", "test"):
-        load_settings(env=env, adapters="real").require_runtime_secrets()
+        load_settings(env=env, intake_agent="my_agent").require_runtime_secrets()
 
 
 def test_test_env_rejects_full_trace_content():

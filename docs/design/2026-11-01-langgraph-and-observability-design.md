@@ -550,6 +550,7 @@ Each row ships as code, a test, and a short note in `docs/practices/`. The core 
   - assessment category;
   - model ID;
   - environment, app version and git SHA.
+- **Who owns which key:** the core's `run_metadata` gives the run ID (also as `session.id`, §12.2), dedup key, agent, environment, app version and git SHA. An agent adds its own keys with `AgentSpec.trace_metadata`, and a core key wins; the example adds cluster, namespace and workload.
 - **Bedrock calls** are traced with `traceable(run_type="llm")`, with token usage.
 - **Projects:** one per environment, `LANGSMITH_PROJECT=<name>-<env>`.
 - **Logs** are structlog JSON and carry run and trace IDs.

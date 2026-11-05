@@ -1,8 +1,9 @@
 """What the worker needs to know about an agent (spec §8.5, §13.9).
 
 An agent is a plain LangGraph ``StateGraph`` plus the few functions that the worker
-calls around it: to validate a queue message, to compute its dedup key, and to build
-the run's context and first state. The worker reads agents from the registry
+calls around it: to validate a queue message, to compute its dedup key, to build the
+run's context and first state, and, optionally, to name the settings it needs in
+``prod`` and to add its own trace metadata. The worker reads agents from the registry
 (``worker/registry.py``); this module imports nothing from the worker or the agents.
 
 The worker is a batch host: it invokes the graph one time per attempt, with no resume
@@ -13,7 +14,7 @@ in another system. An interactive graph runs on ``langgraph dev`` or the LangGra
 Server.
 """
 
-from collections.abc import Callable, Sequence
+from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
@@ -58,6 +59,11 @@ class AgentSpec:  # pylint: disable=too-many-instance-attributes  # one per part
     - ``migrations_dir``: the agent's own SQL migrations, if it has tables.
     - ``retention_sql``: a statement that deletes the agent's old rows. It takes one
       parameter, ``%(cutoff)s``, the oldest time to keep.
+    - ``required_settings``: names the settings fields that the agent needs in ``prod``.
+      A ``prod`` worker does not start while one of them is not set (None).
+    - ``trace_metadata``: maps the run's stored input and the settings to the agent's own
+      trace metadata keys. The values are strings, never a secret. The run executor merges
+      them under the core keys (``observability.metadata.run_metadata``): a core key wins.
     """
 
     name: str
@@ -69,3 +75,5 @@ class AgentSpec:  # pylint: disable=too-many-instance-attributes  # one per part
     serde_types: Sequence[type]
     migrations_dir: Path | None = None
     retention_sql: str | None = None
+    required_settings: Callable[[Settings], Sequence[str]] | None = None
+    trace_metadata: Callable[[Mapping[str, Any], Settings], Mapping[str, str]] | None = None

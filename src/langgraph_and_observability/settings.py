@@ -146,7 +146,9 @@ class Settings(BaseSettings):
         """Stop a start that would trace full content, or a ``prod`` start that lacks a secret.
 
         Raises ValueError when ``trace_content`` is ``full`` and ``env`` is not ``dev``.
-        In ``prod`` only, raises MissingSecretsError that names every missing setting.
+        In ``prod`` only, raises MissingSecretsError that names every missing setting:
+        ``database_url``, and ``sqs_queue_url`` while ``intake_agent`` names an agent.
+        The settings that an agent needs are its own (``AgentSpec.required_settings``).
         """
         if self.trace_content == "full" and self.env != "dev":
             raise ValueError(
@@ -155,9 +157,10 @@ class Settings(BaseSettings):
             )
         if self.env != "prod":
             return
-        required = ["database_url", "sqs_queue_url"]
-        if self.adapters == "real":
-            required += ["dd_api_key", "dd_app_key"]
+        required = ["database_url"]
+        # An empty intake_agent (the default once the example is removed): no SQS intake.
+        if self.intake_agent:
+            required.append("sqs_queue_url")
         missing = [name for name in required if getattr(self, name) is None]
         if missing:
             raise MissingSecretsError(missing)

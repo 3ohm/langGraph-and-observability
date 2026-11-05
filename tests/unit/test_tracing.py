@@ -557,10 +557,6 @@ def test_metadata_has_no_secrets():
     settings = load_settings(
         env="test",
         git_sha="abc123",
-        cluster_name="eu-prod-1",
-        dd_api_key="SECRET",
-        dd_app_key="SECRET-APP",
-        git_token="SECRET-GIT",  # noqa: S106 - a fake secret that must not leak
         langgraph_aes_key="SECRET-AES-KEY16",
         database_url="postgresql://lps:dsn-SECRET@db:5432/lps",
         migration_database_url="postgresql://owner:dsn-SECRET@db:5432/lps",
@@ -576,26 +572,36 @@ def test_metadata_has_no_secrets():
     md = run_metadata(run, settings)
 
     assert "SECRET" not in json.dumps(md)
+    # The core keys only: an agent adds its own (AgentSpec.trace_metadata), and the
+    # executor merges them under these.
     assert md == {
         "run_id": str(run.run_id),
+        "session.id": str(run.run_id),
         "dedup_key": "d" * 64,
         "agent": "incident_triage",
-        "cluster": "eu-prod-1",
         "env": "test",
         "app_version": __version__,
         "git_sha": "abc123",
-        "namespace": "shop",
-        "workload": "Deployment/checkout",
     }
 
 
 @pytest.mark.parametrize(
     "run_input",
-    [{"key": "a"}, {"namespace": None, "workload": None, "pod": "checkout-7f9c"}],
-    ids=["absent", "null"],
+    [{"key": "a"}, {"namespace": "shop", "workload": "Deployment/checkout", "pod": "p"}],
+    ids=["other-input", "example-input"],
 )
-def test_metadata_without_namespace_or_workload(run_input):
+def test_metadata_keys_do_not_depend_on_the_input(run_input):
     md = run_metadata(_run(run_input), load_settings())
 
-    assert md.keys() == {"run_id", "dedup_key", "agent", "cluster", "env", "app_version", "git_sha"}
+    assert md.keys() == {
+        "run_id",
+        "session.id",
+        "dedup_key",
+        "agent",
+        "env",
+        "app_version",
+        "git_sha",
+    }
+    # The OpenTelemetry name of the session is the run's ID, which is also its thread_id.
+    assert md["session.id"] == md["run_id"]
     assert all(isinstance(value, str) for value in md.values())

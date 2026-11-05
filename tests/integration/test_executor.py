@@ -3,7 +3,9 @@
 import asyncio
 import time
 from collections import Counter
+from collections.abc import Mapping
 from dataclasses import replace
+from typing import Any
 from uuid import UUID
 
 import pytest
@@ -19,7 +21,7 @@ from langgraph_and_observability.agent_spec import AgentSpec
 from langgraph_and_observability.persistence.checkpointer import make_checkpointer
 from langgraph_and_observability.persistence.serde import make_serde
 from langgraph_and_observability.policies import default_retry_policy, step_timeout
-from langgraph_and_observability.settings import load_settings
+from langgraph_and_observability.settings import Settings, load_settings
 from langgraph_and_observability.worker.executor import RunExecutor
 from langgraph_and_observability.worker.runs import RunRepo, RunRow, RunStatus
 from tests.graphs import steps
@@ -255,6 +257,39 @@ async def test_configurable_holds_only_thread_id(make_executor, repo, monkeypatc
     assert config["configurable"].keys() == {"thread_id"}
     assert config["configurable"]["thread_id"] == str(run.run_id)
     assert config["metadata"] == {"agent": STEPS_SPEC.name}
+
+
+async def test_agent_trace_metadata_sits_under_the_core_keys(make_executor, repo, monkeypatch):
+    calls = []
+    ainvoke = CompiledStateGraph.ainvoke
+
+    # CompiledStateGraph.ainvoke's signature.
+    async def spy(self, input, config=None, **kwargs):  # pylint: disable=redefined-builtin
+        calls.append(config)
+        return await ainvoke(self, input, config, **kwargs)
+
+    def agent_keys(run_input: Mapping[str, Any], settings: Settings) -> dict[str, str]:
+        # "agent" is also a core key, which wins.
+        return {"key": run_input["key"], "git_sha": settings.git_sha, "agent": "spoofed"}
+
+    monkeypatch.setattr(CompiledStateGraph, "ainvoke", spy)
+    spec = replace(STEPS_SPEC, name="test_traced", trace_metadata=agent_keys)
+    executor = make_executor(
+        metadata=lambda run: {"run_id": str(run.run_id), "agent": run.agent},
+        spec=spec,
+        git_sha="abc123",
+    )
+    run_id = await _create(repo, spec.name, "md")
+
+    assert await executor.execute(await _claim(repo, run_id)) == RunStatus.SUCCESS
+
+    [config] = calls
+    assert config["metadata"] == {
+        "key": "md",
+        "git_sha": "abc123",
+        "run_id": str(run_id),
+        "agent": "test_traced",
+    }
 
 
 @pytest.mark.parametrize("outcome", ["success", "error", "drained"])

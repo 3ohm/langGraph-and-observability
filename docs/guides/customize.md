@@ -104,7 +104,12 @@ The `runs` table is the queue. SQS intake is one producer: it writes a row for e
 starts the run at once. Any other producer, such as an HTTP route, a Kubernetes CronJob or the
 `runs create` command, writes a row with `RunRepo.create` (`worker/runs.py`), and the worker's
 recovery loop claims the row within `APP_RECOVERY_INTERVAL_SECONDS` (default 30), when a run slot
-is free. With no `APP_SQS_QUEUE_URL`, the worker runs without intake.
+is free. With no `APP_SQS_QUEUE_URL`, the worker runs without intake. In `prod`, though, the
+worker needs `APP_SQS_QUEUE_URL` while `APP_INTAKE_AGENT` names an agent. The template's default
+names the example agent, and an empty `APP_INTAKE_AGENT=` keeps that default (an empty value means
+"not set"). So a `prod` worker runs without SQS only when the default is empty:
+`scripts/remove_example.py` empties it, and a fork that keeps the example can set
+`intake_agent: str = ""` in `settings.py`.
 
 ```bash
 python -m <package> runs create my_agent --input '{"service": "checkout"}'
