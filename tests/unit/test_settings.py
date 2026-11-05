@@ -1,3 +1,4 @@
+import re
 from pathlib import Path
 from typing import get_args
 
@@ -296,3 +297,31 @@ def test_env_example_leaves_secrets_empty():
     ]
     assert {"APP_GIT_TOKEN", "DD_API_KEY", "DD_APP_KEY", "LANGGRAPH_AES_KEY"} <= set(secrets)
     assert all(documented[name] == "" for name in secrets)
+
+
+# Variables that a library reads itself: .env.example shows each as a commented sample, so
+# its active lines stay exactly the settings.
+VENDOR_SAMPLES = {
+    "LANGSMITH_TRACING",
+    "LANGSMITH_API_KEY",
+    "LANGSMITH_PROJECT",
+    "LANGSMITH_WORKSPACE_ID",
+    "LANGSMITH_ENDPOINT",
+    "REQUESTS_CA_BUNDLE",
+    "SSL_CERT_FILE",
+    "HTTPS_PROXY",
+    "NO_PROXY",
+    "AWS_PROFILE",
+    "AWS_CA_BUNDLE",
+    "KUBECONFIG",
+    "POD_NAME",
+}
+
+
+def test_env_example_has_a_sample_of_each_vendor_variable():
+    text = (REPO_ROOT / ".env.example").read_text()
+    samples = set(re.findall(r"^# ([A-Z][A-Z0-9_]*)=", text, re.MULTILINE))
+    assert VENDOR_SAMPLES <= samples, VENDOR_SAMPLES - samples
+    # The samples have empty secrets, and a self-hosted LangSmith is reached at /api/v1.
+    assert re.search(r"^# LANGSMITH_API_KEY=$", text, re.MULTILINE)
+    assert re.search(r"^# LANGSMITH_ENDPOINT=https://\S+/api/v1$", text, re.MULTILINE)
