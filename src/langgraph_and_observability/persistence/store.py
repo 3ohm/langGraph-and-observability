@@ -15,13 +15,18 @@ from psycopg.rows import DictRow
 from psycopg_pool import AsyncConnectionPool
 
 
-def make_store(pool: AsyncConnectionPool[AsyncConnection[DictRow]]) -> AsyncPostgresStore:
+def make_store(
+    pool: AsyncConnectionPool[AsyncConnection[DictRow]], *, pgbouncer_mode: bool = False
+) -> AsyncPostgresStore:
     """Return an ``AsyncPostgresStore`` on ``pool``, with no index and no TTL.
 
-    Call it from the running event loop: the store keeps that loop. Its values are JSON
-    in Postgres (``jsonb``): no serde allowlist applies to them, and ``LANGGRAPH_AES_KEY``
-    does not encrypt them at rest (it covers checkpoints only). Never put a secret in the
-    Store (AGENTS.md rule 3).
+    Call it from the running event loop: the store keeps that loop. ``pgbouncer_mode``
+    (``APP_PGBOUNCER_MODE``) turns off the store's pipeline mode, so its batches run in a
+    plain transaction, as the checkpointer's writes do (spec §7.1, upstream issue #8420).
+
+    Its values are JSON in Postgres (``jsonb``): no serde allowlist applies to them, and
+    ``LANGGRAPH_AES_KEY`` does not encrypt them at rest (it covers checkpoints only).
+    Never put a secret in the Store (AGENTS.md rule 3).
 
     - Semantic search: pass ``index=`` (a ``PostgresIndexConfig``: ``dims``, ``embed``,
       ``fields``) here and to the ``AsyncPostgresStore`` in ``run_migrate``, whose
@@ -31,4 +36,8 @@ def make_store(pool: AsyncConnectionPool[AsyncConnection[DictRow]]) -> AsyncPost
       store is built, and ``stop_ttl_sweeper()`` before the pool closes. Without a TTL,
       items stay until a node deletes them: the pruner does not touch the Store.
     """
-    return AsyncPostgresStore(pool)
+    store = AsyncPostgresStore(pool)
+    if pgbouncer_mode:
+        # _cursor(pipeline=True), which every batch uses (_execute_batch), reads it.
+        store.supports_pipeline = False
+    return store

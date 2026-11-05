@@ -6,6 +6,10 @@ copy is reviewed again, or deleted once upstream fixes the lock.
 
 The run executor finds an interrupt by a key in the result of ``ainvoke``
 (``worker/executor.py``). A test here fails when LangGraph stops returning that key.
+
+``make_store`` turns off the Store's pipeline mode in PgBouncer mode by setting
+``supports_pipeline`` (P24). A test fails when ``AsyncPostgresStore._cursor`` stops
+reading that attribute.
 """
 
 import inspect
@@ -14,6 +18,7 @@ from typing import TypedDict
 from langgraph.checkpoint.memory import InMemorySaver
 from langgraph.checkpoint.postgres.aio import AsyncPostgresSaver
 from langgraph.graph import START, StateGraph
+from langgraph.store.postgres.aio import AsyncPostgresStore
 from langgraph.types import interrupt
 
 
@@ -25,6 +30,12 @@ def test_upstream_still_takes_instance_lock():
     # When this fails, upstream fixed the lock:
     # delete PoolAwarePostgresSaver (docs/practices/P3.md).
     assert "async with self.lock" in inspect.getsource(AsyncPostgresSaver._cursor)
+
+
+def test_upstream_store_cursor_reads_supports_pipeline():
+    # When this fails, make_store's PgBouncer mode no longer turns off pipeline mode:
+    # find the new switch (docs/practices/P24.md).
+    assert "self.supports_pipeline" in inspect.getsource(AsyncPostgresStore._cursor)
 
 
 class _AskState(TypedDict):

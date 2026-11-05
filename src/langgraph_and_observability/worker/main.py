@@ -220,7 +220,7 @@ class Worker:  # pylint: disable=too-many-instance-attributes  # the process's r
             list(serde_types), aes_key=None if aes_key is None else aes_key.get_secret_value()
         )
         saver = make_checkpointer(pool, serde, pgbouncer_mode=settings.pgbouncer_mode)
-        store = make_store(pool)
+        store = make_store(pool, pgbouncer_mode=settings.pgbouncer_mode)
         repo = RunRepo(pool)
         self._repo = repo
         executor = RunExecutor(
