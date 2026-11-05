@@ -69,6 +69,7 @@ _EXAMPLE_SETTINGS = (
     "app_dd_",
     "fixtures_dir",
     "app_adapters",
+    "app_llm_mode",
     "app_bedrock_model_id",
     "app_git_token",
     "app_git_allowed_hosts",
@@ -292,10 +293,11 @@ def test_example_dependencies_are_project_dependencies():
 def _example_settings_left(root: Path) -> list[str]:
     """Return ``file: name`` for each of the example's settings that a file below ``root`` names.
 
-    The files are the settings, ``.env.example`` and the Kubernetes manifests that map
-    settings to the worker. The check ignores case; the manifests must also still parse.
+    The files are the settings, ``.env.example``, and the Compose file and Kubernetes
+    manifests that set the worker's settings. The check ignores case; the YAML files must
+    also still parse.
     """
-    files = [Path("src", PACKAGE, "settings.py"), Path(".env.example")]
+    files = [Path("src", PACKAGE, "settings.py"), Path(".env.example"), Path("compose.yaml")]
     files += [Path("deploy", "k8s", name) for name in ("configmap.yaml", "deployment.yaml")]
     left = []
     for path in files:
@@ -381,6 +383,50 @@ def test_remove_example_without_the_worker(repo_copy):
     assert result.returncode == 0, result.stderr
     assert not (repo_copy / "src" / PACKAGE / "agents" / EXAMPLE_AGENT).exists()
     assert _files_containing(repo_copy / "src", EXAMPLE_AGENT) == []
+
+
+# The imports that a first run deletes, because only the example's parts used them, and a
+# line of a fork that uses each again: (file, import, the fork's line, the line it follows).
+_FORK_IMPORTS = [
+    (
+        f"src/{PACKAGE}/settings.py",
+        "from pathlib import Path\n",
+        '    data_dir: Path = Path("/data")\n',
+        "    extra_agents: list[str] = []\n",
+    ),
+    (
+        "tests/unit/test_settings.py",
+        f"import {PACKAGE}\n",
+        f"VERSION = {PACKAGE}.__version__\n",
+        "REPO_ROOT = Path(__file__).resolve().parents[2]\n",
+    ),
+    (
+        "tests/unit/test_ci_config.py",
+        "from typing import Any, cast\n",
+        "EMPTY = cast(Any, {})\n",
+        "ROOT = Path(__file__).resolve().parents[2]\n",
+    ),
+]
+
+
+def test_remove_example_keeps_a_forks_imports_on_a_later_run(repo_copy):
+    # A fork uses an import again that the first run deleted: a later run keeps it.
+    first = _run(repo_copy, "scripts/remove_example.py")
+    assert first.returncode == 0, first.stderr
+    for name, line, use, after in _FORK_IMPORTS:
+        path = repo_copy / name
+        text = path.read_text()
+        assert line not in text and after in text, name
+        # Only the text matters to the script: the import goes at the top of the file.
+        path.write_text(line + text.replace(after, after + use))
+
+    second = _run(repo_copy, "scripts/remove_example.py")
+
+    assert second.returncode == 0, second.stderr
+    assert "Nothing to change" in second.stdout
+    for name, line, use, _ in _FORK_IMPORTS:
+        text = (repo_copy / name).read_text()
+        assert line in text and use in text, name
 
 
 def test_remove_example_is_idempotent(repo_copy):

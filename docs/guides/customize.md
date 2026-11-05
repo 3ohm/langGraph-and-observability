@@ -40,8 +40,9 @@ removes the agent's `langgraph.json` entry and registry line, resets the setting
 names it (`APP_INTAKE_AGENT` becomes empty), and deletes the example's parts of the Makefile
 (`grammars`, `incident`), the Dockerfile (the tree-sitter grammars), CI, `settings.py` (the
 example's settings), `.env.example` (their lines), `tests/unit/test_settings.py` (their test
-defaults), and `deploy/k8s/configmap.yaml` and `deployment.yaml` (their keys, secrets and source
-cache), which those files mark with `# example-agent:begin` and `# example-agent:end` lines.
+defaults), `compose.yaml` (the worker's simulated mode), and `deploy/k8s/configmap.yaml` and
+`deployment.yaml` (their keys, secrets and source cache), which those files mark with
+`# example-agent:begin` and `# example-agent:end` lines.
 After the removal, a `prod` worker needs only `APP_DATABASE_URL`. It prints each change; a second
 run changes nothing. On a first run it refuses, and changes nothing, when a file it must edit has
 drifted from the text it expects, or when the removal would leave a Makefile recipe or CI step

@@ -47,15 +47,20 @@ services:
         condition: service_healthy
     restart: "no"
 
-  # The queue worker (the image's default command) in simulated mode: fake adapters with
-  # fixtures, the recorded LLM, and ElasticMQ as SQS.
+  # The queue worker (the image's default command), with ElasticMQ as SQS.
+  # example-agent:begin (scripts/remove_example.py deletes this block)
+  # The example agent runs in simulated mode: fake adapters with fixtures, and the
+  # recorded LLM.
+  # example-agent:end
   worker:
     <<: *app
     environment:
       # Dev only: the Postgres credential of this Compose stack (see postgres above).
       APP_DATABASE_URL: postgresql://postgres:postgres@postgres:5432/postgres
+      # example-agent:begin (scripts/remove_example.py deletes this block)
       APP_ADAPTERS: simulated
       APP_LLM_MODE: recorded
+      # example-agent:end
       APP_SQS_ENDPOINT_URL: http://elasticmq:9324
       APP_SQS_QUEUE_URL: http://elasticmq:9324/000000000000/incidents
       # Dev only: dummy AWS credentials. ElasticMQ accepts any; botocore needs some to sign.

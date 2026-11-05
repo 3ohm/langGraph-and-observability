@@ -16,10 +16,11 @@ it resets the settings default that names it (``intake_agent`` to ``""``) in
 ``settings.py``, in its test and in ``.env.example``. It also removes the example's
 parts of the build and of the settings: the ``grammars`` and ``incident`` make targets,
 the Dockerfile's tree-sitter grammars, the CI steps that fetch them, and the example's
-settings fields with their ``.env.example`` lines, their test defaults and their keys,
-secrets and source cache in ``deploy/k8s/``. A file marks such a part with a
-``# example-agent:begin`` line and a ``# example-agent:end`` line; the part goes with
-the lines between them, and the blank lines after it.
+settings fields with their ``.env.example`` lines, their test defaults, their
+``compose.yaml`` lines and their keys, secrets and source cache in ``deploy/k8s/``. A
+file marks such a part with a ``# example-agent:begin`` line and a
+``# example-agent:end`` line; the part goes with the lines between them, and the blank
+lines after it.
 
 The example's dependencies (``EXAMPLE_DEPENDENCIES``) stay in ``pyproject.toml`` and
 ``uv.lock``: the script prints the ``uv remove`` command for them as the next step. JSON
@@ -39,8 +40,9 @@ makes it. It refuses, and changes nothing:
   are never refused.
 
 After a first run, the script changes only what still holds the example's text, so a
-second run changes nothing. It imports nothing from the package and uses the standard
-library only.
+second run changes nothing. The edits that delete an import, which only the example's
+parts used, run on a first run only: a fork may use that import again. The script
+imports nothing from the package and uses the standard library only.
 
 Afterwards the docs (``README.md``, ``AGENTS.md``, ``docs/``) still describe the
 example: update them for your fork. ``docs/guides/customize.md`` shows how to add your
@@ -88,6 +90,7 @@ MARKED_FILES = (
     "deploy/k8s/configmap.yaml",
     "deploy/k8s/deployment.yaml",
     "tests/unit/test_manifests.py",
+    "compose.yaml",
 )
 # The project dependencies that only the example agent uses. The script leaves
 # pyproject.toml and uv.lock as they are, and prints the uv remove command for these.
@@ -102,11 +105,16 @@ EXAMPLE_DEPENDENCIES = (
 
 @dataclass(frozen=True)
 class Edit:
-    """Replace every ``old`` in the file ``path`` with ``new``."""
+    """Replace every ``old`` in the file ``path`` with ``new``.
+
+    ``first_run_only``: the edit runs only while the example agent is still there. Set it
+    when ``old`` is no text of the example, such as an import, which a fork may add again.
+    """
 
     path: str
     old: str
     new: str = ""
+    first_run_only: bool = False
 
 
 EDITS = (
@@ -126,8 +134,8 @@ EDITS = (
     Edit(".env.example", f"APP_INTAKE_AGENT={AGENT}\n", "APP_INTAKE_AGENT=\n"),
     # The imports that only the marked parts of these files used. A marked part between
     # two imports would leave a blank line there, which ruff's import sort rejects.
-    Edit(f"{PACKAGE_DIR}/settings.py", "from pathlib import Path\n"),
-    Edit("tests/unit/test_settings.py", f"import {PACKAGE}\n"),
+    Edit(f"{PACKAGE_DIR}/settings.py", "from pathlib import Path\n", first_run_only=True),
+    Edit("tests/unit/test_settings.py", f"import {PACKAGE}\n", first_run_only=True),
     # make setup no longer fetches the grammars; CI no longer either.
     Edit(
         "Makefile",
@@ -149,7 +157,7 @@ EDITS = (
         "  # during its Datadog step.\n",
     ),
     # The Evals workflow's tests, a marked part of the file, were the only users of these.
-    Edit("tests/unit/test_ci_config.py", "from typing import Any, cast\n"),
+    Edit("tests/unit/test_ci_config.py", "from typing import Any, cast\n", first_run_only=True),
     Edit(
         "pyproject.toml",
         ", with LangSmith tracing and an incident-triage example agent.",
@@ -323,6 +331,8 @@ def plan(root: Path) -> tuple[list[Path], dict[Path, str]]:
             raise RemovalError(f"{name}: {error}") from None
     for edit in EDITS:
         path = root / edit.path
+        if edit.first_run_only and not first_run:
+            continue
         if not path.is_file():
             if first_run and not (worker_gone and edit.path.startswith(f"{WORKER_DIR}/")):
                 raise RemovalError(f"{edit.path} is missing")
