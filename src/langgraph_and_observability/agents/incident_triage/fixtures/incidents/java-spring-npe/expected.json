@@ -1,0 +1,14 @@
+{
+  "category": "application",
+  "code": {
+    "path": "src/main/java/com/example/orders/OrderService.java",
+    "start_line": 34,
+    "end_line": 37,
+    "symbol": "shippingLabel"
+  },
+  "facts": [
+    "NullPointerException",
+    "shippingAddress() is null",
+    "shippingLabel"
+  ]
+}

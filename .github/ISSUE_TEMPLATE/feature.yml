@@ -1,0 +1,36 @@
+name: Feature request
+description: Suggest a change or an addition to the template.
+title: "feat: "
+labels: [enhancement]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        This project is a template, not a framework: plain LangGraph and Python, with no wrapper layer.
+        The design spec in docs/design lists the non-goals and the backlog.
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem
+      description: What do you need to do that the template makes hard or impossible?
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposal
+      description: What change do you suggest?
+    validations:
+      required: true
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives
+      description: Other ways to solve the problem that you considered.
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Checks
+      options:
+        - label: I checked the non-goals and the backlog in the design spec.
+          required: true

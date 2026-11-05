@@ -1,0 +1,80 @@
+# The one-shot migration step (spec 7.3; P4): our SQL migrations and LangGraph's
+# AsyncPostgresSaver.setup() and AsyncPostgresStore.setup(), as the migration role.
+# The worker never migrates.
+#
+# It reads the migration role's URL from a Secret that is not shipped here. Create it
+# from a file with the line APP_MIGRATION_DATABASE_URL=... (keep the file out of git):
+#   kubectl -n langgraph-and-observability create secret generic langgraph-and-observability-migration \
+#     --from-env-file=<FILE>
+# Its key:
+#   APP_MIGRATION_DATABASE_URL  required; connects as lps_migrator (deploy/sql/roles.sql)
+#
+# A Job's pod template cannot change. Before you apply a new image, delete the last Job
+# if it still exists (ttlSecondsAfterFinished deletes it an hour after it finishes). An
+# apply after that creates the Job again, and it runs again: applied migrations are
+# skipped (spec 7.3).
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: langgraph-and-observability-migrate
+  labels:
+    app.kubernetes.io/name: langgraph-and-observability
+    app.kubernetes.io/component: migrate
+spec:
+  backoffLimit: 2
+  ttlSecondsAfterFinished: 3600
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: langgraph-and-observability
+        app.kubernetes.io/component: migrate
+    spec:
+      restartPolicy: Never
+      # Migrations reach only Postgres: no Kubernetes API token, and no IAM role.
+      automountServiceAccountToken: false
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 10001
+        runAsGroup: 10001
+        fsGroup: 10001
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: migrate
+          image: langgraph-and-observability
+          args: ["migrate"]
+          # The settings of the ConfigMap. migrate also runs the migrations of each agent that
+          # the registry loads: the built-in agents and any in APP_EXTRA_AGENTS.
+          envFrom:
+            - configMapRef:
+                name: langgraph-and-observability-config
+          env:
+            - name: APP_MIGRATION_DATABASE_URL
+              valueFrom:
+                secretKeyRef:
+                  name: langgraph-and-observability-migration
+                  key: APP_MIGRATION_DATABASE_URL
+          # Placeholders.
+          resources:
+            requests:
+              cpu: 100m
+              memory: 256Mi
+            limits:
+              memory: 512Mi
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 10001
+            runAsGroup: 10001
+            readOnlyRootFilesystem: true
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: ["ALL"]
+            seccompProfile:
+              type: RuntimeDefault
+          volumeMounts:
+            - name: tmp
+              mountPath: /tmp
+      volumes:
+        - name: tmp
+          emptyDir:
+            sizeLimit: 256Mi

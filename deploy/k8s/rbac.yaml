@@ -1,0 +1,34 @@
+# Read-only access for the Kubernetes evidence (spec 9.3, 9.10; P19): get and list only,
+# on what the real adapter reads. No watch, no Secrets, no exec, no writes.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: langgraph-and-observability-read-only
+  labels:
+    app.kubernetes.io/name: langgraph-and-observability
+rules:
+  - apiGroups: [""]
+    resources: ["pods", "pods/log", "events", "nodes"]
+    verbs: ["get", "list"]
+  - apiGroups: ["apps"]
+    resources: ["replicasets", "deployments", "statefulsets", "daemonsets"]
+    verbs: ["get", "list"]
+  - apiGroups: ["batch"]
+    resources: ["jobs"]
+    verbs: ["get", "list"]
+---
+# Cluster-wide, because nodes are cluster-scoped and an incident can be in any namespace.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: langgraph-and-observability-read-only
+  labels:
+    app.kubernetes.io/name: langgraph-and-observability
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: langgraph-and-observability-read-only
+subjects:
+  - kind: ServiceAccount
+    name: langgraph-and-observability
+    namespace: langgraph-and-observability

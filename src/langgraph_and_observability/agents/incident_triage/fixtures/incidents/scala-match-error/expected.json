@@ -1,0 +1,14 @@
+{
+  "category": "application",
+  "code": {
+    "path": "src/main/scala/com/example/shipping/RateCalculator.scala",
+    "start_line": 26,
+    "end_line": 32,
+    "symbol": "baseRateCents"
+  },
+  "facts": [
+    "scala.MatchError",
+    "evri",
+    "baseRateCents"
+  ]
+}

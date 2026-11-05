@@ -1,0 +1,10 @@
+{
+  "version": 1,
+  "source": "datadog-monitor",
+  "alert_id": "dd-148226901",
+  "namespace": "catalog",
+  "pod": "search-api-7c9b8d6f5-mt4kx",
+  "raw": {
+    "fixture_id": "infra-probe-failure"
+  }
+}

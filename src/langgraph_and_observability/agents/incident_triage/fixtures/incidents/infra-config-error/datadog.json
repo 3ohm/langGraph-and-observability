@@ -1,0 +1,28 @@
+{
+  "events": [
+    {
+      "id": "8312004415592873035",
+      "title": "[Triggered on {kube_deployment:payments-gateway}] payments-gateway has no available replicas",
+      "text": "kubernetes_state.deployment.replicas_available is 0 for payments-gateway.",
+      "timestamp": "2026-11-02T18:03:00Z",
+      "tags": [
+        "kube_cluster_name:prod-eu-west-1",
+        "kube_namespace:payments",
+        "kube_deployment:payments-gateway"
+      ],
+      "source": "monitor"
+    },
+    {
+      "id": "8312004415592873036",
+      "title": "Deployed payments-gateway 2.7.0",
+      "text": "payments-gateway now reads its database address from DATABASE_URL (was DB_URL) in the Secret payments-gateway-db.",
+      "timestamp": "2026-11-02T17:47:55Z",
+      "tags": [
+        "kube_cluster_name:prod-eu-west-1",
+        "kube_namespace:payments",
+        "kube_deployment:payments-gateway"
+      ],
+      "source": "github"
+    }
+  ]
+}

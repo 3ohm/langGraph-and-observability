@@ -1,0 +1,11 @@
+{
+  "version": 1,
+  "source": "datadog-monitor",
+  "alert_id": "dd-148227754",
+  "namespace": "warehouse",
+  "pod": "pick-planner-5f6d7c8b9-vn2rt",
+  "container": "planner",
+  "raw": {
+    "fixture_id": "cpp-out-of-range"
+  }
+}

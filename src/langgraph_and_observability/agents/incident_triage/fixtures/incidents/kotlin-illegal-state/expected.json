@@ -1,0 +1,14 @@
+{
+  "category": "application",
+  "code": {
+    "path": "src/main/kotlin/com/example/payouts/PayoutScheduler.kt",
+    "start_line": 15,
+    "end_line": 22,
+    "symbol": "send"
+  },
+  "facts": [
+    "IllegalStateException",
+    "RETRY_SCHEDULED",
+    "expected APPROVED"
+  ]
+}

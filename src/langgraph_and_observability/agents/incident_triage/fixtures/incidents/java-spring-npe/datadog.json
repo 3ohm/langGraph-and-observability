@@ -1,0 +1,28 @@
+{
+  "events": [
+    {
+      "id": "8312004415592873009",
+      "title": "[Triggered on {kube_deployment:order-service}] order-service has no ready pods",
+      "text": "kubernetes_state.deployment.replicas_available is 0 for order-service.",
+      "timestamp": "2026-11-02T09:45:00Z",
+      "tags": [
+        "kube_cluster_name:prod-eu-west-1",
+        "kube_namespace:commerce",
+        "kube_deployment:order-service"
+      ],
+      "source": "monitor"
+    },
+    {
+      "id": "8312004415592873010",
+      "title": "Deployed order-service 1.8.0",
+      "text": "Click and collect is live: paid orders may have no shipping address.",
+      "timestamp": "2026-11-02T09:20:12Z",
+      "tags": [
+        "kube_cluster_name:prod-eu-west-1",
+        "kube_namespace:commerce",
+        "kube_deployment:order-service"
+      ],
+      "source": "github"
+    }
+  ]
+}

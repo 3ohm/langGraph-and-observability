@@ -1,0 +1,14 @@
+{
+  "category": "application",
+  "code": {
+    "path": "src/orders/summary.js",
+    "start_line": 13,
+    "end_line": 23,
+    "symbol": "summarizeOrder"
+  },
+  "facts": [
+    "Cannot read properties of undefined (reading 'map')",
+    "order.items",
+    "summarizeOrder"
+  ]
+}

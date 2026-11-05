@@ -1,0 +1,10 @@
+{
+  "text": "{\"category\": \"infrastructure\", \"summary\": \"report-builder runs out of memory: container report-builder in pod report-builder-6f8d9c7b5-q2wzx is OOMKilled (exit code 137) at its 512Mi memory limit while it builds the daily revenue report, and it is in CrashLoopBackOff after 6 restarts.\", \"root_cause\": \"The daily revenue report loads 1,840,233 order events and 96,120 refund events and aggregates them by 18,211 merchants in memory. Memory use reached 509.6MiB, 99.5% of the container's 512Mi memory limit, and the kernel killed the process (OOMKilled, exit code 137). The node has no memory pressure: the container's limit is too small for the day's data.\", \"confidence\": \"high\", \"evidence\": [{\"id\": \"k8s:status:report-builder\", \"why\": \"The last run of container report-builder ended with OOMKilled, exit code 137, after 6 restarts.\"}, {\"id\": \"dd:event:8312004415592873028\", \"why\": \"The kernel killed the process in container report-builder at its 512Mi memory limit.\"}, {\"id\": \"dd:event:8312004415592873029\", \"why\": \"Memory use reached 509.6MiB, 99.5% of the 512Mi limit.\"}, {\"id\": \"log:previous:report-builder\", \"why\": \"The report loads 1,840,233 order events and aggregates them by 18,211 merchants before it is killed.\"}, {\"id\": \"k8s:node:ip-10-0-88-41.eu-west-1.compute.internal\", \"why\": \"The node has no memory pressure.\"}], \"suspected_code\": [], \"recommended_actions\": [\"Raise the memory limit of report-builder above 512Mi, with room for a day's data, for example to 1Gi.\", \"Make the report stream or batch the events instead of holding all of them in memory.\", \"Alert on the memory use of report-builder before it reaches its limit.\"], \"needs_human\": false}",
+  "stop_reason": "end_turn",
+  "model_id": "anthropic.claude-opus-5-5",
+  "usage": {
+    "input_tokens": 2433,
+    "output_tokens": 834,
+    "cache_read_input_tokens": 731
+  }
+}

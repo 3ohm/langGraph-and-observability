@@ -1,0 +1,10 @@
+{
+  "version": 1,
+  "source": "datadog-monitor",
+  "alert_id": "dd-148221907",
+  "namespace": "payments",
+  "pod": "payout-scheduler-6c9d8f7b5-p4tnq",
+  "raw": {
+    "fixture_id": "kotlin-illegal-state"
+  }
+}

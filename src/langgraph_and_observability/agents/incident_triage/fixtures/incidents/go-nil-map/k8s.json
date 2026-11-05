@@ -1,0 +1,109 @@
+{
+  "pods": [
+    {
+      "name": "orders-api-6d5b8c9f7-wq8lh",
+      "namespace": "warehouse",
+      "node": "ip-10-0-52-18.eu-west-1.compute.internal",
+      "phase": "Running",
+      "containers": [
+        {
+          "name": "api",
+          "image": "123456789012.dkr.ecr.eu-west-1.amazonaws.com/warehouse/orders-api:0.19.2",
+          "image_id": "123456789012.dkr.ecr.eu-west-1.amazonaws.com/warehouse/orders-api@sha256:1f3cd32dd00b3bb13a70958c22bde115c2336e1282112d612e526d85b38672f2",
+          "restart_count": 9,
+          "state": "waiting",
+          "waiting_reason": "CrashLoopBackOff",
+          "last_terminated": {
+            "reason": "Error",
+            "exit_code": 2,
+            "signal": null
+          },
+          "ready": false
+        }
+      ],
+      "annotations": {},
+      "owner": {
+        "kind": "Deployment",
+        "name": "orders-api"
+      }
+    }
+  ],
+  "events": [
+    {
+      "reason": "Pulled",
+      "message": "Container image \"123456789012.dkr.ecr.eu-west-1.amazonaws.com/warehouse/orders-api:0.19.2\" already present on machine",
+      "type": "Normal",
+      "count": 9,
+      "last_seen": "2026-11-02T11:20:31Z",
+      "involved_kind": "Pod",
+      "involved_name": "orders-api-6d5b8c9f7-wq8lh"
+    },
+    {
+      "reason": "Created",
+      "message": "Created container: api",
+      "type": "Normal",
+      "count": 10,
+      "last_seen": "2026-11-02T11:20:31Z",
+      "involved_kind": "Pod",
+      "involved_name": "orders-api-6d5b8c9f7-wq8lh"
+    },
+    {
+      "reason": "Started",
+      "message": "Started container api",
+      "type": "Normal",
+      "count": 10,
+      "last_seen": "2026-11-02T11:20:31Z",
+      "involved_kind": "Pod",
+      "involved_name": "orders-api-6d5b8c9f7-wq8lh"
+    },
+    {
+      "reason": "BackOff",
+      "message": "Back-off restarting failed container api in pod orders-api-6d5b8c9f7-wq8lh_warehouse(678d8d91-12d8-5b7c-8be1-c6347a466993)",
+      "type": "Warning",
+      "count": 29,
+      "last_seen": "2026-11-02T11:20:31Z",
+      "involved_kind": "Pod",
+      "involved_name": "orders-api-6d5b8c9f7-wq8lh"
+    },
+    {
+      "reason": "ScalingReplicaSet",
+      "message": "Scaled up replica set orders-api-6d5b8c9f7 from 0 to 1",
+      "type": "Normal",
+      "count": 1,
+      "last_seen": "2026-10-30T08:02:51Z",
+      "involved_kind": "Deployment",
+      "involved_name": "orders-api"
+    }
+  ],
+  "logs": {
+    "orders-api-6d5b8c9f7-wq8lh/api/current": null,
+    "orders-api-6d5b8c9f7-wq8lh/api/previous": "2026/11/02 11:14:02 INFO orders-api listening addr=:8080\n2026/11/02 11:14:05 INFO reserved stock order=ord-88120 sku=SKU-4410 qty=1\n2026/11/02 11:14:05 INFO reserved stock order=ord-88121 sku=SKU-1022 qty=2\n2026/11/02 11:14:07 INFO reserved stock order=ord-88123 sku=SKU-4410 qty=1\npanic: assignment to entry in nil map\n\ngoroutine 23 [running]:\ngithub.com/example/orders-api/internal/orders.(*Service).reserve(0xc0001b2000, {{0xc0002a6030, 0x9}, {0xc0002a6040, 0x8}, 0x3})\n\t/workspace/internal/orders/service.go:53 +0x14c\ngithub.com/example/orders-api/internal/orders.(*Service).Run(0xc0001b2000, {0xa2d5f0, 0xc0001c4000})\n\t/workspace/internal/orders/service.go:44 +0xb8\nmain.main.func2()\n\t/workspace/cmd/api/main.go:37 +0x25\ngolang.org/x/sync/errgroup.(*Group).Go.func1()\n\t/go/pkg/mod/golang.org/x/sync@v0.17.0/errgroup/errgroup.go:93 +0x50\ncreated by golang.org/x/sync/errgroup.(*Group).Go in goroutine 1\n\t/go/pkg/mod/golang.org/x/sync@v0.17.0/errgroup/errgroup.go:78 +0x93\n"
+  },
+  "nodes": {
+    "ip-10-0-52-18.eu-west-1.compute.internal": [
+      {
+        "type": "MemoryPressure",
+        "status": "False",
+        "reason": "KubeletHasSufficientMemory"
+      },
+      {
+        "type": "DiskPressure",
+        "status": "False",
+        "reason": "KubeletHasNoDiskPressure"
+      },
+      {
+        "type": "PIDPressure",
+        "status": "False",
+        "reason": "KubeletHasSufficientPID"
+      },
+      {
+        "type": "Ready",
+        "status": "True",
+        "reason": "KubeletReady"
+      }
+    ]
+  },
+  "annotations": {
+    "deployment.kubernetes.io/revision": "12"
+  }
+}

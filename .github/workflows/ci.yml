@@ -1,0 +1,199 @@
+# CI (spec 13.3). Every Python job uses the same steps: check out the code, install uv and
+# Python 3.14 with astral-sh/setup-uv, install all dependency groups from uv.lock, then run
+# one make target. The project uses Python 3.14 only (the owner's decision, 2026-11-05).
+# UV_LOCKED makes every uv command, also the `uv run` inside make targets, fail when uv.lock
+# does not match pyproject.toml. (uv refuses --frozen alongside it.)
+# A job that runs tests first fetches the tree-sitter grammars (make grammars): tests never
+# download one.
+# A job that runs tests also installs ripgrep from apt: the agent's code step runs rg, which
+# the runner image lacks (actions/runner-images, Ubuntu 24.04, image 20261026.354.1).
+# To add a job, copy one of the Python jobs below and change its make target.
+# The docker job builds the image, then runs its migrations against a Compose Postgres.
+# The removal job deletes the example agent from a copy of the repository, then checks
+# that the rest still passes.
+# Actions are pinned to full commit SHAs; Dependabot updates the SHAs and their tag comments.
+# Dependabot does not update the images of the service containers below: keep them the same
+# as compose.yaml's, whose images it does update (tests/unit/test_ci_config.py checks this).
+name: CI
+
+on: [push, pull_request]
+
+permissions:
+  contents: read
+
+env:
+  UV_LOCKED: "1"
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: astral-sh/setup-uv@68559e99cc807c1eb7e9238fd43a15bba460eec2 # v10.3.3
+        with:
+          python-version: "3.14"
+          enable-cache: true
+      - run: uv sync --all-groups
+      - run: make lint typecheck
+
+  unit:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: astral-sh/setup-uv@68559e99cc807c1eb7e9238fd43a15bba460eec2 # v10.3.3
+        with:
+          python-version: "3.14"
+          enable-cache: true
+      - run: uv sync --all-groups
+      - run: make grammars
+      - run: sudo apt-get update && sudo apt-get install -y --no-install-recommends ripgrep
+      - run: make test
+
+  # Integration tests against Postgres and ElasticMQ (local SQS) service containers.
+  # APP_TEST_DATABASE_URL and APP_TEST_SQS_ENDPOINT point the tests at them, so they start
+  # no container of their own.
+  integration:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: pgvector/pgvector:0.8.4-pg18
+        env:
+          POSTGRES_USER: postgres
+          # CI only: a test credential for this job's throwaway database, as in compose.yaml.
+          POSTGRES_PASSWORD: postgres
+        options: >-
+          --health-cmd "pg_isready --host=127.0.0.1 --username=postgres --dbname=postgres"
+          --health-interval 2s
+          --health-timeout 5s
+          --health-retries 30
+        ports:
+          - 5432:5432
+      elasticmq:
+        image: softwaremill/elasticmq-native:1.7.1
+        options: >-
+          --health-cmd "wget -q -O /dev/null http://127.0.0.1:9324/?Action=ListQueues"
+          --health-interval 2s
+          --health-timeout 5s
+          --health-retries 30
+        ports:
+          - 9324:9324
+    env:
+      APP_TEST_DATABASE_URL: postgresql://postgres:postgres@localhost:5432/postgres
+      APP_TEST_SQS_ENDPOINT: http://localhost:9324
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: astral-sh/setup-uv@68559e99cc807c1eb7e9238fd43a15bba460eec2 # v10.3.3
+        with:
+          python-version: "3.14"
+          enable-cache: true
+      - run: uv sync --all-groups
+      - run: make grammars
+      - run: sudo apt-get update && sudo apt-get install -y --no-install-recommends ripgrep
+      - run: make test-int
+
+  # End-to-end tests (spec 13.3; P10, P11, P13): the tests start worker subprocesses
+  # (python -m langgraph_and_observability worker), then SIGKILL or SIGTERM them while a
+  # run is in progress, against the same service containers as the integration job.
+  # make test-e2e (pytest -m e2e) also runs tests/e2e/test_triage_e2e.py: the
+  # incident_triage agent in simulated mode, with every fixture incident and a kill -9
+  # during its Datadog step.
+  e2e:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: pgvector/pgvector:0.8.4-pg18
+        env:
+          POSTGRES_USER: postgres
+          # CI only: a test credential for this job's throwaway database, as in compose.yaml.
+          POSTGRES_PASSWORD: postgres
+        options: >-
+          --health-cmd "pg_isready --host=127.0.0.1 --username=postgres --dbname=postgres"
+          --health-interval 2s
+          --health-timeout 5s
+          --health-retries 30
+        ports:
+          - 5432:5432
+      elasticmq:
+        image: softwaremill/elasticmq-native:1.7.1
+        options: >-
+          --health-cmd "wget -q -O /dev/null http://127.0.0.1:9324/?Action=ListQueues"
+          --health-interval 2s
+          --health-timeout 5s
+          --health-retries 30
+        ports:
+          - 9324:9324
+    env:
+      APP_TEST_DATABASE_URL: postgresql://postgres:postgres@localhost:5432/postgres
+      APP_TEST_SQS_ENDPOINT: http://localhost:9324
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: astral-sh/setup-uv@68559e99cc807c1eb7e9238fd43a15bba460eec2 # v10.3.3
+        with:
+          python-version: "3.14"
+          enable-cache: true
+      - run: uv sync --all-groups
+      - run: make grammars
+      - run: sudo apt-get update && sudo apt-get install -y --no-install-recommends ripgrep
+      - run: make test-e2e
+
+  # Build the container image (spec 13.5), then the migration smoke test (spec 13.3, P4):
+  # the image's migrate command must bring an empty Compose Postgres up to date and exit 0.
+  # The tag is the one compose.yaml uses, so Compose runs this image and builds none.
+  # The job does not push the image.
+  docker:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - run: docker build -t langgraph-and-observability:local .
+      - name: Migration smoke test
+        run: |
+          docker compose up --detach --wait postgres
+          docker compose run --rm --no-deps migrate
+
+  # The removable example agent (spec 13.3, 13.9; P22). scripts/remove_example.py deletes
+  # the agent from a copy of the commit; the copy gets its own environment, and then its
+  # unit tests, lint and typecheck must pass, with no file under src/ naming the agent.
+  # The grep runs alone in its step: bash -e does not stop at a failed `!` command.
+  removal:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: astral-sh/setup-uv@68559e99cc807c1eb7e9238fd43a15bba460eec2 # v10.3.3
+        with:
+          python-version: "3.14"
+          enable-cache: true
+      - run: uv sync --all-groups
+      - name: Copy the commit to a temporary folder
+        run: |
+          mkdir "$RUNNER_TEMP/removal"
+          git archive HEAD | tar -x -C "$RUNNER_TEMP/removal"
+      - name: Remove the example agent from the copy
+        working-directory: ${{ runner.temp }}/removal
+        run: |
+          uv sync --all-groups
+          uv run scripts/remove_example.py
+      - name: No file under src/ names the example agent
+        working-directory: ${{ runner.temp }}/removal
+        run: "! grep -r incident_triage src"
+      - name: Unit tests without the example agent
+        working-directory: ${{ runner.temp }}/removal
+        run: uv run pytest -m "not integration and not e2e"
+      - name: Lint and typecheck without the example agent
+        working-directory: ${{ runner.temp }}/removal
+        run: make lint typecheck

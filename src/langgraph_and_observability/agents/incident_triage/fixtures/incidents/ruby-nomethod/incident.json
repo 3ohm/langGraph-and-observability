@@ -1,0 +1,10 @@
+{
+  "version": 1,
+  "source": "alertmanager",
+  "alert_id": "am-KubePodCrashLooping-fulfillment-label-printer",
+  "namespace": "fulfillment",
+  "pod": "label-printer-58d7c9b6f-hm3xd",
+  "raw": {
+    "fixture_id": "ruby-nomethod"
+  }
+}

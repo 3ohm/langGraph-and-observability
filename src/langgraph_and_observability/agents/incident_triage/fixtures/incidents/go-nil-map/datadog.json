@@ -1,0 +1,27 @@
+{
+  "events": [
+    {
+      "id": "8312004415592873013",
+      "title": "[Triggered on {kube_deployment:orders-api}] orders-api is crash looping",
+      "text": "orders-api restarted 9 times in the last 30 minutes.",
+      "timestamp": "2026-11-02T11:18:00Z",
+      "tags": [
+        "kube_cluster_name:prod-eu-west-1",
+        "kube_namespace:warehouse",
+        "kube_deployment:orders-api"
+      ],
+      "source": "monitor"
+    },
+    {
+      "id": "8312004415592873014",
+      "title": "Catalog import finished",
+      "text": "The catalog import added 214 new SKUs, including SKU-9921.",
+      "timestamp": "2026-11-02T11:05:44Z",
+      "tags": [
+        "kube_cluster_name:prod-eu-west-1",
+        "kube_namespace:warehouse"
+      ],
+      "source": null
+    }
+  ]
+}

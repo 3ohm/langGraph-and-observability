@@ -1,4 +1,4 @@
-# langgraph-postgres-starter v1 (Incident Triage) Implementation Plan
+# langgraph-and-observability v1 (Incident Triage) Implementation Plan
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
@@ -22,7 +22,7 @@
 - pytest and testcontainers
 - Postgres 18, ElasticMQ and Docker
 
-**Spec:** `docs/design/2026-11-01-langgraph-postgres-starter-design.md` (v2). Section signs (§) below refer to it. Read §6–§13 before Task 1.
+**Spec:** `docs/design/2026-11-01-langgraph-and-observability-design.md` (v2). Section signs (§) below refer to it. Read §6–§13 before Task 1.
 
 **Execution set-up (owner's decisions):**
 - Implementer subagents use the `implementer` agent (Claude Opus 5.5).
@@ -35,7 +35,7 @@
 
 - **Python:** `requires-python = ">=3.14"`, and `.python-version` is `3.14`. Use standard (GIL) CPython only. CI also runs a Python 3.15 job with `continue-on-error: true`.
 - **Dependency pins:** `langgraph>=1.2.19,<2`, `langgraph-checkpoint>=4.3.1,<5`, `langgraph-checkpoint-postgres>=3.2.0,<4`, `langchain-core>=1.7.3,<2`, `langsmith>=0.14.16,<1`.
-- **Package and settings names:** the package is `langgraph_postgres_starter` under `src/`. Settings use the `APP_` prefix. Vendor variables keep their own names: `DD_API_KEY`, `DD_APP_KEY`, `DD_SITE`, `LANGSMITH_*`, `LANGGRAPH_*`, `AWS_*`.
+- **Package and settings names:** the package is `langgraph_and_observability` under `src/`. Settings use the `APP_` prefix. Vendor variables keep their own names: `DD_API_KEY`, `DD_APP_KEY`, `DD_SITE`, `LANGSMITH_*`, `LANGGRAPH_*`, `AWS_*`.
 - **Images:** `pgvector/pgvector:0.8.4-pg18`, `softwaremill/elasticmq-native:1.7.1`, and the runtime `python:3.14-slim` with `ripgrep`, `git` and `ca-certificates`.
 - **Async nodes and adapters:** every graph node is `async`. Every external system is reached only through an adapter Protocol that has a fake.
 - **Where vendor SDKs may be imported:** `kubernetes_asyncio`, `datadog_api_client`, `boto3`/`botocore` and `langsmith` appear only under `agents/*/adapters/`, `worker/intake.py`, `observability/` and `policies.py` (the last for exception types only).
@@ -87,7 +87,7 @@
 
 ## File Structure
 
-| Path (under `src/langgraph_postgres_starter/` unless rooted) | Responsibility | Task |
+| Path (under `src/langgraph_and_observability/` unless rooted) | Responsibility | Task |
 |---|---|---|
 | `__init__.py`, `__main__.py` | version; CLI entry | 1, 15 |
 | `settings.py`, `logging.py`, `ids.py` | config, JSON logs, uuid7 | 2 |
@@ -132,7 +132,7 @@
 **Files:**
 - Create:
   - `pyproject.toml`, `.python-version`, `.gitignore`, `.editorconfig`, `.pre-commit-config.yaml`, `Makefile`
-  - `src/langgraph_postgres_starter/__init__.py`, `src/langgraph_postgres_starter/__main__.py`
+  - `src/langgraph_and_observability/__init__.py`, `src/langgraph_and_observability/__main__.py`
   - `tests/conftest.py`, `tests/unit/test_package.py`
   - `LICENSE` (MIT), `README.md` (stub), `CONTRIBUTING.md`, `CODE_OF_CONDUCT.md` (Contributor Covenant 2.1), `SECURITY.md`, `CHANGELOG.md` (Keep a Changelog, "Unreleased")
   - `AGENTS.md` (rules from spec §13.8), `CLAUDE.md` (single line `@AGENTS.md`)
@@ -142,8 +142,8 @@
 
 **Interfaces:**
 - Produces:
-  - `langgraph_postgres_starter.__version__: str`, read from package metadata. The version in `pyproject.toml` is `0.1.0.dev0`.
-  - `python -m langgraph_postgres_starter --version`.
+  - `langgraph_and_observability.__version__: str`, read from package metadata. The version in `pyproject.toml` is `0.1.0.dev0`.
+  - `python -m langgraph_and_observability --version`.
   - Make targets `setup`, `lint`, `fmt`, `typecheck`, `test`.
 
 - [ ] **Step 1:** Run `git init -b main` in the repo root. Run `git status` and confirm that `docs/` and `.claude/` are untracked.
@@ -152,13 +152,13 @@
 ```python
 import subprocess, sys
 from importlib.metadata import version
-import langgraph_postgres_starter as pkg
+import langgraph_and_observability as pkg
 
 def test_version_matches_metadata():
-    assert pkg.__version__ == version("langgraph-postgres-starter") == "0.1.0.dev0"
+    assert pkg.__version__ == version("langgraph-and-observability") == "0.1.0.dev0"
 
 def test_cli_prints_version():
-    out = subprocess.run([sys.executable, "-m", "langgraph_postgres_starter", "--version"],
+    out = subprocess.run([sys.executable, "-m", "langgraph_and_observability", "--version"],
                          capture_output=True, text=True, check=True)
     assert out.stdout.strip() == pkg.__version__
 ```
@@ -175,7 +175,7 @@ def test_cli_prints_version():
   - mypy: `strict = true`, `python_version = "3.14"`, the pydantic plugin.
   - pytest:
     - `asyncio_mode = "auto"`
-    - `testpaths = ["tests", "src/langgraph_postgres_starter/agents"]`
+    - `testpaths = ["tests", "src/langgraph_and_observability/agents"]`
     - the markers `integration` and `e2e`
     - `filterwarnings = ["error", "<the filter from Global Constraints>"]`
 - [ ] **Step 5: Write `__init__.py` and `__main__.py`.** `__init__.py` reads `__version__` from `importlib.metadata.version`. `__main__.py` uses argparse with `--version`; Task 15 adds subcommands.
@@ -189,7 +189,7 @@ def test_cli_prints_version():
 ### Task 2: Settings, logging and IDs
 
 **Files:**
-- Create: `src/langgraph_postgres_starter/{settings.py,logging.py,ids.py}`, `.env.example`
+- Create: `src/langgraph_and_observability/{settings.py,logging.py,ids.py}`, `.env.example`
 - Test: `tests/unit/{test_settings.py,test_ids.py,test_logging.py}`
 
 **Interfaces:**
@@ -308,7 +308,7 @@ def test_dependabot_weekly_grouped_with_cooldown():
 
 **Interfaces:**
 - Produces:
-  - Image entrypoint `python -m langgraph_postgres_starter`, with default command `worker`.
+  - Image entrypoint `python -m langgraph_and_observability`, with default command `worker`.
   - Compose services `postgres` and `elasticmq`.
   - Queues `incidents`, `incidents-dlq` and `results`. `incidents` has a 30 s visibility timeout and redrives to `incidents-dlq` after 3 receives.
 
@@ -317,7 +317,7 @@ def test_dependabot_weekly_grouped_with_cooldown():
   - Runtime stage: `python:3.14-slim`. Install `ripgrep`, `git` and `ca-certificates` with apt (`--no-install-recommends`, then clean the lists).
   - Run as non-root user `app` (uid 10001). Set `ENV LANGGRAPH_STRICT_MSGPACK=true` and `STOPSIGNAL SIGTERM`.
 - [ ] **Step 2:** Run `docker build -t lps:dev .`. Expected: the build succeeds.
-- [ ] **Step 3:** Run `docker run --rm --entrypoint sh lps:dev -c "rg --version && git --version && python -c 'import langgraph_postgres_starter, tree_sitter_language_pack'"`. Expected: version lines, exit 0.
+- [ ] **Step 3:** Run `docker run --rm --entrypoint sh lps:dev -c "rg --version && git --version && python -c 'import langgraph_and_observability, tree_sitter_language_pack'"`. Expected: version lines, exit 0.
 - [ ] **Step 4: Write `compose.yaml`.**
   - `postgres`: the image from Global Constraints, `POSTGRES_PASSWORD=postgres` (dev only), a `pg_isready` healthcheck, port 5432.
   - `elasticmq`: mounts `deploy/elasticmq/elasticmq.conf`, ports 9324 and 9325.
@@ -328,7 +328,7 @@ def test_dependabot_weekly_grouped_with_cooldown():
 ### Task 5: Redaction
 
 **Files:**
-- Create: `src/langgraph_postgres_starter/redaction.py`
+- Create: `src/langgraph_and_observability/redaction.py`
 - Test: `tests/unit/test_redaction.py`
 
 **Interfaces:**
@@ -359,7 +359,7 @@ Also add `test_redact_obj_nested`.
 ### Task 6: Retry and timeout policies
 
 **Files:**
-- Create: `src/langgraph_postgres_starter/policies.py`
+- Create: `src/langgraph_and_observability/policies.py`
 - Test: `tests/unit/test_policies.py`
 
 **Interfaces:**
@@ -680,7 +680,7 @@ class AgentSpec:
   - `def create_health_app(probe: ReadinessProbe) -> FastAPI`:
     - `GET /ok` returns 200 with `{"status": "ok"}`;
     - `GET /ready` returns 200 or 503 with `{"ready": bool, "checks": {...}}`.
-  - CLI subcommands of `python -m langgraph_postgres_starter`:
+  - CLI subcommands of `python -m langgraph_and_observability`:
     - `worker`
     - `migrate [--components a,b]`
     - `runs list [--status S] [--limit N]`
@@ -772,7 +772,7 @@ class AgentSpec:
 - Modify: `compose.yaml`, `Makefile`, `.github/workflows/ci.yml`
 
 **Interfaces:**
-- Consumes: `python -m langgraph_postgres_starter worker` (Task 16)
+- Consumes: `python -m langgraph_and_observability worker` (Task 16)
 - Produces:
   - Compose services:
     - `migrate`: `command: ["migrate"]`, depends on postgres being healthy, `restart: "no"`;
@@ -876,7 +876,7 @@ class AgentSpec:
   - `test_dedup_uses_alert_id`.
   - `test_analysis_caps`: a 601-character summary fails, 6 actions fail, `application` with no evidence fails, and `unknown` with no evidence passes.
   - `test_state_types_round_trip_strict_serde`: one sample of each type in `SERDE_TYPES` goes through `make_serde(SERDE_TYPES)` and comes back equal.
-- [ ] **Step 2:** Run `uv run pytest src/langgraph_postgres_starter/agents/incident_triage/tests/test_schemas.py -q`. Expected: FAIL.
+- [ ] **Step 2:** Run `uv run pytest src/langgraph_and_observability/agents/incident_triage/tests/test_schemas.py -q`. Expected: FAIL.
 - [ ] **Step 3: Implement.**
 - [ ] **Step 4:** Run it again. Expected: PASS. Commit: `feat(triage): schemas, state and dedup key`.
 
@@ -1331,7 +1331,7 @@ def test_bedrock_invoke_shape_with_stubber(): ...          # botocore Stubber as
   - `langgraph.json`:
 
     ```json
-    {"python_version": "3.14", "dependencies": ["."], "graphs": {"incident_triage": "./src/langgraph_postgres_starter/agents/incident_triage/graph.py:graph"}, "env": ".env"}
+    {"python_version": "3.14", "dependencies": ["."], "graphs": {"incident_triage": "./src/langgraph_and_observability/agents/incident_triage/graph.py:graph"}, "env": ".env"}
     ```
 
 - [ ] **Step 1: Write the failing tests:**
@@ -1413,7 +1413,7 @@ def test_bedrock_invoke_shape_with_stubber(): ...          # botocore Stubber as
   - `test_judge_skipped_in_recorded_mode`.
 - [ ] **Step 2:** Run them. Expected: FAIL.
 - [ ] **Step 3: Implement.**
-- [ ] **Step 4:** Run them, then run `uv run pytest src/langgraph_postgres_starter/agents/incident_triage/evals -q`. Expected: PASS, with the thresholds met in recorded mode. Commit: `feat(triage): evals and secret-gated live eval workflow`.
+- [ ] **Step 4:** Run them, then run `uv run pytest src/langgraph_and_observability/agents/incident_triage/evals -q`. Expected: PASS, with the thresholds met in recorded mode. Commit: `feat(triage): evals and secret-gated live eval workflow`.
 
 ### Task 36: Kubernetes manifests and IAM policy
 
@@ -1459,7 +1459,7 @@ def test_bedrock_invoke_shape_with_stubber(): ...          # botocore Stubber as
 - [ ] **Step 1: Write the failing tests:**
   - `test_every_practice_has_a_note`: P1–P23 exist, and the test path each note names exists.
   - `test_readme_quickstart_targets_exist`.
-  - `test_rename_dry_run`: on a temp copy, no `langgraph_postgres_starter` string is left under `src/`.
+  - `test_rename_dry_run`: on a temp copy, no `langgraph_and_observability` string is left under `src/`.
   - `test_remove_example_in_temp_copy`: the leftover suite imports cleanly.
 - [ ] **Step 2:** Run them. Expected: FAIL.
 - [ ] **Step 3: Write the docs and the scripts.**

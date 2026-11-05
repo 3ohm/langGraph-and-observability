@@ -1,0 +1,31 @@
+{
+  "events": [
+    {
+      "id": "8312004415592873011",
+      "title": "[Triggered on {kube_cronjob:billing-invoices}] billing-invoices has not completed",
+      "text": "The billing-invoices job for 2026-10 has run for 9 minutes without completing.",
+      "timestamp": "2026-11-02T04:09:00Z",
+      "tags": [
+        "kube_cluster_name:prod-eu-west-1",
+        "kube_namespace:billing",
+        "kube_job:billing-invoices-29870100",
+        "kube_cronjob:billing-invoices"
+      ],
+      "source": "monitor"
+    },
+    {
+      "id": "8312004415592873012",
+      "title": "Events from the billing-invoices-29870100-7xk2p Pod",
+      "text": "BackOff: Back-off restarting failed container invoices in pod billing-invoices-29870100-7xk2p",
+      "timestamp": "2026-11-02T04:08:47Z",
+      "tags": [
+        "kube_cluster_name:prod-eu-west-1",
+        "kube_namespace:billing",
+        "kube_job:billing-invoices-29870100",
+        "pod_name:billing-invoices-29870100-7xk2p",
+        "kube_container_name:invoices"
+      ],
+      "source": "kubernetes"
+    }
+  ]
+}

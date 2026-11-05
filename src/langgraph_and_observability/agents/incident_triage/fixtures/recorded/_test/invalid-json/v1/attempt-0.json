@@ -1,0 +1,10 @@
+{
+  "text": "The api container crashes because unit_price divides by a quantity of zero.",
+  "stop_reason": "end_turn",
+  "model_id": "anthropic.claude-opus-5-5",
+  "usage": {
+    "input_tokens": 2140,
+    "output_tokens": 95,
+    "cache_read_input_tokens": 702
+  }
+}

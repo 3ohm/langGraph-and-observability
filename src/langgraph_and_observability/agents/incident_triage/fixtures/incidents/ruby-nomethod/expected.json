@@ -1,0 +1,14 @@
+{
+  "category": "application",
+  "code": {
+    "path": "lib/fulfillment/label_printer.rb",
+    "start_line": 22,
+    "end_line": 24,
+    "symbol": "address_lines"
+  },
+  "facts": [
+    "undefined method 'upcase' for nil",
+    "postcode",
+    "address_lines"
+  ]
+}

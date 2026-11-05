@@ -1,0 +1,11 @@
+{
+  "version": 1,
+  "source": "datadog-monitor",
+  "alert_id": "dd-148223901",
+  "namespace": "shop",
+  "pod": "cart-events-6b8f9d7c4-jq2wz",
+  "container": "cart-events",
+  "raw": {
+    "fixture_id": "js-typeerror"
+  }
+}

@@ -1,0 +1,29 @@
+{
+  "events": [
+    {
+      "id": "8312004415592873024",
+      "title": "Warehouse BHX2 opened",
+      "text": "Warehouse 4 (BHX2) takes orders from 2026-11-02.",
+      "timestamp": "2026-11-02T13:00:00Z",
+      "tags": [
+        "kube_cluster_name:prod-eu-west-1",
+        "kube_namespace:warehouse"
+      ],
+      "source": null
+    },
+    {
+      "id": "8312004415592873025",
+      "title": "Events from the order-batcher-0 Pod",
+      "text": "BackOff: Back-off restarting failed container batcher in pod order-batcher-0",
+      "timestamp": "2026-11-02T13:11:40Z",
+      "tags": [
+        "kube_cluster_name:prod-eu-west-1",
+        "kube_namespace:warehouse",
+        "kube_stateful_set:order-batcher",
+        "pod_name:order-batcher-0",
+        "kube_container_name:batcher"
+      ],
+      "source": "kubernetes"
+    }
+  ]
+}

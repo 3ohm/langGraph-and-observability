@@ -1,0 +1,28 @@
+{
+  "events": [
+    {
+      "id": "8312004415592873026",
+      "title": "[Triggered on {kube_deployment:pick-planner}] pick-planner is crash looping",
+      "text": "pick-planner restarted 6 times in the last 30 minutes. Pick waves are not planned.",
+      "timestamp": "2026-11-02T16:22:00Z",
+      "tags": [
+        "kube_cluster_name:prod-eu-west-1",
+        "kube_namespace:warehouse",
+        "kube_deployment:pick-planner"
+      ],
+      "source": "monitor"
+    },
+    {
+      "id": "8312004415592873027",
+      "title": "Deployed pick-planner 2.2.0",
+      "text": "Floor layout v2: 12 aisles, signed A01 to A12.",
+      "timestamp": "2026-11-02T15:58:02Z",
+      "tags": [
+        "kube_cluster_name:prod-eu-west-1",
+        "kube_namespace:warehouse",
+        "kube_deployment:pick-planner"
+      ],
+      "source": "github"
+    }
+  ]
+}

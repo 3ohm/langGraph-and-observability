@@ -1,0 +1,13 @@
+{
+  "version": 1,
+  "source": "alertmanager",
+  "alert_id": "am-KubeDeploymentRolloutStuck-shop-checkout-web",
+  "namespace": "shop",
+  "workload": {
+    "kind": "Deployment",
+    "name": "checkout-web"
+  },
+  "raw": {
+    "fixture_id": "infra-imagepull"
+  }
+}

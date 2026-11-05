@@ -1,0 +1,45 @@
+# Install the git hook once with: uv run pre-commit install
+repos:
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v6.0.0
+    hooks:
+      - id: check-yaml
+        args: [--allow-multiple-documents] # deploy/k8s/rbac.yaml holds more than one
+      - id: end-of-file-fixer
+      - id: trailing-whitespace
+        args: [--markdown-linebreak-ext=md]
+
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.17.3 # keep equal to the ruff version in uv.lock
+    hooks:
+      - id: ruff-check
+        args: [--fix]
+      - id: ruff-format
+
+  - repo: https://github.com/gitleaks/gitleaks
+    rev: v8.30.1
+    hooks:
+      - id: gitleaks
+
+  - repo: local
+    hooks:
+      - id: mypy
+        name: mypy (strict)
+        entry: uv run mypy src tests scripts conftest.py
+        language: system
+        types_or: [python, pyi]
+        pass_filenames: false
+      # make pylint runs `uv run pylint` twice: on package code, then on the test modules
+      # with fewer checks. The Makefile keeps the two file lists and the tests' checks.
+      - id: pylint
+        name: pylint
+        entry: make --no-print-directory pylint
+        language: system
+        types_or: [python, pyi]
+        pass_filenames: false
+      - id: uv-lock-check
+        name: uv lock --check
+        entry: uv lock --check
+        language: system
+        files: ^(pyproject\.toml|uv\.lock)$
+        pass_filenames: false

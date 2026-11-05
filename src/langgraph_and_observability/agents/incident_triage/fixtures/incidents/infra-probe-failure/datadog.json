@@ -1,0 +1,28 @@
+{
+  "events": [
+    {
+      "id": "8312004415592873033",
+      "title": "[Triggered on {kube_namespace:catalog,host:ip-10-0-7-12.eu-west-1.compute.internal}] CPU saturated on ip-10-0-7-12.eu-west-1.compute.internal",
+      "text": "system.cpu.user averaged 97.4% over the last 10 minutes. The node also runs 3 pods of the job nightly-reindex.",
+      "timestamp": "2026-11-02T14:15:00Z",
+      "tags": [
+        "kube_cluster_name:prod-eu-west-1",
+        "kube_namespace:catalog",
+        "host:ip-10-0-7-12.eu-west-1.compute.internal"
+      ],
+      "source": "monitor"
+    },
+    {
+      "id": "8312004415592873034",
+      "title": "[Triggered on {kube_deployment:search-api}] search-api liveness probe failures",
+      "text": "search-api was restarted 9 times by its liveness probe in the last 30 minutes.",
+      "timestamp": "2026-11-02T14:40:00Z",
+      "tags": [
+        "kube_cluster_name:prod-eu-west-1",
+        "kube_namespace:catalog",
+        "kube_deployment:search-api"
+      ],
+      "source": "monitor"
+    }
+  ]
+}

@@ -1,0 +1,28 @@
+{
+  "events": [
+    {
+      "id": "8312004415592873031",
+      "title": "[Triggered on {kube_deployment:checkout-web}] checkout-web rollout is stuck",
+      "text": "checkout-web has 1 unavailable replica for 20 minutes.",
+      "timestamp": "2026-11-02T17:21:00Z",
+      "tags": [
+        "kube_cluster_name:prod-eu-west-1",
+        "kube_namespace:shop",
+        "kube_deployment:checkout-web"
+      ],
+      "source": "monitor"
+    },
+    {
+      "id": "8312004415592873032",
+      "title": "Release checkout-web v3.15.0",
+      "text": "GitHub Actions built and pushed 123456789012.dkr.ecr.eu-west-1.amazonaws.com/shop/checkout-web:v3.15.0.",
+      "timestamp": "2026-11-02T16:52:31Z",
+      "tags": [
+        "kube_cluster_name:prod-eu-west-1",
+        "kube_namespace:shop",
+        "kube_deployment:checkout-web"
+      ],
+      "source": "github"
+    }
+  ]
+}

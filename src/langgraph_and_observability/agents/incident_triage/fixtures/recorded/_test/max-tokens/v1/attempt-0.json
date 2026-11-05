@@ -1,0 +1,10 @@
+{
+  "text": "{\"category\": \"application\", \"summary\": \"unit_price divides by a quantity of zero, so api crashes.\", \"root_cause\": \"An order with quantity 0 reaches unit_price, which divides by it.",
+  "stop_reason": "max_tokens",
+  "model_id": "anthropic.claude-opus-5-5",
+  "usage": {
+    "input_tokens": 2140,
+    "output_tokens": 16000,
+    "cache_read_input_tokens": 702
+  }
+}

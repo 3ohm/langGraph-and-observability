@@ -1,0 +1,14 @@
+{
+  "version": 1,
+  "source": "datadog-monitor",
+  "alert_id": "dd-148225030",
+  "namespace": "commerce",
+  "workload": {
+    "kind": "Deployment",
+    "name": "order-service"
+  },
+  "container": "order-service",
+  "raw": {
+    "fixture_id": "java-spring-npe"
+  }
+}

@@ -1,0 +1,42 @@
+{
+  "events": [
+    {
+      "id": "8312004415592873001",
+      "title": "[Triggered on {kube_deployment:cart-events}] cart-events is crash looping",
+      "text": "cart-events restarted 7 times in the last 30 minutes. @slack-shop-oncall",
+      "timestamp": "2026-11-02T09:40:00Z",
+      "tags": [
+        "kube_cluster_name:prod-eu-west-1",
+        "kube_namespace:shop",
+        "kube_deployment:cart-events"
+      ],
+      "source": "monitor"
+    },
+    {
+      "id": "8312004415592873002",
+      "title": "Events from the cart-events-6b8f9d7c4-jq2wz Pod",
+      "text": "BackOff: Back-off restarting failed container cart-events in pod cart-events-6b8f9d7c4-jq2wz",
+      "timestamp": "2026-11-02T09:41:52Z",
+      "tags": [
+        "kube_cluster_name:prod-eu-west-1",
+        "kube_namespace:shop",
+        "kube_deployment:cart-events",
+        "pod_name:cart-events-6b8f9d7c4-jq2wz",
+        "kube_container_name:cart-events"
+      ],
+      "source": "kubernetes"
+    },
+    {
+      "id": "8312004415592873003",
+      "title": "Deployed checkout-api 4.0.0",
+      "text": "Argo CD synced shop/checkout-api to 4.0.0 (checkout v2).",
+      "timestamp": "2026-11-02T09:12:40Z",
+      "tags": [
+        "kube_cluster_name:prod-eu-west-1",
+        "kube_namespace:shop",
+        "kube_deployment:checkout-api"
+      ],
+      "source": "argocd"
+    }
+  ]
+}

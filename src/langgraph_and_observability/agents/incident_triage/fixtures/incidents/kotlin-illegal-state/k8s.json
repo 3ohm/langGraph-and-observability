@@ -1,0 +1,109 @@
+{
+  "pods": [
+    {
+      "name": "payout-scheduler-6c9d8f7b5-p4tnq",
+      "namespace": "payments",
+      "node": "ip-10-0-21-140.eu-west-1.compute.internal",
+      "phase": "Running",
+      "containers": [
+        {
+          "name": "scheduler",
+          "image": "123456789012.dkr.ecr.eu-west-1.amazonaws.com/payments/payout-scheduler:3.0.1",
+          "image_id": "123456789012.dkr.ecr.eu-west-1.amazonaws.com/payments/payout-scheduler@sha256:ec2c4defe59105f81b9f9f6ef08b586fdd62df1cbb731e8d37466b89e38b69a7",
+          "restart_count": 3,
+          "state": "waiting",
+          "waiting_reason": "CrashLoopBackOff",
+          "last_terminated": {
+            "reason": "Error",
+            "exit_code": 1,
+            "signal": null
+          },
+          "ready": false
+        }
+      ],
+      "annotations": {},
+      "owner": {
+        "kind": "Deployment",
+        "name": "payout-scheduler"
+      }
+    }
+  ],
+  "events": [
+    {
+      "reason": "Pulled",
+      "message": "Container image \"123456789012.dkr.ecr.eu-west-1.amazonaws.com/payments/payout-scheduler:3.0.1\" already present on machine",
+      "type": "Normal",
+      "count": 3,
+      "last_seen": "2026-11-02T09:07:51Z",
+      "involved_kind": "Pod",
+      "involved_name": "payout-scheduler-6c9d8f7b5-p4tnq"
+    },
+    {
+      "reason": "Created",
+      "message": "Created container: scheduler",
+      "type": "Normal",
+      "count": 4,
+      "last_seen": "2026-11-02T09:07:51Z",
+      "involved_kind": "Pod",
+      "involved_name": "payout-scheduler-6c9d8f7b5-p4tnq"
+    },
+    {
+      "reason": "Started",
+      "message": "Started container scheduler",
+      "type": "Normal",
+      "count": 4,
+      "last_seen": "2026-11-02T09:07:51Z",
+      "involved_kind": "Pod",
+      "involved_name": "payout-scheduler-6c9d8f7b5-p4tnq"
+    },
+    {
+      "reason": "BackOff",
+      "message": "Back-off restarting failed container scheduler in pod payout-scheduler-6c9d8f7b5-p4tnq_payments(8296512b-6efb-5a63-b68f-4c81fb7d7af3)",
+      "type": "Warning",
+      "count": 11,
+      "last_seen": "2026-11-02T09:07:51Z",
+      "involved_kind": "Pod",
+      "involved_name": "payout-scheduler-6c9d8f7b5-p4tnq"
+    },
+    {
+      "reason": "ScalingReplicaSet",
+      "message": "Scaled up replica set payout-scheduler-6c9d8f7b5 from 0 to 1",
+      "type": "Normal",
+      "count": 1,
+      "last_seen": "2026-10-31T17:41:05Z",
+      "involved_kind": "Deployment",
+      "involved_name": "payout-scheduler"
+    }
+  ],
+  "logs": {
+    "payout-scheduler-6c9d8f7b5-p4tnq/scheduler/current": null,
+    "payout-scheduler-6c9d8f7b5-p4tnq/scheduler/previous": "09:00:02.114 [main] INFO com.example.payouts.Main -- payout scheduler started\n09:00:03.508 [main] INFO com.example.payouts.PayoutScheduler -- sent payout po_20411 (1250.00 EUR)\n09:00:04.022 [main] INFO com.example.payouts.PayoutScheduler -- sent payout po_20412 (88.40 GBP)\n09:01:04.317 [main] INFO com.example.payouts.PayoutScheduler -- sent payout po_20415 (310.00 EUR)\nException in thread \"main\" java.lang.IllegalStateException: payout po_20398 is RETRY_SCHEDULED, expected APPROVED\n\tat com.example.payouts.PayoutScheduler.send(PayoutScheduler.kt:17)\n\tat com.example.payouts.PayoutScheduler.runOnce(PayoutScheduler.kt:11)\n\tat com.example.payouts.MainKt$main$1.invokeSuspend(Main.kt:15)\n\tat kotlin.coroutines.jvm.internal.BaseContinuationImpl.resumeWith(ContinuationImpl.kt:33)\n\tat kotlinx.coroutines.DispatchedTask.run(DispatchedTask.kt:100)\n\tat kotlinx.coroutines.EventLoopImplBase.processNextEvent(EventLoop.common.kt:263)\n\tat kotlinx.coroutines.BlockingCoroutine.joinBlocking(Builders.kt:94)\n\tat kotlinx.coroutines.BuildersKt__BuildersKt.runBlocking(Builders.kt:70)\n\tat kotlinx.coroutines.BuildersKt.runBlocking(Unknown Source)\n\tat kotlinx.coroutines.BuildersKt__BuildersKt.runBlocking$default(Builders.kt:48)\n\tat kotlinx.coroutines.BuildersKt.runBlocking$default(Unknown Source)\n\tat com.example.payouts.MainKt.main(Main.kt:10)\n\tat com.example.payouts.MainKt.main(Main.kt)\n"
+  },
+  "nodes": {
+    "ip-10-0-21-140.eu-west-1.compute.internal": [
+      {
+        "type": "MemoryPressure",
+        "status": "False",
+        "reason": "KubeletHasSufficientMemory"
+      },
+      {
+        "type": "DiskPressure",
+        "status": "False",
+        "reason": "KubeletHasNoDiskPressure"
+      },
+      {
+        "type": "PIDPressure",
+        "status": "False",
+        "reason": "KubeletHasSufficientPID"
+      },
+      {
+        "type": "Ready",
+        "status": "True",
+        "reason": "KubeletReady"
+      }
+    ]
+  },
+  "annotations": {
+    "deployment.kubernetes.io/revision": "7"
+  }
+}

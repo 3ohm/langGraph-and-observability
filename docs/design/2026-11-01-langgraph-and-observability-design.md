@@ -1,8 +1,9 @@
-# langgraph-postgres-starter: Design (v2)
+# langgraph-and-observability: Design (v2)
 
 - **Date:** 2026-11-01. Version 2 was written on 2026-11-02 after the owner changed the first agent.
 - **Status:** The owner agreed and asked for the implementation plan on 2026-11-02 ("go ahead", "create a plan"). The owner has not reviewed every section. Items marked _(Designer's call)_ are decisions the owner can override.
-- **Name:** `langgraph-postgres-starter`. The Python package is `langgraph_postgres_starter`, and `scripts/rename.py` renames it for forks.
+- **Name:** `langgraph-and-observability`. The Python package is `langgraph_and_observability`, and `scripts/rename.py` renames it for forks.
+- **Repository:** [github.com/3ohm/langGraph-and-observability](https://github.com/3ohm/langGraph-and-observability), public since 2026-11-05. On 2026-11-05 the owner renamed the project from its working name `langgraph-postgres-starter` to `langgraph-and-observability` (package `langgraph_and_observability`; the image and the Kubernetes names use the hyphenated form, because Kubernetes names must be lowercase). The name is temporary: the owner plans another rename when the Support Desk agent arrives. For that rename, run `scripts/rename.py`, then update the bracketed template names in `docs/guides/upgrade.md` and `TEMPLATE_PACKAGE` in `tests/unit/test_scripts.py`.
 
 ## 1. What this is and why
 
@@ -50,7 +51,7 @@ Every step is saved to Postgres. A run that dies at any step resumes at that ste
 7. **It runs locally with no credentials.** Simulated adapters stand in for Kubernetes, Datadog and Git, and recorded model responses stand in for Bedrock. `docker compose up` shows the whole flow.
 8. **Studio works.** `make studio` opens the graph in LangGraph Studio with simulated data.
 9. **It's ready for coding assistants,** through `AGENTS.md`.
-10. **It stays current:** CI on Python 3.14, a non-blocking 3.15 job, and scheduled dependency updates.
+10. **It stays current:** CI on Python 3.14, and scheduled dependency updates.
 
 ## 4. Non-goals (v1) and backlog
 
@@ -72,7 +73,7 @@ Every step is saved to Postgres. A run that dies at any step resumes at that ste
   - an Agent Server-compatible HTTP API with SSE, compatible with agent-chat-ui;
   - end-user auth and per-user ownership of conversations;
   - human-in-the-loop approvals.
-- **Long-term memory** in the LangGraph Store, for example past incidents for each workload.
+- **Long-term memory for the example agent,** for example past incidents for each workload. The LangGraph Store itself is no longer backlog: it runs on the shared pool (§7.3, P24).
 - **LangSmith Deployment** as a hosting option for the graph.
 - **Result sinks** for Slack, Jira and PagerDuty.
 - **Producer adapters** that turn Datadog monitor webhooks and Alertmanager alerts into the input envelope.
@@ -103,7 +104,7 @@ Every step is saved to Postgres. A run that dies at any step resumes at that ste
   - datadog-api-client 2.62.0 imports (it's pure Python; its PyPI classifiers only go up to 3.12);
   - kubernetes-asyncio 36.1.0 and boto3 1.43.123 import.
 - **LangGraph's own CI** tests 3.10–3.14.
-- **Python 3.15** came out on 2026-10-09. It gets a non-blocking CI job only, because PyYAML 6.0.3 and zstandard 0.25.0 have no 3.15 wheels yet.
+- **Python 3.15** came out on 2026-10-09. On 2026-11-05 the owner decided: Python 3.14 only, and no 3.15 CI job.
 - **Warning filter:** on 3.14, langsmith emits `DeprecationWarning: 'asyncio.iscoroutinefunction' is deprecated`. Filter that warning by name in the pytest config.
 - **3.14 features to use:**
   - `uuid.uuid7()` for time-ordered IDs;
@@ -136,7 +137,7 @@ These are minimum versions; the lockfile pins exact versions.
 
 ### 6.3 Infrastructure
 
-- **Postgres 18**, using the image `pgvector/pgvector:0.8.4-pg18`. pgvector isn't used in v1, but this image keeps the backlog's Store work from needing a different database.
+- **Postgres 18**, using the image `pgvector/pgvector:0.8.4-pg18`. pgvector isn't used in v1, but with this image the Store (P24) can add semantic search without a different database.
 - **Local SQS:** ElasticMQ (`softwaremill/elasticmq-native:1.7.1`, Apache-2.0), which is SQS-compatible.
 - **Runtime image:** `python:3.14-slim` (Debian trixie), built with uv, with `ripgrep` and `git` installed from apt.
 - **Docker:** no daemon was running on this machine on 2026-11-02. Compose and the integration tests need Docker Desktop, OrbStack or colima.
@@ -234,9 +235,9 @@ There's an index on `(status, lease_expires_at)`.
 
 **How migrations run:**
 
-- **The `migrate` command** runs our SQL migrations, then `AsyncPostgresSaver.setup()`.
+- **The `migrate` command** runs our SQL migrations, then `AsyncPostgresSaver.setup()` and `AsyncPostgresStore.setup()`: the checkpoint tables and the tables of the LangGraph Store, which the worker compiles every graph with (P24).
 - **It's a one-shot step** under the migration role, run as a Compose service or a Kubernetes Job. It never runs during startup on every replica.
-- **Autocommit:** `setup()` needs it, because it uses `CREATE INDEX CONCURRENTLY`.
+- **Autocommit:** both `setup()` calls need it, because they use `CREATE INDEX CONCURRENTLY`.
 
 ### 7.4 Retention
 
@@ -267,6 +268,7 @@ It retries on `SerializationFailure` and `DeadlockDetected`. It never deletes fr
   - On success, the run is marked `success`.
   - On an error after the graph's own retries, the attempt count goes up and the run returns to `pending` for recovery.
   - After `APP_MAX_ATTEMPTS` attempts (default 3), the run is marked `failed`, with the error recorded.
+  - When the graph stops at an interrupt, the attempt fails as on an error (`InterruptNotSupportedError`): the worker has no resume value. The run gets a retry, and LangGraph runs only the interrupted node again; the steps that completed do not run again. An interrupt is never a `success` (owner decision 2026-11-05).
 
 ### 8.3 Recovery (the periodic check)
 
@@ -297,7 +299,7 @@ If a step lasts longer than the grace period, Kubernetes sends SIGKILL, and that
 - **Health:** a small FastAPI app on `APP_HEALTH_PORT` serves two endpoints.
   - `/ok` is liveness: the event loop responds.
   - `/ready` is readiness: Postgres answers `SELECT 1`, the pool is open, and the intake loop is alive.
-- **Inspection:** a CLI, `python -m langgraph_postgres_starter runs list|show <run_id>|retry <run_id>`.
+- **Inspection:** a CLI, `python -m langgraph_and_observability runs create <agent> --input <json>|list|show <run_id>|retry <run_id>`.
 
 ## 9. The first agent: Incident Triage
 
@@ -531,6 +533,7 @@ Each row ships as code, a test, and a short note in `docs/practices/`. The core 
 | P21 | Evals gate pull requests | CI job |
 | P22 | Removable example agent | CI job deletes it, and the suite passes |
 | P23 | Cache-friendly prompts | Test: the system prompt is identical across incidents |
+| P24 | Long-term memory in the Postgres Store, on the shared pool | Test: a second thread reads what the first one wrote; tests in PgBouncer mode and with `migrate` twice |
 
 ## 12. Observability and evals
 
@@ -549,6 +552,7 @@ Each row ships as code, a test, and a short note in `docs/practices/`. The core 
   - assessment category;
   - model ID;
   - environment, app version and git SHA.
+- **Who owns which key:** the core's `run_metadata` gives the run ID (also as `session.id`, §12.2), dedup key, agent, environment, app version and git SHA. An agent adds its own keys with `AgentSpec.trace_metadata`, and a core key wins; the example adds cluster, namespace and workload.
 - **Bedrock calls** are traced with `traceable(run_type="llm")`, with token usage.
 - **Projects:** one per environment, `LANGSMITH_PROJECT=<name>-<env>`.
 - **Logs** are structlog JSON and carry run and trace IDs.
@@ -591,12 +595,12 @@ OpenTelemetry is the common pipe. This covers LangSmith's OTel bridge, Phoenix (
 │   ├── design/               this document
 │   ├── plans/                implementation plans
 │   ├── adr/                  0001-template-not-framework.md, ...
-│   ├── practices/            one note per practice (P1–P23)
+│   ├── practices/            one note per practice (P1–P24)
 │   └── guides/               quickstart, run-on-eks, real-mode, customize, upgrade
 ├── scripts/                  rename.py, remove_example.py, send_incident.py
-├── src/langgraph_postgres_starter/
+├── src/langgraph_and_observability/
 │   ├── __main__.py  settings.py  logging.py  ids.py  redaction.py
-│   ├── persistence/          pool.py checkpointer.py serde.py ledger.py migrate.py  migrations/
+│   ├── persistence/          pool.py checkpointer.py store.py resources.py serde.py ledger.py migrate.py  migrations/
 │   ├── worker/               main.py intake.py runs.py recovery.py drain.py health.py cli.py registry.py  migrations/
 │   ├── observability/        langsmith.py metadata.py
 │   └── agents/incident_triage/
@@ -630,7 +634,6 @@ OpenTelemetry is the common pipe. This covers LangSmith's OTel bridge, Phoenix (
 - integration tests with Postgres 18 and ElasticMQ service containers;
 - end-to-end tests: the `kill -9` resume and SIGTERM drain tests against a worker subprocess;
 - a Docker build plus a migration smoke test;
-- a 3.15 job with `continue-on-error`;
 - the removal job;
 - evals (a separate workflow, gated on secrets).
 
@@ -724,13 +727,13 @@ The infrastructure fixtures have no sample app.
 - **Drain:** SIGTERM drains the run after its current step, and another worker resumes it.
 - **Duplicates:** a duplicate message produces one run.
 - **Bad messages:** a bad message goes to the DLQ.
-- **CI:** all required jobs are green, and the 3.15 job reports.
+- **CI:** all required jobs are green.
 - **Practices:** every practice in §11 has code, a test and a note.
 - **Real mode:** a manual check with the owner's AWS, EKS, Datadog and Git access produces a valid result for a real crashed pod. This is documented in `docs/guides/real-mode.md`.
 
 ## 16. Owner decisions
 
-1. **Name:** `langgraph-postgres-starter`.
+1. **Name:** `langgraph-and-observability`.
 2. **First agent:** Incident Triage (2026-11-02). Support Desk is in the backlog, with its earlier decisions kept:
    - the customer confirms actions;
    - Opus 5.5 is the default model.

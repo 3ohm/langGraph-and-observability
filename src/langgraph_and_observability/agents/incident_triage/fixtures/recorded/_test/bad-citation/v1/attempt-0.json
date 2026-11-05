@@ -1,0 +1,10 @@
+{
+  "text": "{\"category\": \"application\", \"summary\": \"unit_price divides by a quantity of zero, so api crashes.\", \"root_cause\": \"An order with quantity 0 reaches unit_price, which divides by it.\", \"confidence\": \"high\", \"evidence\": [{\"id\": \"log:previous:api\", \"why\": \"The ZeroDivisionError.\"}, {\"id\": \"k8s:event:7\", \"why\": \"The container crash loops with exit code 1.\"}, {\"id\": \"dd:event:42\", \"why\": \"The monitor saw the restarts.\"}, {\"id\": \"note:code:unmapped_frames\", \"why\": \"One frame is not in the source.\"}, {\"id\": \"code:snippet:1\", \"why\": \"The division.\"}], \"suspected_code\": [{\"snippet_id\": \"code:snippet:1\", \"path\": \"api/pricing.py\", \"start_line\": 10, \"end_line\": 12, \"symbol\": \"unit_price\"}, {\"snippet_id\": \"code:snippet:2\", \"path\": \"api/main.py\", \"start_line\": 1, \"end_line\": 8, \"symbol\": null}], \"recommended_actions\": [\"Reject orders with quantity 0 before pricing them.\"], \"needs_human\": false}",
+  "stop_reason": "end_turn",
+  "model_id": "anthropic.claude-opus-5-5",
+  "usage": {
+    "input_tokens": 2140,
+    "output_tokens": 610,
+    "cache_read_input_tokens": 702
+  }
+}

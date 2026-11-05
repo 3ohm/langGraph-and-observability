@@ -1,0 +1,111 @@
+{
+  "pods": [
+    {
+      "name": "cart-events-6b8f9d7c4-jq2wz",
+      "namespace": "shop",
+      "node": "ip-10-0-14-87.eu-west-1.compute.internal",
+      "phase": "Running",
+      "containers": [
+        {
+          "name": "cart-events",
+          "image": "123456789012.dkr.ecr.eu-west-1.amazonaws.com/shop/cart-events:3.4.0",
+          "image_id": "123456789012.dkr.ecr.eu-west-1.amazonaws.com/shop/cart-events@sha256:3c3e257b1dd53e1d0b5399a6f99bab0d3cb58988b56dde550376d41e1b54a5bd",
+          "restart_count": 7,
+          "state": "waiting",
+          "waiting_reason": "CrashLoopBackOff",
+          "last_terminated": {
+            "reason": "Error",
+            "exit_code": 1,
+            "signal": null
+          },
+          "ready": false
+        }
+      ],
+      "annotations": {
+        "ad.datadoghq.com/cart-events.logs": "[{\"source\":\"nodejs\",\"service\":\"cart-events\"}]"
+      },
+      "owner": {
+        "kind": "Deployment",
+        "name": "cart-events"
+      }
+    }
+  ],
+  "events": [
+    {
+      "reason": "Pulled",
+      "message": "Container image \"123456789012.dkr.ecr.eu-west-1.amazonaws.com/shop/cart-events:3.4.0\" already present on machine",
+      "type": "Normal",
+      "count": 7,
+      "last_seen": "2026-11-02T09:42:10Z",
+      "involved_kind": "Pod",
+      "involved_name": "cart-events-6b8f9d7c4-jq2wz"
+    },
+    {
+      "reason": "Created",
+      "message": "Created container: cart-events",
+      "type": "Normal",
+      "count": 8,
+      "last_seen": "2026-11-02T09:42:10Z",
+      "involved_kind": "Pod",
+      "involved_name": "cart-events-6b8f9d7c4-jq2wz"
+    },
+    {
+      "reason": "Started",
+      "message": "Started container cart-events",
+      "type": "Normal",
+      "count": 8,
+      "last_seen": "2026-11-02T09:42:10Z",
+      "involved_kind": "Pod",
+      "involved_name": "cart-events-6b8f9d7c4-jq2wz"
+    },
+    {
+      "reason": "BackOff",
+      "message": "Back-off restarting failed container cart-events in pod cart-events-6b8f9d7c4-jq2wz_shop(b8d1b76f-e83d-5e6b-8379-f8479fb7accd)",
+      "type": "Warning",
+      "count": 23,
+      "last_seen": "2026-11-02T09:42:10Z",
+      "involved_kind": "Pod",
+      "involved_name": "cart-events-6b8f9d7c4-jq2wz"
+    },
+    {
+      "reason": "ScalingReplicaSet",
+      "message": "Scaled up replica set cart-events-6b8f9d7c4 from 0 to 1",
+      "type": "Normal",
+      "count": 1,
+      "last_seen": "2026-11-01T16:05:33Z",
+      "involved_kind": "Deployment",
+      "involved_name": "cart-events"
+    }
+  ],
+  "logs": {
+    "cart-events-6b8f9d7c4-jq2wz/cart-events/current": null,
+    "cart-events-6b8f9d7c4-jq2wz/cart-events/previous": "cart-events subscribed to orders.created\norder 418201 summarized: 3 skus, subtotal 54.97\norder 418202 summarized: 1 skus, subtotal 12.5\norder 418204 summarized: 2 skus, subtotal 31.98\n/usr/src/app/src/orders/summary.js:14\n  const skus = order.items.map(skuOf);\n                           ^\n\nTypeError: Cannot read properties of undefined (reading 'map')\n    at summarizeOrder (/usr/src/app/src/orders/summary.js:14:28)\n    at Redis.<anonymous> (/usr/src/app/src/index.js:20:19)\n    at Redis.emit (node:events:518:28)\n    at DataHandler.handleSubscriberReply (/usr/src/app/node_modules/ioredis/built/DataHandler.js:80:32)\n    at DataHandler.returnReply (/usr/src/app/node_modules/ioredis/built/DataHandler.js:47:18)\n    at JavascriptRedisParser.returnReply (/usr/src/app/node_modules/ioredis/built/DataHandler.js:21:22)\n    at JavascriptRedisParser.execute (/usr/src/app/node_modules/redis-parser/lib/parser.js:544:14)\n    at Socket.<anonymous> (/usr/src/app/node_modules/ioredis/built/DataHandler.js:25:20)\n    at Socket.emit (node:events:518:28)\n    at addChunk (node:internal/streams/readable:561:12)\n\nNode.js v22.20.0\n"
+  },
+  "nodes": {
+    "ip-10-0-14-87.eu-west-1.compute.internal": [
+      {
+        "type": "MemoryPressure",
+        "status": "False",
+        "reason": "KubeletHasSufficientMemory"
+      },
+      {
+        "type": "DiskPressure",
+        "status": "False",
+        "reason": "KubeletHasNoDiskPressure"
+      },
+      {
+        "type": "PIDPressure",
+        "status": "False",
+        "reason": "KubeletHasSufficientPID"
+      },
+      {
+        "type": "Ready",
+        "status": "True",
+        "reason": "KubeletReady"
+      }
+    ]
+  },
+  "annotations": {
+    "deployment.kubernetes.io/revision": "23"
+  }
+}

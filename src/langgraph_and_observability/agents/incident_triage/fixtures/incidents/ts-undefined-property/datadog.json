@@ -1,0 +1,27 @@
+{
+  "events": [
+    {
+      "id": "8312004415592873004",
+      "title": "[Triggered on {kube_deployment:payment-settlement}] payment-settlement restarts",
+      "text": "payment-settlement restarted 4 times in the last 30 minutes.",
+      "timestamp": "2026-11-02T10:15:00Z",
+      "tags": [
+        "kube_cluster_name:prod-eu-west-1",
+        "kube_namespace:payments",
+        "kube_deployment:payment-settlement"
+      ],
+      "source": "monitor"
+    },
+    {
+      "id": "8312004415592873005",
+      "title": "Feature flag payment-webhooks-refunds turned on",
+      "text": "The payment provider now sends charge.refunded webhooks to payment-settlement.",
+      "timestamp": "2026-11-02T09:58:12Z",
+      "tags": [
+        "kube_cluster_name:prod-eu-west-1",
+        "kube_namespace:payments"
+      ],
+      "source": "launchdarkly"
+    }
+  ]
+}

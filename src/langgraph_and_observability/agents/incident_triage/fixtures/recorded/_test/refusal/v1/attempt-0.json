@@ -1,0 +1,10 @@
+{
+  "text": "",
+  "stop_reason": "refusal",
+  "model_id": "anthropic.claude-opus-5-5",
+  "usage": {
+    "input_tokens": 2140,
+    "output_tokens": 1,
+    "cache_read_input_tokens": 0
+  }
+}

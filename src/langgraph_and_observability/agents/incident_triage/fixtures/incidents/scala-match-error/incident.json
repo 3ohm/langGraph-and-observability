@@ -1,0 +1,9 @@
+{
+  "version": 1,
+  "source": "manual",
+  "namespace": "fulfillment",
+  "pod": "shipping-rates-7b8c9d6f5-fx9km",
+  "raw": {
+    "fixture_id": "scala-match-error"
+  }
+}

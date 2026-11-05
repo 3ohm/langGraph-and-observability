@@ -1,0 +1,10 @@
+{
+  "text": "{\"category\": \"configuration\", \"summary\": \"checkout-web cannot start: its image checkout-web:3.15.0 is not found in the registry, so container checkout-web in pod checkout-web-7b9d4c6f5-k8m2p waits in ImagePullBackOff and the rollout has been stuck for 20 minutes.\", \"root_cause\": \"The deployment asks for the tag checkout-web:3.15.0, but the release build pushed the image as checkout-web:v3.15.0, with a leading v. The registry has no image with the tag 3.15.0, so every pull fails with not found (ErrImagePull, then ImagePullBackOff), and the new pod never starts. The application code is not involved.\", \"confidence\": \"high\", \"evidence\": [{\"id\": \"k8s:event:6\", \"why\": \"The pull of checkout-web:3.15.0 fails: failed to resolve reference, not found.\"}, {\"id\": \"k8s:status:checkout-web\", \"why\": \"Container checkout-web waits in ImagePullBackOff and has never started.\"}, {\"id\": \"k8s:event:5\", \"why\": \"The kubelet backs off pulling the image (ImagePullBackOff, 86 times).\"}, {\"id\": \"dd:event:8312004415592873032\", \"why\": \"The release build pushed the image with the tag v3.15.0.\"}, {\"id\": \"dd:event:8312004415592873031\", \"why\": \"The Datadog monitor reports that the rollout of checkout-web is stuck.\"}], \"suspected_code\": [], \"recommended_actions\": [\"Set the deployment's image to the tag that was pushed, checkout-web:v3.15.0, or push the image again with the tag 3.15.0.\", \"Make the release build and the deployment use one tag format.\"], \"needs_human\": false}",
+  "stop_reason": "end_turn",
+  "model_id": "anthropic.claude-opus-5-5",
+  "usage": {
+    "input_tokens": 2189,
+    "output_tokens": 730,
+    "cache_read_input_tokens": 731
+  }
+}

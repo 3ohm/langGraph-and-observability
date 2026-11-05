@@ -1,0 +1,10 @@
+{
+  "text": "{\"category\": \"configuration\", \"summary\": \"payments-gateway 2.7.0 cannot start: container gateway in pod payments-gateway-69f8b7c4d-bz7rn waits in CreateContainerConfigError, because the Secret payments-gateway-db has no key DATABASE_URL. The deployment has no available replicas.\", \"root_cause\": \"Release 2.7.0 of payments-gateway reads its database address from DATABASE_URL instead of DB_URL in the Secret payments-gateway-db, but that Secret in namespace payments has no key DATABASE_URL. The kubelet cannot build the container's environment, so the container never starts (CreateContainerConfigError, 14 times) and writes no logs. The Secret was not updated with the release; the code is not at fault.\", \"confidence\": \"high\", \"evidence\": [{\"id\": \"k8s:event:4\", \"why\": \"The kubelet couldn't find key DATABASE_URL in Secret payments/payments-gateway-db, 14 times.\"}, {\"id\": \"k8s:status:gateway\", \"why\": \"Container gateway waits in CreateContainerConfigError and has never started.\"}, {\"id\": \"dd:event:8312004415592873036\", \"why\": \"Release 2.7.0 reads its database address from DATABASE_URL (was DB_URL) in the Secret payments-gateway-db.\"}, {\"id\": \"dd:event:8312004415592873035\", \"why\": \"The Datadog monitor reports that payments-gateway has no available replicas.\"}, {\"id\": \"note:logs:previous_unavailable\", \"why\": \"There is no log: the container never started.\"}], \"suspected_code\": [], \"recommended_actions\": [\"Add the key DATABASE_URL to the Secret payments/payments-gateway-db, with the value of DB_URL, and let the pod start again.\", \"Or roll payments-gateway back to the release before 2.7.0 until the Secret has the key.\", \"Change the Secret in the same change as a release that renames a variable it reads.\"], \"needs_human\": false}",
+  "stop_reason": "end_turn",
+  "model_id": "anthropic.claude-opus-5-5",
+  "usage": {
+    "input_tokens": 1958,
+    "output_tokens": 871,
+    "cache_read_input_tokens": 731
+  }
+}

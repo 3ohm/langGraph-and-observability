@@ -1,0 +1,14 @@
+{
+  "category": "application",
+  "code": {
+    "path": "src/main/java/com/example/billing/InvoiceCalculator.java",
+    "start_line": 19,
+    "end_line": 23,
+    "symbol": "perSeatCents"
+  },
+  "facts": [
+    "ArithmeticException: / by zero",
+    "perSeatCents",
+    "zero seats"
+  ]
+}
