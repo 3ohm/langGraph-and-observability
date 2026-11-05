@@ -409,6 +409,9 @@ _FORK_IMPORTS = [
 ]
 
 
+# The first run below must be a real one: in a fork without the example, the files may
+# hold these imports, and their anchor lines may have changed.
+@needs_example_agent
 def test_remove_example_keeps_a_forks_imports_on_a_later_run(repo_copy):
     # A fork uses an import again that the first run deleted: a later run keeps it.
     first = _run(repo_copy, "scripts/remove_example.py")
