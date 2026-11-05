@@ -28,6 +28,14 @@ repos:
         language: system
         types_or: [python, pyi]
         pass_filenames: false
+      # make pylint runs `uv run pylint` twice: on package code, then on the test modules
+      # with fewer checks. The Makefile keeps the two file lists and the tests' checks.
+      - id: pylint
+        name: pylint
+        entry: make --no-print-directory pylint
+        language: system
+        types_or: [python, pyi]
+        pass_filenames: false
       - id: uv-lock-check
         name: uv lock --check
         entry: uv lock --check

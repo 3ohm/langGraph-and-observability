@@ -39,6 +39,7 @@ dev = [
     "langgraph-cli[inmem]>=0.4.40",
     "mypy>=2.4.1",
     "pre-commit>=4.7.0",
+    "pylint>=4.1.3",
     "ruff>=0.17.3",
 ]
 test = [
@@ -77,6 +78,44 @@ select = ["E", "F", "I", "B", "UP", "ASYNC", "S"]
 "tests/**" = ["S101"]
 "src/langgraph_and_observability/agents/**/tests/**" = ["S101"]
 "src/langgraph_and_observability/agents/**/evals/test_*.py" = ["S101"]
+
+# pylint lints on top of ruff and mypy. `make pylint` (part of `make lint`) runs it twice
+# with these rules: on package code and scripts, then on the test modules, with the checks
+# that pytest idioms trip also turned off (PYLINT_TEST_DISABLE in the Makefile).
+[tool.pylint.main]
+py-version = "3.14"
+# Four processes. More barely help: each process infers the dependencies again.
+jobs = 4
+# A `# pylint: disable=...` comment that suppresses nothing fails the lint.
+fail-on = ["useless-suppression"]
+# The sample apps in fixtures/apps/ (the example agent has some) are input data, not project
+# code: incidents, recorded replies and tests cite their lines, so their text stays as it is.
+# ruff and mypy still check them.
+ignore-paths = ["^src/.*/fixtures/apps/"]
+
+[tool.pylint.format]
+# ruff's line length.
+max-line-length = 100
+
+[tool.pylint.reports]
+score = false
+
+[tool.pylint."messages control"]
+enable = ["useless-suppression"]
+disable = [
+    # Adapters are Protocols, and many have one method (AGENTS.md rule 1); data classes
+    # have none.
+    "too-few-public-methods",
+    # Long parameter lists are keyword-only (after `*`).
+    # too-many-positional-arguments still limits the positional ones.
+    "too-many-arguments",
+    # mypy (strict) checks types. pylint's inference does not narrow after isinstance() or
+    # `x is None or`, nor see pydantic's model_fields as a dict: false positives.
+    "no-member",
+    "not-an-iterable",
+    "unsubscriptable-object",
+    "unsupported-membership-test",
+]
 
 [tool.mypy]
 python_version = "3.14"
