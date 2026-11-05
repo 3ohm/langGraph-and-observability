@@ -5,6 +5,8 @@ cluster, no Datadog and no LangSmith. Everything runs in Docker Compose in simul
 
 ## What you need
 
+- A clone of the repository: `git clone https://github.com/3ohm/langGraph-and-observability.git`.
+  Run the commands below in it.
 - Docker with Compose v2 (Docker Desktop, OrbStack or colima).
 - [uv](https://docs.astral.sh/uv/). `make incident` runs a script with uv, and uv installs
   Python 3.14 when it is missing.

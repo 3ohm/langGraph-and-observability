@@ -1,4 +1,4 @@
-# langgraph-postgres-starter
+# langGraph-and-observability
 
 A template for LangGraph agents that hold up in production, with Postgres persistence and
 LangSmith built in, on Python 3.14. A run survives a crash, a restart or a redeploy, and goes on
@@ -11,7 +11,9 @@ at the deployed commit when the evidence points at the app, and asks Claude on A
 for a typed triage that cites its evidence. It only reads. Fork the repository, keep or remove
 the example, and build your own agent on the same base.
 
-> **Status:** `0.1.0.dev0`, before the first release.
+> **Status:** `0.1.0.dev0`, before the first release. The Python package is
+> `langgraph_postgres_starter`; the distribution, the image and the Kubernetes names use
+> `langgraph-postgres-starter`.
 
 ## What's inside
 
@@ -33,7 +35,9 @@ the example, and build your own agent on the same base.
 
 ## Quickstart
 
-No credentials: Docker and [uv](https://docs.astral.sh/uv/) are enough.
+No credentials: Docker and [uv](https://docs.astral.sh/uv/) are enough. Clone the repository
+(`git clone https://github.com/3ohm/langGraph-and-observability.git`), then run these commands
+in it:
 
 ```bash
 make up                    # build the image; start Postgres, ElasticMQ, migrate, then the worker

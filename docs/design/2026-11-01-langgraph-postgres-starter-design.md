@@ -3,6 +3,7 @@
 - **Date:** 2026-11-01. Version 2 was written on 2026-11-02 after the owner changed the first agent.
 - **Status:** The owner agreed and asked for the implementation plan on 2026-11-02 ("go ahead", "create a plan"). The owner has not reviewed every section. Items marked _(Designer's call)_ are decisions the owner can override.
 - **Name:** `langgraph-postgres-starter`. The Python package is `langgraph_postgres_starter`, and `scripts/rename.py` renames it for forks.
+- **Repository:** [github.com/3ohm/langGraph-and-observability](https://github.com/3ohm/langGraph-and-observability), public since 2026-11-05. The repository name does not change the names in the line above: the distribution, the image and the Kubernetes names stay `langgraph-postgres-starter` (Kubernetes names must be lowercase).
 
 ## 1. What this is and why
 

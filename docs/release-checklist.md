@@ -31,6 +31,10 @@ Evals workflow, `.github/workflows/evals.yml`):
    `BEDROCK_MODEL_ID` where the bare model ID does not run in that Region (for example
    `us.anthropic.claude-opus-5-5`). `JUDGE_MODEL_ID` is optional. Add the secret
    `LANGSMITH_API_KEY` (and the variable `LANGSMITH_ENDPOINT` outside LangSmith's US region).
+   The role's trust policy needs `token.actions.githubusercontent.com:aud` equal to
+   `sts.amazonaws.com`, and `token.actions.githubusercontent.com:sub` matched with `StringLike`
+   against `repo:3ohm/langGraph-and-observability:*` (pull requests and manual runs). The
+   claim keeps the repository name's capital letter, and IAM compares it case-sensitively.
 2. Run the workflow: Actions, Evals, Run workflow (or `gh workflow run evals.yml --ref <branch>`).
 3. Check the scorecard in the job summary: `category_match` at least 0.9, `code_location_hit` at
    least 0.8 and `citations_valid` 1.0. The root-cause judge's score is reported, with no

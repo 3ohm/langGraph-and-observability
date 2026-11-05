@@ -68,7 +68,7 @@ The template keeps a changelog (`CHANGELOG.md`) with SemVer tags. To port a rele
 read its entries, then apply the template's diff between two tags with your names:
 
 ```bash
-git remote add template https://github.com/<owner>/langgraph-postgres-starter.git
+git remote add template https://github.com/3ohm/langGraph-and-observability.git
 git fetch template --tags
 git diff v0.1.0 v0.2.0 \
   | sed -e 's/langgraph_postgres_starter/acme_agents/g' -e 's/langgraph-postgres-starter/acme-agents/g' \
