@@ -19,7 +19,7 @@ from langgraph_and_observability.persistence.migrate import run_migrate
 from langgraph_and_observability.persistence.pool import create_pool, open_pool
 from langgraph_and_observability.settings import load_settings
 from langgraph_and_observability.worker import registry
-from langgraph_and_observability.worker.runs import RunRepo, RunStatus
+from langgraph_and_observability.worker.runs import RunRepo, RunRow, RunStatus
 from tests.graphs.steps import STEPS_SPEC
 
 pytestmark = pytest.mark.integration
@@ -65,11 +65,26 @@ async def _status(dsn: str, run_id: uuid.UUID) -> tuple[str, int]:
     return run.status, run.attempt
 
 
+async def _all_runs(dsn: str) -> list[RunRow]:
+    pool = create_pool(load_settings(database_url=dsn))
+    await open_pool(pool, timeout=30)
+    try:
+        return await RunRepo(pool).list()
+    finally:
+        await pool.close()
+
+
 @pytest.fixture
 def db(fresh_dsn, monkeypatch):
     """APP_DATABASE_URL set to the test database."""
     monkeypatch.setenv("APP_DATABASE_URL", fresh_dsn)
     return fresh_dsn
+
+
+@pytest.fixture
+def steps_agent(monkeypatch):
+    """The test_steps agent registered, as the only built-in agent."""
+    monkeypatch.setattr(registry, "builtin_agents", lambda: [STEPS_SPEC])
 
 
 def test_cli_runs_show_prints_json(db, capsys):
@@ -144,6 +159,82 @@ def test_cli_runs_retry_refuses_run_that_is_not_failed(db, capsys):
     assert _lines(not_retryable.err) == [{"error": "not retryable", "run_id": str(run_id)}]
     assert _lines(not_found.err) == [{"error": "not found", "run_id": str(missing)}]
     assert asyncio.run(_status(db, run_id)) == ("pending", 0)
+
+
+def test_runs_create_adds_a_pending_run(db, steps_agent, capsys):
+    asyncio.run(_seed(db))
+
+    assert main(["runs", "create", AGENT, "--input", json.dumps({"key": "k1"})]) == 0
+
+    out = capsys.readouterr()
+    assert out.err == ""
+    [line] = _lines(out.out)
+    [run] = asyncio.run(_all_runs(db))
+    # Without --dedup-key, the agent's dedup_key gives the key.
+    assert line == {"run_id": str(run.run_id), "created": True, "dedup_key": "test_steps:k1"}
+    assert (run.agent, run.dedup_key, run.status, run.input) == (
+        AGENT,
+        "test_steps:k1",
+        "pending",
+        {"key": "k1"},
+    )
+
+
+def test_runs_create_twice_is_one_run(db, steps_agent, capsys):
+    asyncio.run(_seed(db))
+
+    def create(key: str) -> dict[str, Any]:
+        argv = ["runs", "create", AGENT, "--input", json.dumps({"key": key})]
+        assert main([*argv, "--dedup-key", "manual:1"]) == 0
+        [line] = _lines(capsys.readouterr().out)
+        return line
+
+    # The agent's dedup_key would give two keys; --dedup-key gives one.
+    first, second = create("k1"), create("k2")
+
+    assert first["created"] is True
+    assert first["dedup_key"] == "manual:1"
+    assert second == {**first, "created": False}
+    [run] = asyncio.run(_all_runs(db))
+    assert (str(run.run_id), run.input) == (first["run_id"], {"key": "k1"})
+
+
+def test_runs_create_rejects_bad_input_without_its_values(db, steps_agent, capsys):
+    asyncio.run(_seed(db))
+    # key must be a string; the value that fails holds a secret.
+    bad = json.dumps({"key": {"token": "sk-live-SECRET123"}})
+
+    assert main(["runs", "create", AGENT, "--input", bad]) == 1
+
+    out = capsys.readouterr()
+    assert out.out == ""
+    assert "SECRET123" not in out.err
+    # Where each failure is and why, never the value that failed.
+    assert _lines(out.err) == [
+        {"error": "invalid input", "details": ["key: Input should be a valid string"]}
+    ]
+    assert asyncio.run(_all_runs(db)) == []
+
+
+def test_runs_create_unknown_agent(db, steps_agent, capsys):
+    asyncio.run(_seed(db))
+
+    assert main(["runs", "create", "nope", "--input", json.dumps({"key": "k1"})]) == 1
+
+    out = capsys.readouterr()
+    assert out.out == ""
+    assert _lines(out.err) == [{"error": "unknown agent", "agent": "nope"}]
+    assert asyncio.run(_all_runs(db)) == []
+
+
+def test_runs_create_input_that_is_not_json_is_a_usage_error(capsys):
+    with pytest.raises(SystemExit) as exited:
+        main(["runs", "create", AGENT, "--input", "{'token': 'sk-live-SECRET123'}"])
+
+    assert exited.value.code == 2
+    err = capsys.readouterr().err
+    assert "--input: not valid JSON" in err
+    assert "SECRET123" not in err
 
 
 def test_cli_migrate_components_core(db, capsys):

@@ -227,14 +227,22 @@ def error_fields(exc: BaseException) -> dict[str, str]:
     that failed, which is the run's input.
     """
     if isinstance(exc, ValidationError):
-        failures = exc.errors(include_url=False, include_context=False, include_input=False)
-        count = len(failures)
-        details = "; ".join(
-            f"{'.'.join(map(str, failure['loc'])) or '(root)'}: {failure['msg']}"
-            for failure in failures
-        )
-        plural = "" if count == 1 else "s"
-        message = f"{count} validation error{plural} for {exc.title}: {details}"
+        details = validation_details(exc)
+        plural = "" if len(details) == 1 else "s"
+        message = f"{len(details)} validation error{plural} for {exc.title}: {'; '.join(details)}"
     else:
         message = str(exc)
     return {"type": type(exc).__name__, "message": redact(message)[:_MAX_ERROR_MESSAGE]}
+
+
+def validation_details(exc: ValidationError) -> list[str]:
+    """Each failure of ``exc`` as ``"<loc>: <msg>"``, redacted.
+
+    An item names where the failure is and why, never the value that failed, which can
+    hold secrets. The ``runs create`` command prints these items.
+    """
+    failures = exc.errors(include_url=False, include_context=False, include_input=False)
+    return [
+        redact(f"{'.'.join(map(str, failure['loc'])) or '(root)'}: {failure['msg']}")
+        for failure in failures
+    ]

@@ -1,9 +1,9 @@
 # Customize
 
 A fork usually does three things: renames the package, removes or keeps the example agent, and
-adds its own agent. This guide also shows how to add an evidence collector or a language to the
-example, and how to run without the queue worker. The rules that every change follows are in
-[AGENTS.md](../../AGENTS.md).
+adds its own agent. This guide also shows how to start runs without SQS, how to add an evidence
+collector or a language to the example, and how to run without the queue worker. The rules that
+every change follows are in [AGENTS.md](../../AGENTS.md).
 
 ## Rename the package
 
@@ -97,6 +97,44 @@ fired_at)`. With an `alert_id`, time is ignored: two messages with the same `ale
 run, however far apart. So the `alert_id` must identify one occurrence of an alert, such as the
 alert event's ID, never a stable monitor ID; otherwise every later incident from that monitor is
 dropped as a duplicate of the first. Your agent's `dedup_key` needs the same care.
+
+## Other triggers
+
+The `runs` table is the queue. SQS intake is one producer: it writes a row for each message and
+starts the run at once. Any other producer, such as an HTTP route, a Kubernetes CronJob or the
+`runs create` command, writes a row with `RunRepo.create` (`worker/runs.py`), and the worker's
+recovery loop claims the row within `APP_RECOVERY_INTERVAL_SECONDS` (default 30), when a run slot
+is free. With no `APP_SQS_QUEUE_URL`, the worker runs without intake.
+
+```bash
+python -m <package> runs create my_agent --input '{"service": "checkout"}'
+# {"run_id": "...", "created": true, "dedup_key": "..."}
+```
+
+`runs create` validates the input with the agent's input model and stores what the model dumps,
+as intake does. Without `--dedup-key`, the agent's `dedup_key` gives the key, from the input and
+the current time. A key that already has a run adds no run: the command prints that run's ID with
+`"created": false`. Input that fails validation exits 1 with `"invalid input"` and, for each
+failure, where it is and why, never the value. A route in your own web app does the same; here
+`pool` is a pool from `create_pool` and `open_pool` (`persistence/pool.py`), opened at startup:
+
+```python
+from datetime import UTC, datetime
+
+from fastapi import FastAPI
+
+from <package>.agents.my_agent.spec import MyInput, spec
+from <package>.worker.runs import RunRepo
+
+app = FastAPI()
+
+
+@app.post("/runs", status_code=202)
+async def start_run(body: MyInput) -> dict[str, str | bool]:
+    key = spec.dedup_key(body, datetime.now(UTC))
+    run_id, created = await RunRepo(pool).create(spec.name, key, body.model_dump(mode="json"))
+    return {"run_id": str(run_id), "created": created}
+```
 
 ## Add an evidence collector to the example
 
